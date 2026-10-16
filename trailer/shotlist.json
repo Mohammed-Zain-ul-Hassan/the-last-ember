@@ -1,0 +1,418 @@
+{
+  "fps": 60,
+  "width": 1920,
+  "height": 1080,
+  "bpm": 80,
+  "bar": 3.0,
+  "duration": 177.75,
+  "url": "the-last-ember-xi.vercel.app",
+  "title": "THE LAST EMBER",
+  "logline": "A shadow knight. One fire. One night.",
+  "themes": [
+    {
+      "name": "FIRE",
+      "how": "the hearth is your life and your weapon",
+      "card": [
+        "The hearth is your life, your weapon, your story.",
+        "Feed it embers. Carry its last flame."
+      ]
+    },
+    {
+      "name": "SHADOW",
+      "how": "they rise from the shadows the fire throws",
+      "card": [
+        "Enemies rise from the shadows the fire throws.",
+        "And you are a shadow, guarding the light."
+      ]
+    },
+    {
+      "name": "TIME",
+      "how": "one night, hour by hour, until dawn",
+      "card": [
+        "Each level is one hour of a single night, 7 PM to dawn.",
+        "Between the hours, the past returns."
+      ]
+    }
+  ],
+  "shots": [
+    {
+      "id": "hook",
+      "kind": "gameplay",
+      "start": 0.0,
+      "dur": 6.0,
+      "src": "clips/16_11pm_embers_charge.mp4",
+      "in": 10.5,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Hook: a charged shadow rend at the hearth, ring of shadow, crawler; impact on frame 1"
+    },
+    {
+      "id": "title",
+      "kind": "title",
+      "start": 6.0,
+      "dur": 5.25,
+      "raw": false,
+      "why": "Title: THE LAST EMBER, logline, theme chips FIRE / SHADOW / TIME",
+      "src": "clips/01_title_oath.mp4",
+      "in": 1.0
+    },
+    {
+      "id": "mem_oath",
+      "kind": "scene",
+      "start": 11.25,
+      "dur": 5.25,
+      "src": "clips/10_memory_oath.mp4",
+      "in": 1.4,
+      "speed": 1.0,
+      "raw": false,
+      "why": "Story: the oath, the king's blade on the kneeling knight",
+      "subtitle": "Long ago, he swore to keep the fire.",
+      "kicker": "a memory"
+    },
+    {
+      "id": "card_fire",
+      "kind": "card",
+      "start": 16.5,
+      "dur": 5.25,
+      "raw": false,
+      "why": "Theme 1 explainer: Fire, literal",
+      "theme": 0
+    },
+    {
+      "id": "b1_sunset",
+      "kind": "gameplay",
+      "start": 21.75,
+      "dur": 15.75,
+      "src": "clips/02_7pm_sunset_combat.mp4",
+      "in": 4.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Learn: 7 PM sunset on the hearth grounds; the first shades; the knight's moveset"
+    },
+    {
+      "id": "b1_embers",
+      "kind": "gameplay",
+      "start": 37.5,
+      "dur": 9.0,
+      "src": "clips/16_11pm_embers_charge.mp4",
+      "in": 1.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Learn: the hearth burning, embers, fighting at the fire"
+    },
+    {
+      "id": "card_shadow",
+      "kind": "card",
+      "start": 46.5,
+      "dur": 5.25,
+      "raw": false,
+      "why": "Theme 2 explainer: Shadow, literal",
+      "theme": 1
+    },
+    {
+      "id": "b2_rise",
+      "kind": "gameplay",
+      "start": 51.75,
+      "dur": 14.25,
+      "src": "clips/03_9pm_shades_rise.mp4",
+      "in": 4.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Mastery: 9 PM, shades rise from the cast shadows, aerials and slashes"
+    },
+    {
+      "id": "b2_crawlers",
+      "kind": "gameplay",
+      "start": 66.0,
+      "dur": 7.5,
+      "src": "clips/04_11pm_hearth_falters.mp4",
+      "in": 2.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Mastery: 11 PM, crawlers and lantern-eaters; the hearth falters"
+    },
+    {
+      "id": "mem_faces",
+      "kind": "scene",
+      "start": 73.5,
+      "dur": 4.5,
+      "src": "clips/11_memory_faces.mp4",
+      "in": 1.0,
+      "speed": 1.0,
+      "raw": false,
+      "why": "Story: their faces at the hearth",
+      "subtitle": "They slept safe because he kept the fire.",
+      "kicker": "a memory"
+    },
+    {
+      "id": "card_time",
+      "kind": "card",
+      "start": 78.0,
+      "dur": 5.25,
+      "raw": false,
+      "why": "Theme 3 explainer: Time, literal",
+      "theme": 2
+    },
+    {
+      "id": "b3_hour",
+      "kind": "gameplay",
+      "start": 83.25,
+      "dur": 12.75,
+      "src": "clips/16_11pm_embers_charge.mp4",
+      "in": 16.6,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Time: 11 PM, the hour runs, the hearth marker, charged rends"
+    },
+    {
+      "id": "mem_fireout",
+      "kind": "scene",
+      "start": 96.0,
+      "dur": 5.25,
+      "src": "clips/12_memory_fire_out.mp4",
+      "in": 2.0,
+      "speed": 1.0,
+      "raw": false,
+      "why": "Story: he closed his eyes; the fire went out",
+      "subtitle": "One night, he closed his eyes.",
+      "kicker": "a memory"
+    },
+    {
+      "id": "midnight",
+      "kind": "scene",
+      "start": 101.25,
+      "dur": 4.5,
+      "src": "clips/05_midnight_torch.mp4",
+      "in": 3.0,
+      "speed": 1.0,
+      "raw": false,
+      "why": "Midnight: the hearth dies; he lights a torch from its last flame",
+      "kicker": "midnight"
+    },
+    {
+      "id": "e_city",
+      "kind": "gameplay",
+      "start": 105.75,
+      "dur": 6.0,
+      "src": "clips/06_1am_carrying_flame.mp4",
+      "in": 0.5,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Escalation: 1 AM, the lower city, the torch swings every shadow"
+    },
+    {
+      "id": "e_roofs",
+      "kind": "gameplay",
+      "start": 111.75,
+      "dur": 4.5,
+      "src": "clips/06_1am_carrying_flame.mp4",
+      "in": 6.5,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Escalation: rooftops, lantern-eater bolts"
+    },
+    {
+      "id": "e_wall",
+      "kind": "gameplay",
+      "start": 116.25,
+      "dur": 4.5,
+      "src": "clips/15_5am_city_wall.mp4",
+      "in": 0.5,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Escalation: 5 AM, the city wall, the torch"
+    },
+    {
+      "id": "e_lanterns",
+      "kind": "gameplay",
+      "start": 120.75,
+      "dur": 3.0,
+      "src": "clips/15_5am_city_wall.mp4",
+      "in": 11.5,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Escalation: lanterns over the wall walk, bolts"
+    },
+    {
+      "id": "e_slash",
+      "kind": "gameplay",
+      "start": 123.75,
+      "dur": 3.0,
+      "src": "clips/03_9pm_shades_rise.mp4",
+      "in": 19.5,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Escalation: a slash trail through a shade"
+    },
+    {
+      "id": "e_crawler",
+      "kind": "gameplay",
+      "start": 126.75,
+      "dur": 3.0,
+      "src": "clips/04_11pm_hearth_falters.mp4",
+      "in": 16.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Escalation: a crawler pounces, the cleave answers"
+    },
+    {
+      "id": "e_sunset",
+      "kind": "gameplay",
+      "start": 129.75,
+      "dur": 2.25,
+      "src": "clips/02_7pm_sunset_combat.mp4",
+      "in": 20.5,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Escalation: a dash-strike at the hearth"
+    },
+    {
+      "id": "e_ring",
+      "kind": "gameplay",
+      "start": 132.0,
+      "dur": 2.25,
+      "src": "clips/04_11pm_hearth_falters.mp4",
+      "in": 22.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Escalation: lantern bolts at the falling hearth"
+    },
+    {
+      "id": "e_nave",
+      "kind": "gameplay",
+      "start": 134.25,
+      "dur": 2.25,
+      "src": "clips/07_3am_great_shade.mp4",
+      "in": 30.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Escalation: the cathedral nave, torch and lanterns"
+    },
+    {
+      "id": "e_last",
+      "kind": "gameplay",
+      "start": 136.5,
+      "dur": 3.0,
+      "src": "clips/02_7pm_sunset_combat.mp4",
+      "in": 26.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Escalation: the last breath before the boss"
+    },
+    {
+      "id": "climax",
+      "kind": "gameplay",
+      "start": 139.5,
+      "dur": 21.0,
+      "src": "clips/07_3am_great_shade.mp4",
+      "in": 8.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Climax: one uninterrupted 21 s take: the Hollow Marshal, his cry, the waves, the kill"
+    },
+    {
+      "id": "mem_shadow",
+      "kind": "scene",
+      "start": 160.5,
+      "dur": 4.5,
+      "src": "clips/14_memory_shadow.mp4",
+      "in": 3.5,
+      "speed": 1.0,
+      "raw": false,
+      "why": "Story: he became what took them; his eye opens",
+      "subtitle": "He did not die that night. He became the dark.",
+      "kicker": "a memory"
+    },
+    {
+      "id": "dawn",
+      "kind": "scene",
+      "start": 165.0,
+      "dur": 4.5,
+      "src": "clips/08_dawn_light_ending.mp4",
+      "in": 9.5,
+      "speed": 1.0,
+      "raw": false,
+      "why": "Aftermath: dawn, the choice, he steps into the light",
+      "kicker": "dawn"
+    },
+    {
+      "id": "m_fire",
+      "kind": "gameplay",
+      "start": 169.5,
+      "dur": 1.0,
+      "src": "clips/04_11pm_hearth_falters.mp4",
+      "in": 24.5,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Theme montage: FIRE"
+    },
+    {
+      "id": "m_shadow",
+      "kind": "gameplay",
+      "start": 170.5,
+      "dur": 1.0,
+      "src": "clips/03_9pm_shades_rise.mp4",
+      "in": 26.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Theme montage: SHADOW"
+    },
+    {
+      "id": "m_time",
+      "kind": "gameplay",
+      "start": 171.5,
+      "dur": 1.0,
+      "src": "clips/15_5am_city_wall.mp4",
+      "in": 9.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Theme montage: TIME"
+    },
+    {
+      "id": "end",
+      "kind": "end",
+      "start": 172.5,
+      "dur": 5.25,
+      "raw": false,
+      "why": "End card: name, play link, themes, Built in 3 days with Claude Code; held 5.25 s"
+    }
+  ],
+  "overlays": [
+    {
+      "kind": "lowerThird",
+      "start": 22.5,
+      "dur": 6.75,
+      "theme": 0
+    },
+    {
+      "kind": "lowerThird",
+      "start": 52.5,
+      "dur": 6.75,
+      "theme": 1
+    },
+    {
+      "kind": "lowerThird",
+      "start": 84.0,
+      "dur": 6.75,
+      "theme": 2
+    },
+    {
+      "kind": "tag",
+      "start": 169.5,
+      "dur": 1.0,
+      "theme": 0
+    },
+    {
+      "kind": "tag",
+      "start": 170.5,
+      "dur": 1.0,
+      "theme": 1
+    },
+    {
+      "kind": "tag",
+      "start": 171.5,
+      "dur": 1.0,
+      "theme": 2
+    }
+  ]
+}

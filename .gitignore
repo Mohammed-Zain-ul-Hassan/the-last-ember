@@ -28,3 +28,9 @@ trailer/raw/*.mp4
 trailer/raw/*.h264
 trailer/raw/*.json
 trailer/work/
+
+# trailer edit: dependencies, linked clips, renders and the rendered score are regenerable
+trailer/node_modules/
+trailer/public/clips/
+trailer/out/
+trailer/music/*.wav
