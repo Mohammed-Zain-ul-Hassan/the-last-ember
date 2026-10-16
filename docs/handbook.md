@@ -56,6 +56,17 @@ Three themes are announced on the day of the event. At least one must be used; u
 
 The top 5 games chosen from the trailers are shortlisted for the judges to play and select the winners.
 
+## Orientation deck (Day 1, read 2026-10-16) - authoritative where it differs
+- **Rules:** (01) any engine, any assets. (02) no stealing. So CC0 / paid-licensed / AI-generated assets are fine;
+  ripped or unlicensed assets and copied code/characters are not. Keep logging sources in `ASSETS.md`.
+- **Organisers' picks:** Phaser, Kaboom.js, Three.js, HTML5 + JS (web builds are clearly expected).
+- **Trailer:** 3 minutes long, 2 minutes gameplay, 5 shortlisted.
+- **Themes != genres.** Themes must be incorporated into the **gameplay, storyline and atmosphere**. Story counts.
+- **Themes:** 01 Fire, 02 Shadow, 03 Time.
+- Demo game shown: https://gamebuzz-one.vercel.app/ (a trivia party game, used for icebreaking; a vibe-coded web
+  game on Vercel, not a quality bar).
+- Not in the deck: rubric weights and submission format. Those come from the handbook above.
+
 ## Open questions for the organisers
 - Are web builds acceptable for the judges' play session? How do judges play (browser or download)?
 - Do CC0 packs, Mixamo animations, or AI-generated assets count as plagiarism?
