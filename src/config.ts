@@ -17,12 +17,12 @@ export const CONFIG = {
     // light radius (m) on the ground
     radiusMin: 10,
     radiusMax: 21,
-    emberFuel: 4, // fuel returned per freed shade
-    feedDrain: 2.6, // fuel/s drained per shade feeding on the hearth
+    emberFuel: 5, // fuel returned per freed shade
+    feedDrain: 2.0, // fuel/s drained per shade feeding on the hearth
   },
 
   flare: {
-    cost: 14, // fuel (before midnight) or torch embers (after)
+    cost: 12, // fuel (before midnight) or torch embers (after)
     cooldown: 3.2,
     duration: 1.5,
     height: 9, // flame leaps above every stone: all shadows snap short
@@ -80,7 +80,7 @@ export const CONFIG = {
     wisp: { hp: 1, speed: 3.6, radius: 0.32, burn: 1.4, scale: 0.65 },
     shade: { hp: 3, speed: 2.7, radius: 0.45, burn: 1, scale: 1 },
     brute: { hp: 9, speed: 1.9, radius: 0.75, burn: 0.45, scale: 1.65 },
-    boss: { hp: 46, speed: 2.1, radius: 1.5, burn: 1.6, scale: 3.4 },
+    boss: { hp: 110, speed: 2.3, radius: 1.5, burn: 0.55, scale: 3.4 },
   },
 
   boss: {
@@ -110,10 +110,10 @@ export const CONFIG = {
 
   camera: {
     fov: 30,
-    distance: 50,
-    pitch: 0.98, // ~56 degrees down
+    distance: 37,
+    pitch: 0.96, // ~55 degrees down
     yaw: 0.0,
-    follow: 0.35, // how far the camera leans toward the knight (0 = hearth, 1 = knight)
+    follow: 0.5, // how far the camera leans toward the knight (0 = hearth, 1 = knight)
     lerp: 3.2,
   },
 

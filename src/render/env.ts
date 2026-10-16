@@ -304,7 +304,9 @@ export function buildEnv(props: Prop[]): Env {
     [1.38, 0.42],
     [1.42, 0.05],
     [1.5, 0.0],
-  ].map(([x, y]) => new THREE.Vector2(x, y));
+  ]
+    .reverse()
+    .map(([x, y]) => new THREE.Vector2(x, y));
   const bowl = new THREE.Mesh(new THREE.LatheGeometry(bowlProfile, 24), mat);
   bowl.castShadow = false;
   bowl.receiveShadow = true;

@@ -47,7 +47,7 @@ export class KnightView {
   private dissolve = 0;
 
   constructor() {
-    const rim = new THREE.Color(0.06, 0.055, 0.1);
+    const rim = new THREE.Color(0.13, 0.11, 0.18);
     const mat = (this.mat = rimMaterial('#0d0c11', rim));
     const cloth = rimMaterial('#060508', new THREE.Color(0.03, 0.02, 0.05), 0.95, 0);
     const add = (geo: THREE.BufferGeometry, parent: THREE.Object3D, x: number, y: number, z: number, m = mat) => {
@@ -133,7 +133,15 @@ export class KnightView {
 
   setTorch(on: boolean): void {
     this.torch.visible = on;
+    // with the light in his own hand his body would shadow the ground at his feet: the sim says he casts none
+    if (on !== this.castsOff) {
+      this.castsOff = on;
+      this.root.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) o.castShadow = !on;
+      });
+    }
   }
+  private castsOff = false;
 
   setDissolve(v: number): void {
     this.dissolve = v;
@@ -281,8 +289,8 @@ export class ShadesView {
     this.bodies.frustumCulled = false;
     this.group.add(this.bodies);
 
-    const eyeGeo = new THREE.SphereGeometry(0.055, 6, 4);
-    eyeGeo.scale(1.5, 0.7, 1);
+    const eyeGeo = new THREE.SphereGeometry(0.075, 6, 4);
+    eyeGeo.scale(1.7, 0.75, 1);
     const eyeMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
     this.eyes = new THREE.InstancedMesh(eyeGeo, eyeMat, max * 2);
     this.eyes.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 6), 3);
@@ -342,7 +350,7 @@ export class ShadesView {
       // eyes: two embers in the hood; they flare during a wind-up
       const headY = y + 1.3 * sc * sy;
       const fw = 0.3 * sc;
-      const intensity = (s.state === 'windup' ? 4 + Math.min(1, s.stateT / 0.4) * 6 : 2.6) * alpha;
+      const intensity = (s.state === 'windup' ? 7 + Math.min(1, s.stateT / 0.4) * 10 : 5) * alpha;
       for (const side of [-1, 1]) {
         const ox = Math.cos(s.facing) * side * 0.09 * sc;
         const oz = -Math.sin(s.facing) * side * 0.09 * sc;

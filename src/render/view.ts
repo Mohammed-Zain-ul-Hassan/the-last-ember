@@ -143,6 +143,7 @@ export class View {
   readonly hemi: THREE.HemisphereLight;
   readonly ridge: THREE.Mesh;
   private halo: THREE.Sprite;
+  private knightGlow: THREE.Mesh;
   private fog: THREE.FogExp2;
   private camTarget = new THREE.Vector3();
   private camPos = new THREE.Vector3();
@@ -231,7 +232,7 @@ export class View {
     this.halo = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: haloTex,
-        color: new THREE.Color(2.4, 0.9, 0.3),
+        color: new THREE.Color(1.1, 0.38, 0.1),
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         transparent: true,
@@ -240,6 +241,21 @@ export class View {
     );
     this.halo.scale.set(5, 5, 5);
     this.scene.add(this.halo);
+
+    // a faint pool under the knight so he never disappears into a shadow
+    this.knightGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.6, 2.6),
+      new THREE.MeshBasicMaterial({
+        map: haloTex,
+        color: new THREE.Color(0.32, 0.2, 0.12),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+      }),
+    );
+    this.knightGlow.rotation.x = -Math.PI / 2;
+    this.knightGlow.position.y = 0.04;
+    this.scene.add(this.knightGlow);
 
     const k = world.knight;
     this.camTarget.set(k.x * CONFIG.camera.follow, 0, k.z * CONFIG.camera.follow);
@@ -395,26 +411,27 @@ export class View {
     this.fireLight.distance = reach * 1.18;
     // intensity scaled so the edge of the reach is still clearly lit
     const base = (torchMode ? 2.2 : 1.6) * Math.pow(reach, 1.7);
-    this.fireLight.intensity = lit ? base * flick * (1 + fk * 1.2) * (torchMode ? 1 : this.hearthPower) : 0;
-    this.fireLight.color.setRGB(1, 0.5 + fk * 0.15, 0.2 + fk * 0.1);
+    const sunUp = world.chapter.sunset && world.sun.on ? Math.min(1, world.sun.elev / 0.08) : 0;
+    this.fireLight.intensity = lit ? base * flick * (1 + fk * 1.2) * (torchMode ? 1 : this.hearthPower) * (1 - sunUp * 0.55) : 0;
+    this.fireLight.color.setRGB(1, 0.38 + fk * 0.15, 0.1 + fk * 0.08);
 
     // --- flame particles
     if (this.hearthLit && !torchMode) {
       const fuelPow = Math.min(1.4, (0.35 + (F.h - CONFIG.hearth.heightMin) / 2.5) * this.hearthPower + fk * 1.6);
       this.fx.flame(0, 0.45, 0, fuelPow, realDt, 0.7);
       this.halo.position.set(0, 1.2 + fuelPow * 0.6, 0);
-      const hs = 4 + fuelPow * 3 + fk * 6;
+      const hs = (3 + fuelPow * 2.2 + fk * 5) * Math.min(1, this.hearthPower * 1.4);
       this.halo.scale.set(hs, hs, hs);
       this.halo.visible = true;
       this.env.coalMat.color.setRGB(3 * this.hearthPower + 0.3, 0.8 * this.hearthPower + 0.05, 0.15);
     } else {
       this.halo.visible = false;
-      this.env.coalMat.color.setRGB(this.hearthLit ? 0.6 : 0.12, this.hearthLit ? 0.12 : 0.02, 0.01);
+      this.env.coalMat.color.setRGB(this.hearthLit ? 0.5 : 0.05, this.hearthLit ? 0.06 : 0.012, 0.004);
     }
     if (torchMode && lit) {
       const tip = new THREE.Vector3();
       this.knight.torchTip.getWorldPosition(tip);
-      this.fx.flame(tip.x, tip.y - 0.05, tip.z, 0.35 + fk * 1.2, realDt, 0.12);
+      this.fx.flame(tip.x, tip.y - 0.05, tip.z, 0.2 + fk * 1.0, realDt, 0.08);
       // smoke off the gauntlet: story only
       if (Math.random() < realDt * 3) {
         this.fx.smoke.spawn({ x: tip.x, y: tip.y - 0.5, z: tip.z, vy: 0.6, life: 1.4, size: 0.3, sizeEnd: 0.9, r: 0.05, g: 0.045, b: 0.05, alpha: 0.4, curl: 1 });
@@ -487,8 +504,9 @@ export class View {
       this.sun.target.position.set(0, 0, 0);
       this.sun.target.updateMatrixWorld();
       const e = S.elev;
-      this.sun.intensity = world.mode === 'dawn' ? 1.2 + e * 6 : Math.min(2.2, e * 20);
-      this.sun.color.setRGB(1, 0.55 + e * 1.4, 0.32 + e * 1.2);
+      // grazing light barely lights flat ground, so the low sun is pushed hard for the look
+      this.sun.intensity = world.mode === 'dawn' ? 9 + e * 25 : 16 * Math.min(1, e / 0.05);
+      this.sun.color.setRGB(1, 0.33 + e * 1.2, 0.16 + e * 0.9);
       this.sun.shadow.autoUpdate = true;
       this.ridge.visible = world.mode === 'dawn';
       this.env.skyUniforms.uSunDir.value.set(S.dx, Math.max(0.02, Math.sin(S.elev)), S.dz);
@@ -503,6 +521,9 @@ export class View {
     this.env.skyUniforms.uTime.value = this.time;
 
     // --- actors
+    this.knightGlow.position.x = k.x;
+    this.knightGlow.position.z = k.z;
+    this.knightGlow.visible = k.state !== 'dead' && this.dissolve < 0.5;
     this.knight.setDissolve(this.dissolve);
     this.knight.update(k, realDt, torchMode && lit && world.mode !== 'hearth' ? true : this.torchLit);
     this.shades.update(world.shades, this.time);

@@ -54,8 +54,8 @@ export function createPost(canvasHost: HTMLElement, scene: THREE.Scene, camera: 
   });
   const tilt = new TiltShiftEffect({ offset: 0.04, rotation: 0, focusArea: 0.55, feather: 0.32, resolutionScale: 0.5 });
   const vignette = new VignetteEffect({ offset: 0.28, darkness: 0.72 });
-  const tone = new ToneMappingEffect({ mode: ToneMappingMode.AGX });
-  const grade = new HueSaturationEffect({ saturation: 0.08, hue: 0 });
+  const tone = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
+  const grade = new HueSaturationEffect({ saturation: 0.18, hue: 0 });
   const contrast = new BrightnessContrastEffect({ brightness: 0, contrast: 0.06 });
   const noise = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY, premultiply: true });
   noise.blendMode.opacity.value = 0.18;

@@ -63,7 +63,7 @@ export const CHAPTERS: Chapter[] = [
     lines: ['The flame is lower now, and every shadow is longer.', 'They remember the way in.'],
     mode: 'hearth',
     duration: 75,
-    fuelDrain: 0.7,
+    fuelDrain: 0.55,
     dim: 0.32,
     spawn: { start: 0.9, end: 1.7, delay: 2 },
     kinds: { wisp: 3, shade: 4, brute: 1.2 },

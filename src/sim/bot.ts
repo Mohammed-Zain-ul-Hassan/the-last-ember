@@ -64,7 +64,7 @@ export class Bot {
     const near = alive.filter((s) => Math.hypot(s.x - w.fire.x, s.z - w.fire.z) < w.fire.r * 1.25 && !s.lit).length;
     const feeding = alive.filter((s) => s.state === 'feed').length;
     const res = hearth ? w.fuel : w.torchEmbers;
-    if (this.flareWait <= 0 && w.flareCd <= 0 && res > CONFIG.flare.cost + 10 && (near >= 4 || feeding >= 2 || (w.boss && w.boss.state !== 'dead' && near >= 1))) {
+    if (this.flareWait <= 0 && w.flareCd <= 0 && res > CONFIG.flare.cost + 10 && (near >= 5 || feeding >= 2 || (w.boss && w.boss.state !== 'dead' && near >= 1))) {
       out.flare = true;
       this.flareWait = 2.5;
     }
@@ -93,6 +93,12 @@ export class Bot {
     const dx = target.x - k.x;
     const dz = target.z - k.z;
     const d = Math.hypot(dx, dz);
+    // the boss: circle it at a distance, so the torch swings the stones' shadows off it; strike only while it burns
+    if (target.kind === 'boss' && (!target.lit || target.state === 'windup')) {
+      const a = Math.atan2(k.x - target.x, k.z - target.z) + dt * 1.2;
+      const r = 5.2;
+      return this.moveTo(out, k, target.x + Math.sin(a) * r, target.z + Math.cos(a) * r, 1, target);
+    }
     out.aimX = target.x;
     out.aimZ = target.z;
     const reach = 2.2 + target.r;

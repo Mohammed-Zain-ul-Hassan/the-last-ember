@@ -94,6 +94,10 @@ export class Game {
     window.addEventListener('pointerdown', () => this.audio.unlock(), { once: true });
 
     if (flags.skipTo) {
+      if (flags.skipTo === 'midnight') {
+        this.skipTo('midnight');
+        return;
+      }
       const i = chapterIndex(flags.skipTo);
       if (i >= 0) {
         this.beginChapter(i, true);
@@ -201,7 +205,7 @@ export class Game {
   }
 
   skipTo(id: string | number): void {
-    const i = typeof id === 'number' ? id : chapterIndex(id);
+    const i = id === 'midnight' ? chapterIndex('11pm') : typeof id === 'number' ? id : chapterIndex(id);
     if (i < 0) return;
     this.carryAtStart = {
       fuel: Math.max(60, this.world.fuel),
