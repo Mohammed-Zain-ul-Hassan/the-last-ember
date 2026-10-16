@@ -38,8 +38,9 @@ const names = args[0] === 'all' ? Object.keys(CLIPS) : args;
 
 const browser = await chromium.launch({
   headless: true,
-  channel: 'chromium', // new headless: real GPU compositor
-  args: ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=metal', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'],
+  // new headless: real GPU compositor. Windows uses installed Chrome (Playwright's Chromium can fail to start there)
+  channel: process.env.TRAILER_CHANNEL ?? (process.platform === 'win32' ? 'chrome' : 'chromium'),
+  args: ['--enable-gpu', '--ignore-gpu-blocklist', `--use-angle=${process.platform === 'darwin' ? 'metal' : process.platform === 'win32' ? 'd3d11' : 'gl'}`, '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'],
 });
 const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
 
@@ -54,7 +55,7 @@ for (const name of names) {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   const t0 = Date.now();
-  await page.goto(`${BASE}?debug=1&trailer=1&capture=1&${clip.q}`);
+  await page.goto(`${BASE}?debug=1&trailer=1&capture=1&${clip.q}`, { timeout: 120000 }); // dev-server loads can take ~20 s
   await page.waitForFunction(() => window.__trailer?.ready && window.__game, null, { timeout: 60000 });
   const r = await page.evaluate(
     async ({ setup, secs, name }) => {
