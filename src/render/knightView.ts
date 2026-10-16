@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { CFG } from '../config';
 import type { Knight } from '../sim/world';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Flame } from './flame';
 import type { Particles } from './particles';
 import { rimify } from './rim';
-import { auraShellMaterial, SHADOW, shadowify } from './shadowBody';
+import { SHADOW, shadowify } from './shadowBody';
 import { glowTexture, tatterTexture } from './textures';
 
 // The shadow knight: living shadow in the shape of a knight. Built from primitives facing +x; facing is applied with
@@ -16,7 +17,6 @@ const DARK = shadowify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughne
 const STEEL = rimify(new THREE.MeshStandardMaterial({ color: 0x1d1c26, roughness: 0.18, metalness: 0.95 }), 1.3, 'steel');
 const EYE = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 2.2, 4.8), toneMapped: false, transparent: true });
 const EDGE = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.9, 2.6), toneMapped: false, transparent: true });
-const SHELL = auraShellMaterial(0.028);
 
 function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
   const m = new THREE.Mesh(geo, mat);
@@ -27,8 +27,8 @@ function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 
 
 function limb(len: number, r0: number, r1 = r0 * 0.8, mat: THREE.Material = BODY): { pivot: THREE.Group; end: THREE.Group } {
   const pivot = new THREE.Group();
-  pivot.add(mesh(new THREE.CylinderGeometry(r1, r0, len, 8), mat, 0, -len / 2, 0));
-  pivot.add(mesh(new THREE.SphereGeometry(r0 * 1.05, 8, 6), mat));
+  pivot.add(mesh(new THREE.CylinderGeometry(r1, r0, len, 18, 1), mat, 0, -len / 2, 0));
+  pivot.add(mesh(new THREE.SphereGeometry(r0 * 1.05, 18, 12), mat));
   const end = new THREE.Group();
   end.position.y = -len;
   pivot.add(end);
@@ -38,8 +38,8 @@ function limb(len: number, r0: number, r1 = r0 * 0.8, mat: THREE.Material = BODY
 /** A tube along a curve that tapers to a point: horns. */
 function horn(points: THREE.Vector3[], r: number): THREE.BufferGeometry {
   const curve = new THREE.CatmullRomCurve3(points);
-  const tub = 16;
-  const rad = 6;
+  const tub = 24;
+  const rad = 12;
   const g = new THREE.TubeGeometry(curve, tub, r, rad, false);
   const pos = g.attributes.position as THREE.BufferAttribute;
   const c = new THREE.Vector3();
@@ -177,30 +177,30 @@ export class KnightView {
       const shin = limb(0.54, 0.1, 0.13);
       thigh.pivot.position.set(0, 1.1, z);
       thigh.end.add(shin.pivot);
-      shin.end.add(mesh(new THREE.BoxGeometry(0.34, 0.1, 0.17), BODY, 0.08, 0.03, 0));
+      shin.end.add(mesh(new RoundedBoxGeometry(0.34, 0.1, 0.17, 2, 0.035), BODY, 0.08, 0.03, 0));
       this.body.add(thigh.pivot);
       this.legs.push({ thigh: thigh.pivot, knee: shin.pivot });
     }
     this.chest.position.y = 1.12;
     this.body.add(this.chest);
-    this.chest.add(mesh(new THREE.CylinderGeometry(0.25, 0.42, 0.46, 10, 1, true), DARK, 0, -0.06, 0));
-    const torso = mesh(new THREE.CylinderGeometry(0.42, 0.2, 0.82, 10), BODY, 0, 0.45, 0);
+    this.chest.add(mesh(new THREE.CylinderGeometry(0.25, 0.42, 0.46, 28, 1, true), DARK, 0, -0.06, 0));
+    const torso = mesh(new THREE.CylinderGeometry(0.42, 0.2, 0.82, 28, 3), BODY, 0, 0.45, 0);
     torso.scale.z = 0.68;
     this.chest.add(torso);
     for (const z of [0.33, -0.33]) {
-      const p1 = mesh(new THREE.SphereGeometry(0.24, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), BODY, -0.03, 0.78, z);
+      const p1 = mesh(new THREE.SphereGeometry(0.24, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.6), BODY, -0.03, 0.78, z);
       p1.scale.set(1.3, 1.0, 1.05);
-      const p2 = mesh(new THREE.SphereGeometry(0.2, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), BODY, -0.05, 0.68, z * 1.08);
+      const p2 = mesh(new THREE.SphereGeometry(0.2, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), BODY, -0.05, 0.68, z * 1.08);
       p2.scale.set(1.25, 0.9, 1);
-      const spike = mesh(new THREE.ConeGeometry(0.05, 0.3, 6), BODY, -0.08, 0.99, z);
+      const spike = mesh(new THREE.ConeGeometry(0.05, 0.3, 12), BODY, -0.08, 0.99, z);
       spike.rotation.z = 0.5;
       this.chest.add(p1, p2, spike);
     }
     this.head.position.set(0.03, 0.98, 0);
     this.chest.add(this.head);
-    this.head.add(mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.42, 10), BODY, 0, 0.12, 0));
-    this.head.add(mesh(new THREE.ConeGeometry(0.155, 0.22, 10), BODY, 0, 0.44, 0));
-    this.head.add(mesh(new THREE.BoxGeometry(0.1, 0.06, 0.34), BODY, 0.14, 0.2, 0));
+    this.head.add(mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.42, 24), BODY, 0, 0.12, 0));
+    this.head.add(mesh(new THREE.ConeGeometry(0.155, 0.22, 24), BODY, 0, 0.44, 0));
+    this.head.add(mesh(new RoundedBoxGeometry(0.1, 0.06, 0.34, 2, 0.025), BODY, 0.14, 0.2, 0));
     for (const s of [1, -1]) {
       this.head.add(
         mesh(
@@ -222,9 +222,9 @@ export class KnightView {
     this.elbow = fore.pivot;
     this.sword = new THREE.Group();
     fore.end.add(this.sword);
-    this.sword.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 6), DARK, 0, 0.05, 0));
-    this.sword.add(mesh(new THREE.SphereGeometry(0.05, 6, 4), STEEL, 0, 0.22, 0));
-    this.sword.add(mesh(new THREE.BoxGeometry(0.44, 0.05, 0.07), STEEL, 0, -0.12, 0));
+    this.sword.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 12), DARK, 0, 0.05, 0));
+    this.sword.add(mesh(new THREE.SphereGeometry(0.05, 12, 8), STEEL, 0, 0.22, 0));
+    this.sword.add(mesh(new RoundedBoxGeometry(0.44, 0.05, 0.07, 2, 0.02), STEEL, 0, -0.12, 0));
     const blade = new THREE.Shape();
     blade.moveTo(-0.06, 0);
     blade.lineTo(0.06, 0);
@@ -232,7 +232,7 @@ export class KnightView {
     blade.lineTo(0, -1.62);
     blade.lineTo(-0.045, -1.42);
     blade.closePath();
-    this.sword.add(mesh(new THREE.ExtrudeGeometry(blade, { depth: 0.02, bevelEnabled: false }), STEEL, 0, -0.14, -0.01));
+    this.sword.add(mesh(new THREE.ExtrudeGeometry(blade, { depth: 0.016, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.008, bevelSegments: 2 }), STEEL, 0, -0.14, -0.01));
     const edge = new THREE.Mesh(new THREE.BoxGeometry(0.012, 1.45, 0.03), EDGE);
     edge.position.set(0.05, -0.86, 0);
     this.sword.add(edge);
@@ -281,14 +281,11 @@ export class KnightView {
     this.capeBase = Float32Array.from(capeGeo.attributes.position.array as Float32Array);
     this.chest.add(this.cape);
 
-    // every shadow part gets a flickering aura shell
+    // the shadow parts: smoke is emitted from them, and the stage outlines their union as one aura
     this.root.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh || (m.material !== BODY && m.material !== DARK)) return;
       this.parts.push(m);
-      const shell = new THREE.Mesh(m.geometry, SHELL);
-      shell.renderOrder = 6;
-      m.add(shell);
     });
 
     // shadow-fire rising off him, behind the body
@@ -322,6 +319,11 @@ export class KnightView {
     if (!on) this.torchLight.intensity = 0;
     this.trailColor.copy(on ? new THREE.Color(3.4, 1.3, 0.35) : new THREE.Color(1.6, 1.3, 3.4));
     EDGE.color.copy(on ? new THREE.Color(3.0, 1.0, 0.25) : new THREE.Color(1.1, 0.9, 2.6));
+  }
+
+  /** Meshes the stage outlines as one silhouette (body + cape). */
+  get outlineTargets(): THREE.Object3D[] {
+    return [...this.parts, this.cape];
   }
 
   get eyePos(): THREE.Vector3 {

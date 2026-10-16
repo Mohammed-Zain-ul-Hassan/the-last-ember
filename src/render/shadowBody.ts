@@ -43,7 +43,7 @@ export function shadowify<T extends THREE.MeshStandardMaterial>(mat: T, erosion 
           float edge = fres + uErosion * (n * 0.7 + n2 * 0.3) * 0.9;
           // the dawn ending dissolves him from the edges inward
           if (edge > 1.05 - uErosion * 0.25 || n * 0.6 + n2 * 0.4 > uFade * 1.1) discard;
-          totalEmissiveRadiance += uAura * pow(fres, 4.5) * (0.3 + 1.0 * n) * uAuraStrength * 0.9;
+          totalEmissiveRadiance += uAura * pow(fres, 7.0) * (0.3 + 1.0 * n) * uAuraStrength * 0.55;
         }`,
       );
   };

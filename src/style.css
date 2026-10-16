@@ -64,3 +64,83 @@ html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; 
 #choice span:last-child { color: #fff2d6; text-shadow: 0 0 22px rgba(255, 200, 140, 0.9); }
 #choice.hidden { opacity: 0; }
 #card-roman:empty, #card-title:empty, #card-hint:empty { display: none; }
+
+/* ---------------------------------------------------------------- player vitals (top-left) */
+#hp { position: static; display: flex; gap: 9px; margin-top: 8px; }
+#vitals { position: absolute; top: 24px; left: 30px; }
+#vit-head { display: flex; align-items: center; gap: 10px; font-family: var(--display); }
+#vit-crest { width: 14px; height: 14px; transform: rotate(45deg); border: 1px solid rgba(200, 185, 255, 0.8);
+  box-shadow: 0 0 12px rgba(170, 150, 255, 0.8), inset 0 0 6px rgba(170, 150, 255, 0.9); }
+#vit-label { font-size: 12px; letter-spacing: 0.42em; text-transform: uppercase; color: var(--bone); }
+#hp-num { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--mist); margin-left: 4px; }
+#hp i { width: 16px; height: 16px; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); transform: none; border: 0;
+  background: linear-gradient(160deg, #e4dcff, #8b74ff 55%, #4c2fb8); box-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(160, 140, 255, 0.9)); transition: opacity 0.3s, filter 0.3s; }
+#hp i.gone { background: rgba(160, 140, 255, 0.14); filter: none; }
+#hp i.shatter { animation: shatter 0.55s ease-out; }
+@keyframes shatter {
+  0% { transform: scale(1.6); filter: drop-shadow(0 0 14px #ff6b4a) brightness(2); background: #ffd2c4; }
+  40% { transform: scale(0.8) rotate(25deg) translateY(4px); }
+  100% { transform: none; }
+}
+#vitals.hurt { animation: vit-shake 0.35s; }
+@keyframes vit-shake { 25% { transform: translateX(-5px); } 50% { transform: translateX(4px); } 75% { transform: translateX(-2px); } }
+#vitals.low #hp i:not(.gone) { animation: low-pulse 0.7s infinite alternate; }
+#vitals.low #vit-label { color: #ff8a7a; }
+@keyframes low-pulse { from { filter: drop-shadow(0 0 4px #ff5040); } to { filter: drop-shadow(0 0 12px #ff5040) brightness(1.4); } }
+
+/* ---------------------------------------------------------------- combo counter (right) */
+#combo { position: absolute; right: 7vw; top: 40%; display: flex; flex-direction: column; align-items: center; opacity: 0;
+  transition: opacity 0.4s; font-family: var(--display); }
+#combo.on { opacity: 1; }
+#combo-n { font-size: 54px; line-height: 1; color: #e9e0ff; text-shadow: 0 0 22px rgba(150, 120, 255, 0.9); }
+#combo-label { font-size: 11px; letter-spacing: 0.5em; text-transform: uppercase; color: var(--mist); margin-top: 4px; }
+#combo.hot #combo-n { color: #ffd9a8; text-shadow: 0 0 26px rgba(255, 140, 60, 0.95); }
+#combo.pulse #combo-n { animation: combo-pulse 0.25s ease-out; }
+@keyframes combo-pulse { from { transform: scale(1.45); } to { transform: scale(1); } }
+
+/* ---------------------------------------------------------------- boss bar (great shade) */
+#bossbar { position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%); width: min(620px, 80vw); text-align: center;
+  opacity: 0; transition: opacity 0.8s; }
+#bossbar.on { opacity: 1; }
+#boss-name { font-family: var(--display); font-size: 18px; letter-spacing: 0.4em; text-transform: uppercase; color: #ffcfb8;
+  text-shadow: 0 0 18px rgba(255, 80, 40, 0.6); }
+#boss-sub { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--mist); margin: 2px 0 8px; }
+#boss-track { position: relative; height: 8px; background: rgba(20, 8, 12, 0.85); border: 1px solid rgba(255, 140, 110, 0.35);
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.8); }
+#boss-chip, #boss-fill { position: absolute; left: 0; top: 0; bottom: 0; }
+#boss-chip { background: #f2e6dc; }
+#boss-fill { background: linear-gradient(90deg, #5b0e14, #b3261e 60%, #ff6a3d); box-shadow: 0 0 10px rgba(255, 70, 40, 0.7); }
+#bossbar.struck #boss-track { box-shadow: 0 0 22px rgba(255, 200, 160, 0.9); }
+
+/* ---------------------------------------------------------------- world-anchored UI */
+#worldui { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.capture #worldui { display: none; }
+.ebar { position: absolute; left: 0; top: 0; width: 78px; height: 6px; background: rgba(8, 4, 12, 0.85);
+  border: 1px solid rgba(190, 150, 255, 0.35); box-shadow: 0 0 8px rgba(0, 0, 0, 0.9); will-change: transform, opacity; }
+.ebar .chip, .ebar .fill { position: absolute; left: 0; top: 0; bottom: 0; }
+.ebar .chip { background: #f3eaff; }
+.ebar .fill { background: linear-gradient(90deg, #3d1a7a, #8c5cff); }
+.ebar.burning .fill { background: linear-gradient(90deg, #7a2a10, #ff8a3d); }
+.ebar.struck { border-color: #fff; box-shadow: 0 0 12px rgba(255, 255, 255, 0.8); }
+
+.pop { position: absolute; transform: translate(-50%, -50%); font-family: var(--display); font-weight: 600; white-space: nowrap;
+  animation: pop-up 0.95s cubic-bezier(0.2, 0.9, 0.3, 1) forwards; will-change: transform, opacity; }
+.pop.light { font-size: 22px; color: #efe6ff; text-shadow: 0 0 10px rgba(150, 110, 255, 0.95), 0 2px 2px #000; }
+.pop.heavy { font-size: 34px; color: #ffe2b0; text-shadow: 0 0 14px rgba(255, 170, 70, 0.95), 0 2px 3px #000; }
+.pop.fire { font-size: 36px; color: #ffd28a; text-shadow: 0 0 16px #ff6a1a, 0 0 30px #ff3d00, 0 2px 3px #000; }
+.pop.hurt { font-size: 26px; color: #ff8a7a; text-shadow: 0 0 12px rgba(255, 40, 30, 0.9), 0 2px 2px #000; }
+.pop.soul { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: 20px; color: #dfe6ff; letter-spacing: 0.05em;
+  text-shadow: 0 0 14px rgba(150, 170, 255, 0.9); animation: soul-up 2.6s ease-out forwards; }
+.pop.soul.big { font-size: 28px; color: #fff0dc; text-shadow: 0 0 20px rgba(255, 190, 120, 0.9); }
+.pop.burn { font-family: var(--serif); font-style: italic; font-size: 14px; color: #ffb27a; animation: soul-up 1.6s ease-out forwards; }
+@keyframes pop-up {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+  15% { transform: translate(calc(-50% + var(--drift) * 0.2), -90%) scale(1.25); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--drift)), -260%) scale(0.85); opacity: 0; }
+}
+@keyframes soul-up {
+  0% { transform: translate(-50%, -30%); opacity: 0; letter-spacing: 0.3em; }
+  25% { opacity: 1; letter-spacing: 0.06em; }
+  100% { transform: translate(-50%, -320%); opacity: 0; }
+}

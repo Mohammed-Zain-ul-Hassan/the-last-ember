@@ -15,6 +15,7 @@ import { rampTexture } from './render/textures';
 import { botInput } from './sim/bot';
 import { NO_INPUT, World, type Input } from './sim/world';
 import { Hud } from './ui/hud';
+import { WorldUi } from './ui/worldUi';
 
 const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
@@ -32,9 +33,11 @@ const hearth = new Hearth(CFG.hearth.x);
 stage.world.add(hearth.group);
 const knight = new KnightView();
 stage.world.add(knight.root);
+stage.outline.selection.set(knight.outlineTargets);
 const shadeViews = new ShadeViews();
 stage.world.add(shadeViews.group);
 const hud = new Hud();
+const worldUi = new WorldUi(stage.camera);
 let timeScale = 1;
 let slowT = 0;
 const fx: FxTargets = {
@@ -99,9 +102,11 @@ function startChapter(i: number, quick = false): void {
   chapterIndex = i;
   world = new World(i, seed);
   shadeViews.clear();
+  worldUi.clear();
   clearInput();
   applyPhase(i);
   setKnightFade(1);
+  stage.outline.edgeStrength = 3.2;
   setMood('night');
   stage.dawn = 0;
   rig.fitSpan = true;
@@ -194,7 +199,13 @@ function stepSim(input: Input, dt: number): void {
     }
     world.step(input);
     playEvents(world.events, fx);
-    for (const e of world.events) if (e.type === 'hit') shadeViews.hit(e.id);
+    worldUi.events(world.events, world);
+    for (const e of world.events) {
+      if (e.type === 'hit') {
+        shadeViews.hit(e.id);
+        hud.hit();
+      }
+    }
     input = { ...input, jump: false, attack: false, heavy: false, dash: false };
     if (world.status !== 'playing') break;
   }
@@ -314,6 +325,7 @@ function endingScene(dt: number): void {
     at(0.4, 1, () => (knight.pose = 'kneel'));
     const p = Math.max(0, Math.min(1, (modeT - 1.6) / 5));
     setKnightFade(1 - p);
+    stage.outline.edgeStrength = 3.2 * (1 - p);
     if (p > 0 && p < 1) {
       const k = world.knight;
       for (let i = 0; i < 6; i++)
@@ -366,6 +378,7 @@ function adaptQuality(rawDt: number): void {
     dprStep++;
     slowFrames = 0;
     stage.setPixelRatio(DPR_STEPS[dprStep]);
+    if (dprStep === DPR_STEPS.length - 1) stage.smaa.enabled = false;
     fitParticles();
     console.info(`[quality] pixel ratio -> ${DPR_STEPS[dprStep]}`);
   }
@@ -465,6 +478,7 @@ function update(now: number): void {
   rig.update(rawDt, t, camTarget);
   stage.update(t, rig.x);
   hud.update(world, rawDt);
+  worldUi.update(world, rawDt, mode === 'play');
   const danger = mode === 'play' ? Math.min(1, world.shades.filter((s) => s.state !== 'dead' && Math.abs(s.x - world.knight.x) < 6).length / 3) : 0;
   setBeds(hearth.lit ? hearth.strength : knight.torchOn ? 0.5 : 0, danger);
   stage.render();
@@ -533,6 +547,7 @@ if (DEBUG) {
     snapshot: () => JSON.stringify({ mode, chapter: world.chapter.id, t: world.time, knight: { x: world.knight.x, y: world.knight.y, hp: world.knight.hp, state: world.knight.state }, hearth: world.hearthHp, shades: world.shades.map((s) => ({ id: s.id, x: +s.x.toFixed(2), hp: +s.hp.toFixed(2), state: s.state, big: s.big })) }),
     renderer: stage.renderer,
     kv: knight,
+    stage,
     /** Advance the whole game by ms without waiting for animation frames (screenshots of exact moments). */
     tick: (ms: number, steps = 1) => { for (let i = 0; i < steps; i++) update(last + ms); },
     /** Render n frames synchronously and return GPU+CPU ms per frame. */

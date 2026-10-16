@@ -63,7 +63,7 @@ export interface Shade {
 export type GameEvent =
   | { type: 'swing'; x: number; y: number; facing: number; combo: number; heavy: boolean }
   | { type: 'hit'; x: number; y: number; dmg: number; heavy: boolean; facing: number; id: number }
-  | { type: 'kill'; x: number; y: number; burned: boolean; big: boolean }
+  | { type: 'kill'; x: number; y: number; burned: boolean; big: boolean; id: number }
   | { type: 'spawn'; x: number }
   | { type: 'jump' | 'land' | 'dash'; x: number; y: number }
   | { type: 'knightHurt'; x: number; y: number; hp: number }
@@ -436,7 +436,7 @@ export class World {
     s.stateT = 0;
     s.deadT = 0;
     this.kills++;
-    this.events.push({ type: 'kill', x: s.x, y: s.y + 0.9, burned, big: s.big });
+    this.events.push({ type: 'kill', x: s.x, y: s.y + 0.9, burned, big: s.big, id: s.id });
   }
 
   private stepShade(s: Shade, dt: number): void {

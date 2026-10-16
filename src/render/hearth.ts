@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Flame } from './flame';
 import type { Particles } from './particles';
 import { rimify } from './rim';
+import { stoneBox } from './shapes';
 import { glowTexture } from './textures';
 
 const BOWL_TOP = 1.15;
@@ -19,9 +20,9 @@ export class Hearth {
 
   constructor(x: number) {
     const stone = rimify(new THREE.MeshStandardMaterial({ color: 0x2a232c, roughness: 0.85 }), 0.7, 'hearthstone');
-    const plinth1 = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.35, 2.3), stone);
+    const plinth1 = new THREE.Mesh(stoneBox(3.2, 0.35, 2.3, 41, 0.04), stone);
     plinth1.position.y = 0.175;
-    const plinth2 = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.3, 1.8), stone);
+    const plinth2 = new THREE.Mesh(stoneBox(2.3, 0.3, 1.8, 42, 0.035), stone);
     plinth2.position.y = 0.5;
     const pts = [
       new THREE.Vector2(0.0, 0),
@@ -34,19 +35,19 @@ export class Hearth {
       new THREE.Vector2(0.0, 0.44),
     ];
     const iron = rimify(new THREE.MeshStandardMaterial({ color: 0x1a1518, roughness: 0.5, metalness: 0.6 }), 1, 'brazier');
-    const bowl = new THREE.Mesh(new THREE.LatheGeometry(pts, 24), iron);
+    const bowl = new THREE.Mesh(new THREE.LatheGeometry(pts, 48), iron);
     bowl.position.y = 0.65;
     // four claw feet gripping the bowl
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-      const claw = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.7, 5), iron);
+      const claw = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.7, 12), iron);
       claw.position.set(Math.cos(a) * 1.05, 1.0, Math.sin(a) * 1.05);
       claw.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5);
       claw.castShadow = true;
       this.group.add(claw);
     }
     this.coals = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.8, 0.5, 0.12) });
-    const coals = new THREE.Mesh(new THREE.CircleGeometry(1.0, 24), this.coals);
+    const coals = new THREE.Mesh(new THREE.CircleGeometry(1.0, 48), this.coals);
     coals.rotation.x = -Math.PI / 2;
     coals.position.y = BOWL_TOP - 0.02;
     for (const m of [plinth1, plinth2, bowl]) {
@@ -90,7 +91,7 @@ export class Hearth {
     this.light.position.set(Math.sin(t * 9.1) * 0.08, Math.max(BOWL_TOP + 0.4, top - 0.25) + Math.sin(t * 13) * 0.05, 0.25);
     this.light.intensity = s > 0.01 ? (30 + 120 * s) * fl : 0;
     this.light.visible = s > 0.01;
-    this.halo.position.set(0, BOWL_TOP + (top - BOWL_TOP) * 0.45, 0.3);
+    this.halo.position.set(0, BOWL_TOP + (top - BOWL_TOP) * 0.45, -0.6); // behind the lane: never washes over figures
     const hs = (3 + 5.5 * s) * fl;
     this.halo.scale.set(hs, hs * 1.15, 1);
     (this.halo.material as THREE.SpriteMaterial).opacity = s > 0.01 ? 0.18 + 0.14 * s : 0;

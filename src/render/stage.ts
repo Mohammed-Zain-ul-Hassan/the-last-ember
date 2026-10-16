@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { BloomEffect, EffectComposer, EffectPass, NoiseEffect, RenderPass, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
+import { BloomEffect, EffectComposer, EffectPass, KernelSize, NoiseEffect, OutlineEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
 import { WALLS, type SkyKey } from '../data/chapters';
 import { Rng } from '../sim/rng';
 import { RIM, rimify } from './rim';
+import { column, rock, stoneBox } from './shapes';
 import { fogTexture, shaftTexture, tatterTexture } from './textures';
 
 export const SILHOUETTE = 0x09080d;
@@ -57,6 +58,8 @@ export class Stage {
   private hemi: THREE.HemisphereLight;
   readonly sun: THREE.DirectionalLight;
   readonly bloom: BloomEffect;
+  readonly smaa: EffectPass;
+  readonly outline: OutlineEffect;
   private far = new THREE.Group(); // follows the camera like the sky
   private fogCards: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private shafts: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
@@ -134,12 +137,21 @@ export class Stage {
 
     this.composer = new EffectComposer(this.renderer, { frameBufferType: THREE.HalfFloatType });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    // the knight's aura: one glowing outline around his whole silhouette (not every limb), bloomed below
+    this.outline = new OutlineEffect(this.scene, this.camera, {
+      edgeStrength: 3.2, pulseSpeed: 0.35, visibleEdgeColor: 0x9a6bff, hiddenEdgeColor: 0x2a1450,
+      blur: true, kernelSize: KernelSize.SMALL, xRay: false, resolutionScale: 0.75,
+    });
+    this.composer.addPass(new EffectPass(this.camera, this.outline));
     this.bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.85, luminanceSmoothing: 0.25, intensity: 1.15, radius: 0.7 });
     const grain = new NoiseEffect({ premultiply: true });
     grain.blendMode.opacity.value = 0.35;
     this.composer.addPass(
       new EffectPass(this.camera, this.bloom, new VignetteEffect({ offset: 0.3, darkness: 0.68 }), new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }), grain),
     );
+    // SMAA on the final image: smooth, precise edges on every silhouette (MSAA on the half-float target renders black)
+    this.smaa = new EffectPass(this.camera, new SMAAEffect({ preset: SMAAPreset.HIGH }));
+    this.composer.addPass(this.smaa);
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -253,7 +265,7 @@ export class Stage {
       const w = rng.range(0.9, 1.7);
       for (const z of [-1.2, 0, 1.2]) {
         if (rng.next() < 0.12) continue;
-        const s = new THREE.Mesh(new THREE.BoxGeometry(w - 0.06, 0.12, 1.14), flag);
+        const s = new THREE.Mesh(stoneBox(w - 0.06, 0.12, 1.14, x * 7 + z, 0.012), flag);
         s.position.set(x + w / 2, -0.05 + rng.range(-0.02, 0.02), z + rng.range(-0.05, 0.05));
         s.rotation.y = rng.range(-0.03, 0.03);
         s.receiveShadow = true;
@@ -262,10 +274,10 @@ export class Stage {
       x += w;
     }
     this.scene.add(stones);
-    const rock = rimify(new THREE.MeshStandardMaterial({ color: SILHOUETTE, roughness: 1 }), 0.5, 'rock');
+    const rockMat = rimify(new THREE.MeshStandardMaterial({ color: SILHOUETTE, roughness: 1 }), 0.5, 'rock');
     for (let i = 0; i < 40; i++) {
       const s = rng.range(0.15, 0.5);
-      const m = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rock);
+      const m = new THREE.Mesh(rock(s, i * 3.7), rockMat);
       m.position.set(rng.range(-30, 30), s * 0.1, rng.range(1.9, 3.2));
       m.rotation.set(rng.next() * 3, rng.next() * 3, rng.next() * 3);
       m.castShadow = true;
@@ -388,26 +400,57 @@ export class Stage {
       return m;
     };
     const rng = new Rng(21);
+    // lane walls: coursed masonry, broken along the top (collision box in the sim is unchanged)
+    let seed = 1;
     for (const w of WALLS) {
-      add(new THREE.BoxGeometry(w.w, w.h, 1.6), w.x, w.h / 2, 0);
-      for (let i = 0; i < 3; i++) {
-        const bw = rng.range(0.25, 0.5);
-        add(new THREE.BoxGeometry(bw, rng.range(0.15, 0.35), rng.range(0.4, 0.9)), w.x + rng.range(-w.w / 2 + bw / 2, w.w / 2 - bw / 2), w.h + 0.08, rng.range(-0.4, 0.4), rng.range(-0.3, 0.3));
+      const courses = Math.max(2, Math.round(w.h / 0.34));
+      const ch = w.h / courses;
+      for (let c = 0; c < courses; c++) {
+        let x = w.x - w.w / 2;
+        const end = w.x + w.w / 2;
+        let first = c % 2 ? rng.range(0.2, 0.35) : 0;
+        while (x < end - 0.05) {
+          const len = Math.min(end - x, first || rng.range(0.42, 0.7));
+          first = 0;
+          // the top course is broken: some stones missing, some knocked askew
+          if (c === courses - 1 && rng.next() < 0.3) {
+            x += len;
+            continue;
+          }
+          const askew = c === courses - 1 ? rng.range(-0.08, 0.08) : rng.range(-0.015, 0.015);
+          add(stoneBox(len - 0.03, ch - 0.025, 1.55 + rng.range(-0.08, 0.04), seed++, 0.03), x + len / 2, ch * c + ch / 2, rng.range(-0.03, 0.03), rng.range(-0.04, 0.04), askew);
+          x += len;
+        }
       }
     }
-    // the hearth's great broken arch
-    add(new THREE.BoxGeometry(1.1, 8, 1.1), -3.6, 4, -3.2);
-    add(new THREE.BoxGeometry(1.1, 5.2, 1.1), 3.6, 2.6, -3.2);
-    add(new THREE.BoxGeometry(5.2, 0.9, 1.0), -1.4, 8.3, -3.2, 0, -0.06);
-    add(new THREE.BoxGeometry(1.4, 0.9, 1.0), 3.0, 5.6, -3.2, 0, 0.5);
-    add(new THREE.BoxGeometry(1.6, 0.6, 1.6), -3.6, 0.3, -3.2);
-    add(new THREE.BoxGeometry(1.6, 0.6, 1.6), 3.6, 0.3, -3.2);
+    // the hearth's great broken arch: stacked piers and a ring of wedge stones, the right side collapsed
+    const pier = (px: number, blocks: number) => {
+      for (let i = 0; i < blocks; i++) add(stoneBox(1.15, 0.95, 1.15, seed++, 0.05), px + rng.range(-0.04, 0.04), 0.6 + i * 0.97 + 0.475, -3.2, rng.range(-0.05, 0.05));
+      add(stoneBox(1.7, 0.6, 1.7, seed++, 0.05), px, 0.3, -3.2);
+    };
+    pier(-3.6, 6);
+    pier(3.6, 4);
+    const R = 3.6;
+    const cy = 6.4;
+    for (let i = 0; i <= 9; i++) {
+      const a = Math.PI - (i / 12) * Math.PI; // left springing round to just past the crown
+      const m = add(stoneBox(0.85, 0.62, 1.05, seed++, 0.05), Math.cos(a) * R, cy + Math.sin(a) * R, -3.2);
+      m.rotation.z = a - Math.PI / 2;
+    }
+    // fallen voussoirs on the ground
+    for (let i = 0; i < 4; i++) {
+      const m = add(stoneBox(0.85, 0.62, 1.05, seed++, 0.06), 4.6 + i * 0.8 + rng.range(-0.2, 0.2), 0.3, -2.4 + rng.range(-0.8, 0.6));
+      m.rotation.set(rng.range(-0.4, 0.4), rng.range(0, 3), rng.range(-0.5, 0.5));
+    }
+    // colonnade further back: fluted columns with capitals and bases
     for (let i = 0; i < 14; i++) {
       const x = -26 + i * 4 + rng.range(-0.8, 0.8);
       if (Math.abs(x) < 5) continue;
       const h = rng.range(1.5, 6.5);
-      add(new THREE.CylinderGeometry(0.42, 0.5, h, 10), x, h / 2, rng.range(-5.5, -4.2));
-      if (rng.next() < 0.35) add(new THREE.BoxGeometry(1.2, 0.4, 1.2), x, h + 0.2, -4.8, rng.range(0, 1));
+      const z = rng.range(-5.5, -4.2);
+      add(column(0.4, 0.46, h, seed++), x, h / 2 + 0.25, z);
+      add(stoneBox(1.05, 0.25, 1.05, seed++, 0.03), x, 0.125, z);
+      if (rng.next() < 0.4) add(stoneBox(1.15, 0.38, 1.15, seed++, 0.05), x, h + 0.44, z, rng.range(0, 1));
     }
   }
 
@@ -426,15 +469,21 @@ export class Stage {
         m.receiveShadow = true;
         g.add(m);
       };
-      add(new THREE.BoxGeometry(1.6, 0.5, 1.4), 0, 0.25, 0); // plinth
-      add(new THREE.BoxGeometry(0.5, 0.5, 0.5), 0.15, 0.75, 0.2); // knee forward
-      add(new THREE.BoxGeometry(0.6, 0.25, 0.4), -0.2, 0.62, -0.2); // kneeling leg
-      add(new THREE.CylinderGeometry(0.42, 0.25, 0.9, 8), 0, 1.35, 0, -0.25); // torso, bowed
-      if (rng.next() > 0.3) add(new THREE.SphereGeometry(0.22, 8, 6), 0.25, 1.95, 0); // head (some lost)
-      add(new THREE.BoxGeometry(0.08, 1.8, 0.03), 0.55, 1.0, 0.25); // planted sword
-      add(new THREE.BoxGeometry(0.4, 0.06, 0.08), 0.55, 1.6, 0.25);
-      add(new THREE.SphereGeometry(0.2, 6, 4), -0.05, 1.75, 0.38);
-      add(new THREE.SphereGeometry(0.2, 6, 4), -0.05, 1.75, -0.38);
+      add(stoneBox(1.6, 0.5, 1.4, sx * 3, 0.05), 0, 0.25, 0); // plinth
+      add(new THREE.CapsuleGeometry(0.2, 0.35, 6, 16), 0.2, 0.78, 0.2, 1.3); // thigh, knee forward
+      add(new THREE.CapsuleGeometry(0.17, 0.3, 6, 16), 0.42, 0.72, 0.2); // shin
+      add(new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), -0.15, 0.62, -0.2, 1.4); // kneeling leg
+      add(new THREE.CylinderGeometry(0.42, 0.26, 0.92, 24), 0, 1.35, 0, -0.25); // torso, bowed
+      if (rng.next() > 0.3) add(new THREE.SphereGeometry(0.22, 20, 14), 0.27, 1.95, 0); // head (some lost)
+      add(stoneBox(0.09, 1.8, 0.04, sx, 0.004), 0.55, 1.0, 0.25); // planted sword
+      add(stoneBox(0.42, 0.07, 0.09, sx + 1, 0.004), 0.55, 1.6, 0.25);
+      for (const z of [0.38, -0.38]) {
+        const p = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.6), stone);
+        p.position.set(-0.05, 1.72, z);
+        p.scale.set(1.2, 0.9, 1);
+        p.castShadow = true;
+        g.add(p);
+      }
       const s = rng.range(1.35, 1.8);
       g.scale.setScalar(s);
       g.position.set(sx, 0, rng.range(-7.5, -6.2));
@@ -454,11 +503,12 @@ export class Stage {
       { x: 17, z: -4.6, h: 7 },
     ];
     for (const [i, s] of spots.entries()) {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, s.h, 6), pole);
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, s.h, 14), pole);
       p.position.set(s.x, s.h / 2, s.z);
       p.castShadow = true;
       this.world.add(p);
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.06, 0.06), pole);
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.3, 10), pole);
+      bar.rotation.z = Math.PI / 2;
       bar.position.set(s.x + 0.55, s.h - 0.15, s.z);
       this.world.add(bar);
       const geo = new THREE.PlaneGeometry(1.1, 3, 4, 12);

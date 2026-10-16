@@ -26,7 +26,8 @@ const POOL_FRAG = /* glsl */ `
 class ShadeMesh {
   readonly root = new THREE.Group();
   private body = new THREE.Group();
-  private robe: THREE.Mesh<THREE.ConeGeometry, THREE.MeshStandardMaterial>;
+  private robe: THREE.Mesh<THREE.LatheGeometry, THREE.MeshStandardMaterial>;
+  private cowlMat!: THREE.MeshStandardMaterial;
   private robeBase: Float32Array;
   private arms: THREE.Group[] = [];
   private hood = new THREE.Group();
@@ -38,16 +39,20 @@ class ShadeMesh {
   private robeMat: THREE.MeshStandardMaterial;
 
   constructor() {
-    this.mat = rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, transparent: true }), 0.75, 'shade');
+    this.mat = rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0 }), 0.75, 'shade');
     const robeMat = rimify(
-      new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, alphaMap: TATTER, alphaTest: 0.5, side: THREE.DoubleSide, transparent: true }),
+      new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, alphaMap: TATTER, alphaTest: 0.5, side: THREE.DoubleSide }),
       0.6,
       'shaderobe',
     );
     this.eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 0.9, 0.3), transparent: true, toneMapped: false });
 
-    const robeGeo = new THREE.ConeGeometry(0.62, 1.75, 16, 10, true);
-    robeGeo.translate(0, 0.875, 0);
+    // robe: a lathe-turned hunched silhouette, flared and torn at the hem, narrow at the waist, heavy shoulders
+    const profile = [
+      [0.7, 0.0], [0.62, 0.1], [0.52, 0.4], [0.42, 0.8], [0.37, 1.08], [0.44, 1.3], [0.52, 1.45], [0.47, 1.57], [0.3, 1.68], [0.1, 1.74],
+    ].map(([r, y]) => new THREE.Vector2(r, y));
+    const robeGeo = new THREE.LatheGeometry(new THREE.SplineCurve(profile).getPoints(24), 36);
+    robeGeo.scale(1, 1, 0.78);
     this.robeMat = robeMat;
     this.robe = new THREE.Mesh(robeGeo, robeMat);
     this.robe.castShadow = true;
@@ -62,26 +67,39 @@ class ShadeMesh {
       parent.add(o);
       return o;
     };
-    // chest mass and hunched shoulders
-    m(new THREE.SphereGeometry(0.36, 12, 10), this.body, 0.05, 1.4, 0).scale.set(1.1, 1.0, 1.15);
-    // hood: a forward-drooping cowl
-    this.hood.position.set(0.22, 1.72, 0);
+    // hood: a tall cowl whose point droops forward over an empty face
+    this.hood.position.set(0.16, 1.66, 0);
     this.body.add(this.hood);
-    const cowl = m(new THREE.ConeGeometry(0.26, 0.62, 12, 1, true), this.hood, 0.0, 0.08, 0);
-    cowl.rotation.z = -1.0;
-    const back = m(new THREE.SphereGeometry(0.25, 10, 8), this.hood, -0.05, 0, 0);
-    back.scale.set(1.0, 1.15, 0.95);
-    const eyes = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.035, 0.2), this.eyeMat);
-    eyes.position.set(0.2, -0.02, 0);
+    // a deep cowl: rounded at the back, its point drooping forward over an empty face
+    const cowlGeo = new THREE.ConeGeometry(0.28, 0.62, 32, 12, true);
+    const cp = cowlGeo.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < cp.count; i++) {
+      const y = cp.getY(i);
+      const t = (y + 0.31) / 0.62; // 0 at the opening, 1 at the tip
+      const back = Math.max(0, -cp.getX(i)) * 0.25 * (1 - t); // fuller at the back of the head
+      cp.setXYZ(i, cp.getX(i) * (1 - 0.1 * t) - back + t * t * 0.3, y - t * t * 0.22, cp.getZ(i) * 0.92);
+    }
+    cowlGeo.computeVertexNormals();
+    const cowl = m(cowlGeo, this.hood, 0, 0.2, 0);
+    cowl.rotation.z = -0.35; // opening faces forward and down, the point hangs over the brow
+    const cowlMat = rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, side: THREE.DoubleSide }), 0.8, 'shadecowl');
+    cowl.material = cowlMat;
+    this.cowlMat = cowlMat;
+    const eyes = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.16, 4, 8), this.eyeMat);
+    eyes.rotation.x = Math.PI / 2;
+    eyes.position.set(0.17, 0.08, 0);
     this.hood.add(eyes);
-    // long arms ending in three claws
-    for (const z of [0.3, -0.3]) {
+    // long arms in wide ragged sleeves, ending in three hooked claws
+    for (const z of [0.32, -0.32]) {
       const arm = new THREE.Group();
-      arm.position.set(0.1, 1.45, z);
-      m(new THREE.CylinderGeometry(0.05, 0.08, 0.85, 6), arm, 0, -0.42, 0);
+      arm.position.set(0.12, 1.42, z);
+      m(new THREE.CylinderGeometry(0.06, 0.15, 0.55, 18, 1, true), arm, 0, -0.27, 0); // sleeve
+      m(new THREE.CylinderGeometry(0.028, 0.045, 0.55, 12), arm, 0, -0.75, 0); // forearm
       for (let i = 0; i < 3; i++) {
-        const c = m(new THREE.ConeGeometry(0.025, 0.32, 4), arm, 0.03, -0.95, (i - 1) * 0.05);
-        c.rotation.z = Math.PI + (i - 1) * 0.25 + 0.3;
+        const claw = new THREE.ConeGeometry(0.022, 0.42, 10);
+        claw.translate(0, -0.21, 0);
+        const c = m(claw, arm, 0.02, -1.0, (i - 1) * 0.045);
+        c.rotation.z = (i - 1) * 0.28 + 0.35;
       }
       this.body.add(arm);
       this.arms.push(arm);
@@ -100,7 +118,7 @@ class ShadeMesh {
   update(s: Shade, dt: number, t: number, smoke: Particles, embers: Particles): void {
     const S = CFG.shade;
     const big = s.big ? 1.65 : 1;
-    this.root.position.set(s.x, s.y, -0.2);
+    this.root.position.set(s.x, s.y, 0.2);
     this.root.scale.set(s.facing * big, big, big);
     const tt = t + this.seed;
     let rise = 1;
@@ -133,14 +151,19 @@ class ShadeMesh {
     this.body.rotation.z = -lean;
     this.arms.forEach((a, i) => (a.rotation.z = armA + (i ? 0.25 : 0) + Math.sin(tt * 3 + i) * 0.08));
     this.hood.rotation.z = -lean * 0.4 + Math.sin(tt * 1.3) * 0.06;
-    this.mat.opacity = opacity;
+    // opaque while alive (so they hide the fire behind them); transparent only while dissolving
+    const fading = opacity < 0.999;
+    for (const m of [this.mat, this.cowlMat, this.robeMat]) {
+      m.transparent = fading;
+      m.opacity = opacity;
+    }
     // struck: the shade flares ember-red from inside, and recoils
     this.flash = Math.max(0, this.flash - dt * 6);
     const fl = this.flash * this.flash;
     this.mat.emissive.setRGB(2.4 * fl, 0.5 * fl, 0.15 * fl);
     this.robeMat.emissive.setRGB(1.6 * fl, 0.3 * fl, 0.1 * fl);
+    this.cowlMat.emissive.setRGB(2.4 * fl, 0.5 * fl, 0.15 * fl);
     this.body.scale.x = 1 + fl * 0.12;
-    this.robe.material.opacity = opacity;
     this.body.visible = opacity > 0.01;
     this.pool.material.uniforms.uA.value = poolA;
     this.pool.material.uniforms.uT.value = tt;
@@ -153,7 +176,7 @@ class ShadeMesh {
     const b = this.robeBase;
     for (let i = 0; i < pos.count; i++) {
       const y = b[i * 3 + 1];
-      const f = Math.max(0, 1 - y / 1.75); // 1 at hem
+      const f = Math.max(0, 1 - y / 1.74); // 1 at hem
       const x = b[i * 3];
       const z = b[i * 3 + 2];
       const ang = Math.atan2(z, x);
