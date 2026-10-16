@@ -69,6 +69,7 @@ export class Hearth {
     this.light.shadow.camera.far = 40;
     this.light.shadow.bias = -0.004;
     this.light.shadow.radius = 3;
+    this.light.shadow.autoUpdate = false; // a 6-face cube: redrawn every other frame (see update)
     this.group.add(this.light);
 
     this.halo = new THREE.Sprite(
@@ -79,19 +80,30 @@ export class Hearth {
     this.group.position.x = x;
   }
 
+  // The light itself never leaves the scene and never stops casting shadows: adding or removing a shadow-casting
+  // light makes three recompile every material, which is a visible freeze. Off means intensity 0, no shadow redraws.
   setLit(on: boolean): void {
     this.lit = on;
-    this.light.castShadow = on;
   }
 
+  private present = true;
+  /** Is there a hearth in this level at all? (Its meshes hide; its light stays, dark.) */
+  setPresent(on: boolean): void {
+    this.present = on;
+    for (const c of this.group.children) if (c !== this.light) c.visible = on;
+  }
+
+  private frame = 0;
+
   update(dt: number, t: number, glow: Particles, smoke: Particles, camera: THREE.Camera): void {
-    const s = this.lit ? this.strength : 0;
+    // redrawn on odd frames; the moon's shadow takes the even ones, so no frame carries both
+    if (++this.frame % 2 === 1 && this.lit && this.present) this.light.shadow.needsUpdate = true;
+    const s = this.lit && this.present ? this.strength : 0;
     const x = this.group.position.x;
     const fl = 0.86 + 0.08 * Math.sin(t * 17.3) + 0.06 * Math.sin(t * 7.1 + 1.3) + 0.05 * Math.sin(t * 31.7);
     const top = this.flameTop;
     this.light.position.set(Math.sin(t * 9.1) * 0.08, Math.max(BOWL_TOP + 0.4, top - 0.25) + Math.sin(t * 13) * 0.05, 0.25);
     this.light.intensity = s > 0.01 ? (30 + 120 * s) * fl : 0;
-    this.light.visible = s > 0.01;
     this.halo.position.set(0, BOWL_TOP + (top - BOWL_TOP) * 0.45, -0.6); // behind the lane: never washes over figures
     const hs = (3 + 5.5 * s) * fl;
     this.halo.scale.set(hs, hs * 1.15, 1);

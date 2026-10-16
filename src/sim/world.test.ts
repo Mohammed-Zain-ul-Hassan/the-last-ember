@@ -244,6 +244,16 @@ describe('world', () => {
     expect(w.knight.airJumps).toBe(CFG.knight.airJumps);
   });
 
+  it('a press during hit-stop is kept for the next real step, not swallowed', () => {
+    const w = arena();
+    w.hitstop = 5;
+    w.step(press({ jump: true, jumpHeld: true }));
+    for (let i = 0; i < 4; i++) w.step(press({ jumpHeld: true }));
+    expect(w.knight.onGround).toBe(true); // still frozen
+    run(w, 3, { jumpHeld: true });
+    expect(w.knight.onGround).toBe(false);
+  });
+
   it('a jump pressed during the tail of a swing is not swallowed', () => {
     const w = arena();
     w.step(press({ attack: true }));

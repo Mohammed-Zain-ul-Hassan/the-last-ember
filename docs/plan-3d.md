@@ -70,3 +70,23 @@ lantern-eater, then the market square (street only).
   the wall is lost in it. Lightning far off in the heavier rain (sky flare, cold key light, thunder after), scaled by
   the screen-flash setting. Contact shadows under the knight and the shades (`render/blobs.ts`). 11 PM scene on
   high: 12-13 ms/frame.
+
+## Performance pass (Day 2)
+- The cause of the lag: ~2,600 separate static meshes (every block, plank and pew end), redrawn for every shadow
+  pass: 4,951 draw calls a frame on the plaza, CPU-bound. `render/merge.ts` bakes static meshes into one geometry
+  per (material, shadow flags, 16 m cell) after a level is built; anything with `userData.dynamic` (flames, banners,
+  doors, shrines) is left alone. Same for the stage's rubble and skyline panels. Plaza: 4,951 -> ~540 calls,
+  CPU 12.4 -> 2.7 ms.
+- Stones use 2 rounding segments (was 3), rocks icosahedron detail 2 (was 3): same look, far fewer triangles.
+- Hearth shadow cube redrawn every other frame (like the moon); the sky environment map is rebuilt only when the
+  sky changes (it was every 2 s: a hitch); internal resolution capped at ~4.2 M pixels on big screens.
+- Surface noise reads a 32^3 noise texture (smoothstep-bent lookup, so no faceting) instead of hashing.
+- Same 9 PM shot, visible canvas 1536x1152: best frame 12.4 ms before, 3.9 ms after.
+- Stutter and input-lag pass (user: "stutters + controls feel delayed", Chrome):
+  - Render interpolation: the 60 Hz sim is drawn as a blend of its last two ticks, so 120/144 Hz screens no longer
+    show bodies holding still a frame and jumping (micro-stutter that also reads as input lag). Sim untouched.
+  - Presses during hit-stop are queued for the next real step instead of being thrown away.
+  - No mid-game shader recompiles: the shadow-light set is constant (hearth, torch, moon, sun always cast shadows;
+    "off" is intensity 0 and no shadow redraws), and every hour warms up all shaders (one of each enemy, a
+    dissolving one, every shadow pass) behind its hour card. Measured: 0 programs compiled during play.
+  - Hearth and moon shadows redraw on alternate frames (no frame carries both). Raw mouse input for pointer lock.

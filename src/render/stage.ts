@@ -4,6 +4,7 @@ import type { SkyKey } from '../data/chapters';
 import { Rng } from '../sim/rng';
 import { RIM, rimify } from './rim';
 import { SURFACE, surface } from './surface';
+import { mergeStatic } from './merge';
 import { rock } from './shapes';
 import { fogTexture, shaftTexture } from './textures';
 
@@ -86,6 +87,7 @@ export class Stage {
   private envScene = new THREE.Scene();
   private envRT: THREE.WebGLRenderTarget | null = null;
   private envT = 0;
+  private envSig = 0; // a fingerprint of the sky when the environment map was last built
   private fogCards: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private shafts: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private grassTime = { value: 0 };
@@ -140,6 +142,7 @@ export class Stage {
     this.moon.position.set(-8, 14, -20);
     this.moon.shadow.mapSize.set(1024, 1024);
     this.moon.shadow.autoUpdate = false; // redrawn every other frame (see update): half the cost, no visible lag
+    this.moon.castShadow = true;
     const mc = this.moon.shadow.camera;
     mc.left = -20;
     mc.right = 20;
@@ -165,12 +168,17 @@ export class Stage {
     sc.near = 1;
     sc.far = 80;
     this.sun.shadow.bias = -0.0015;
+    this.sun.castShadow = true;
+    this.sun.shadow.autoUpdate = false;
     this.scene.add(this.sun, this.sun.target);
 
     this.buildGround();
     this.buildSkyline();
     this.buildGrass();
     this.buildAtmosphere();
+    // batch the rubble and the skyline panels into a handful of draw calls
+    mergeStatic(this.scatterGroup, 24);
+    mergeStatic(this.skyline, 1000);
 
     this.composer = new EffectComposer(this.renderer, { frameBufferType: THREE.HalfFloatType });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -218,6 +226,20 @@ export class Stage {
   }
   private flashStrength = 1;
 
+  /**
+   * Compile every shader the scene can need, including the shadow-pass variants (three only builds those the
+   * first time something is drawn into a shadow map): compile, then draw two frames with every shadow redrawn.
+   */
+  warmup(extraShadows: THREE.LightShadow[] = []): void {
+    this.renderer.compile(this.scene, this.camera);
+    for (let i = 0; i < 2; i++) {
+      this.moon.shadow.needsUpdate = true;
+      this.sun.shadow.needsUpdate = true;
+      for (const s of extraShadows) s.needsUpdate = true;
+      this.composer.render();
+    }
+  }
+
   /** Cards, cutscenes and endings get a shallow depth of field; play stays sharp. */
   setCinematic(on: boolean): void {
     this.cineTarget = on ? 1 : 0;
@@ -226,19 +248,26 @@ export class Stage {
   /** What the graphics setting allows: moon shadows and the cinematic lens are high-only; low drops surface bump. */
   setQuality(q: 'high' | 'medium' | 'low'): void {
     this.quality = q;
-    this.moon.castShadow = q === 'high';
+    // shadow lights stay put (toggling castShadow recompiles every material); medium just hides the moon's shadow
+    this.moon.shadow.intensity = q === 'high' ? 1 : 0;
     SURFACE.uDetail.value = q === 'low' ? 0 : 1;
   }
 
   /** Lower the internal resolution (adaptive quality on slow GPUs). */
+  /**
+   * Internal resolution: the asked-for pixel ratio, but never more than ~4.2 million pixels (a 1080p screen at 1.33x).
+   * Past that, extra pixels cost a lot of fill and SMAA hides the difference.
+   */
   setPixelRatio(r: number): void {
-    this.renderer.setPixelRatio(r);
+    this.wantRatio = r;
     this.resize();
   }
+  private wantRatio = Math.min(window.devicePixelRatio, 1.5);
 
   resize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    this.renderer.setPixelRatio(Math.min(this.wantRatio, Math.sqrt(4.2e6 / Math.max(1, w * h))));
     this.renderer.setSize(w, h);
     this.composer.setSize(w, h);
     this.camera.aspect = w / h;
@@ -292,8 +321,12 @@ export class Stage {
 
   update(t: number, cam: THREE.Vector3): void {
     this.sky.material.uniforms.uTime.value = t;
-    if (t - this.envT > 2 || !this.envRT) {
+    // the reflected sky is rebuilt only when it has visibly changed (never mid-lightning): a rebuild is a small hitch
+    const c = this.cur;
+    const sig = c.top.r + c.top.g + c.top.b + c.horizon.r + c.horizon.g + c.horizon.b + c.glow.r + c.glow.g + c.glow.b + c.glowY + this.skyAz;
+    if (!this.envRT || (t - this.envT > 1.5 && Math.abs(sig - this.envSig) > 0.02 && this.flash < 0.05)) {
       this.envT = t;
+      this.envSig = sig;
       this.updateEnv();
     }
     // wet world: always damp tonight; puddles swell and ripple while it rains
@@ -322,12 +355,12 @@ export class Stage {
     this.sky.material.uniforms.uFlash.value = this.flash;
     this.sun.intensity = this.dawn * 4.2;
     this.hemi.intensity = 0.3 + this.dawn * 0.3 + this.flash * 2.2;
-    this.sun.castShadow = this.dawn > 0.05;
+    this.sun.shadow.autoUpdate = this.dawn > 0.05;
     // no moon on the darkest hour (no disc in the sky), and none once the sun is up
     this.moon.intensity = (0.25 + 0.55 * Math.min(1, this.cur.disc * 20)) * (1 - this.dawn) + this.flash * 3.5;
     const f = this.focus;
     this.moonFrame++;
-    if (this.moonFrame % 2 === 0) this.moon.shadow.needsUpdate = true;
+    if (this.moonFrame % 2 === 0 && this.quality === 'high') this.moon.shadow.needsUpdate = true;
     // snap the shadow camera to whole texels so the shadows do not shimmer as he moves
     const snap = 40 / 1024;
     const fx = Math.round(f.x / snap) * snap;

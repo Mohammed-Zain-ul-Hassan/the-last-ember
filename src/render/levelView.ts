@@ -5,6 +5,7 @@ import { Rng } from '../sim/rng';
 import { Flame } from './flame';
 import { rimify } from './rim';
 import { surface } from './surface';
+import { mergeStatic } from './merge';
 import { column, stoneBox } from './shapes';
 import { glowTexture, shaftTexture, tatterTexture } from './textures';
 
@@ -81,6 +82,9 @@ export class LevelView {
     for (const x of level.checkpoints) this.buildBrazier(x, side);
     if (level.id === 'lowerCity' && level.end !== undefined) this.cityGate(level.end, 3.9);
     if (level.bossAt !== undefined && level.end !== undefined) this.cathedralDoors(level.end - 2.5, 2.0);
+    // thousands of static pieces become a few dozen batched meshes (see merge.ts)
+    const m = mergeStatic(this.group);
+    console.info(`[level] ${level.id}: ${m.before} static meshes merged into ${m.after}`);
   }
 
   /** Build into a sub-group placed at (x, y, z) and turned by ry, then return to the level group. */
@@ -205,6 +209,7 @@ export class LevelView {
     m.position.set(x + (onPole ? 0.05 : 0), onPole ? top - 0.1 : top, z + 0.5);
     m.castShadow = true;
     m.customDistanceMaterial = new THREE.MeshDistanceMaterial({ alphaMap: tat, alphaTest: 0.5 });
+    m.userData.dynamic = true; // it waves
     this.target.add(m);
     this.banners.push({ mesh: m, base: Float32Array.from(geo.attributes.position.array as Float32Array), seed: x });
   }
@@ -221,6 +226,7 @@ export class LevelView {
     this.add(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 10), STONE, x, y + 0.2, z).castShadow = false;
     const f = new Flame(0.1, 0.18, 1);
     f.group.position.set(x, y + 0.42, z);
+    f.group.userData.dynamic = true;
     this.target.add(f.group);
     this.smallFlames.push(f);
   }
@@ -390,6 +396,7 @@ export class LevelView {
     const flame = new Flame(0.4, 0.6, 2);
     flame.group.position.y = 0.9;
     root.add(plinth, cup, ember, flame.group);
+    root.userData.dynamic = true;
     this.target.add(root);
     this.shrines.push({ root, ember, flame, on: 0 });
   }
@@ -400,6 +407,7 @@ export class LevelView {
     const flame = new Flame(0.7, 1.1, 2);
     flame.group.position.set(x, 1.0, z);
     flame.strength = 0;
+    flame.group.userData.dynamic = true;
     this.target.add(flame.group);
     const light = new THREE.PointLight(0xff8a3d, 0, 14, 2);
     light.position.set(x, 1.7, z + 0.4);
@@ -436,6 +444,7 @@ export class LevelView {
     this.gate = g;
     this.gateOpen = 0;
     this.gateTarget = 0;
+    g.userData.dynamic = true; // the doors swing
     this.target.add(g);
   }
 
@@ -968,6 +977,7 @@ export class LevelView {
       m.castShadow = true;
       m.customDistanceMaterial = new THREE.MeshDistanceMaterial({ alphaMap: tat, alphaTest: 0.5 });
       this.target.add(m);
+      m.userData.dynamic = true;
       this.banners.push({ mesh: m, base: Float32Array.from(geo.attributes.position.array as Float32Array), seed: i * 2.3 });
     }
   }

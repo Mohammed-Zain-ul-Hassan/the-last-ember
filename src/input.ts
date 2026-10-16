@@ -43,11 +43,22 @@ export function isLocked(): boolean {
 /** Capture the mouse for looking around (needs a user gesture). */
 export function requestLock(): void {
   if (!canvasEl || isLocked()) return;
+  const el = canvasEl;
+  const plain = () => {
+    try {
+      const p = el.requestPointerLock() as unknown as Promise<void> | undefined;
+      if (p && typeof p.catch === 'function') p.catch(() => undefined);
+    } catch {
+      // locked out (iframe sandbox, too soon after a release): Q / E still turn the camera
+    }
+  };
+  // raw mouse movement where the browser offers it (no OS acceleration): turns feel immediate and consistent
   try {
-    const p = canvasEl.requestPointerLock() as unknown as Promise<void> | undefined;
-    if (p && typeof p.catch === 'function') p.catch(() => undefined);
+    const lock = el.requestPointerLock as unknown as (this: HTMLElement, o?: { unadjustedMovement?: boolean }) => Promise<void> | undefined;
+    const p = lock.call(el, { unadjustedMovement: true });
+    if (p && typeof p.catch === 'function') p.catch(plain);
   } catch {
-    // locked out (iframe sandbox, too soon after a release): the arrow keys still turn the camera
+    plain();
   }
 }
 

@@ -39,13 +39,13 @@ function erode(g: THREE.BufferGeometry, amount: number, scale: number, seed: num
 /** A carved stone block with rounded, chipped edges. */
 export function stoneBox(w: number, h: number, d: number, seed = 1, chip = 0.035): THREE.BufferGeometry {
   const r = Math.min(0.09, Math.min(w, h, d) * 0.18);
-  const g = new RoundedBoxGeometry(w, h, d, 3, r);
+  const g = new RoundedBoxGeometry(w, h, d, 2, r); // 2 segments: the same rounded edge at play distance, half the triangles
   return erode(g, chip, 2.2, seed);
 }
 
 /** A natural rock: subdivided icosahedron, squashed and eroded. */
 export function rock(size: number, seed = 1): THREE.BufferGeometry {
-  const raw = new THREE.IcosahedronGeometry(size, 3);
+  const raw = new THREE.IcosahedronGeometry(size, 2);
   raw.deleteAttribute('normal');
   raw.deleteAttribute('uv');
   const g = mergeVertices(raw); // shared vertices -> smooth shading instead of facets

@@ -257,6 +257,35 @@ export class ShadeViews {
     this.live.clear();
   }
 
+  /**
+   * Show one of every kind for a moment so the renderer compiles their shaders now (behind the hour card), not when
+   * the first crawler leaps out mid-fight. Call before renderer.compile; then `endPrewarm`.
+   */
+  prewarm(at: THREE.Vector3, smoke: Particles, embers: Particles): void {
+    for (const kind of ['shade', 'crawler', 'lantern'] as const) {
+      for (const dying of [false, true]) {
+        const v = this.pools[kind].pop() ?? this.make(kind);
+        // a dissolving copy too: fading turns its materials transparent, which is a shader of its own
+        const s: Shade = {
+          id: -1, x: at.x, y: -4, z: at.z, vx: 0, vz: 0, hp: 1, maxHp: 1, speed: 0, yaw: 0, state: dying ? 'dead' : 'walk', stateT: 0, cd: 0,
+          target: 'knight', light: 0, deadT: dying ? 0.1 : 0, big: false, kind, enraged: false,
+        };
+        v.update(s, 0, 0, smoke, embers); // inside every shadow volume, under the ground where no one sees it
+        v.root.visible = true;
+        this.group.add(v.root);
+        this.warm.push({ kind, v });
+      }
+    }
+  }
+  private warm: { kind: ShadeKind; v: AnyMesh }[] = [];
+  endPrewarm(): void {
+    for (const { kind, v } of this.warm) {
+      this.group.remove(v.root);
+      this.pools[kind].push(v);
+    }
+    this.warm.length = 0;
+  }
+
   hit(id: number): void {
     const e = this.live.get(id);
     if (e) e.v.flash = 1;

@@ -10,8 +10,33 @@ import * as THREE from 'three';
 
 export type SurfaceKind = 'stone' | 'paving' | 'plaster' | 'timber' | 'earth' | 'iron';
 
+/**
+ * Noise from a small tiling 3D texture of random values: one filtered read per octave instead of eight hashes.
+ * The lookup coordinate is bent through smoothstep first, so the hardware's linear filter gives the same smooth
+ * value noise (no faceting in the bump).
+ */
+function noiseTexture(): THREE.Data3DTexture {
+  const n = 32;
+  const data = new Uint8Array(n * n * n);
+  let seed = 1234567;
+  for (let i = 0; i < data.length; i++) {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    data[i] = seed >>> 24;
+  }
+  const t = new THREE.Data3DTexture(data, n, n, n);
+  t.format = THREE.RedFormat;
+  t.type = THREE.UnsignedByteType;
+  t.minFilter = THREE.LinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.wrapS = t.wrapT = t.wrapR = THREE.RepeatWrapping;
+  t.unpackAlignment = 1;
+  t.needsUpdate = true;
+  return t;
+}
+
 /** Shared by every patched material: the stage drives them per frame. */
 export const SURFACE = {
+  uNoise: { value: noiseTexture() },
   uTime: { value: 0 },
   uWet: { value: 0.6 }, // 0 dry .. 1 soaked (puddles grow with it)
   uRain: { value: 0 }, // 0..1 ripple strength
@@ -31,8 +56,7 @@ const NOISE = /* glsl */ `
   float sfHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
   float sfNoise(vec3 x) {
     vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mix(sfHash(i), sfHash(i + vec3(1,0,0)), f.x), mix(sfHash(i + vec3(0,1,0)), sfHash(i + vec3(1,1,0)), f.x), f.y),
-               mix(mix(sfHash(i + vec3(0,0,1)), sfHash(i + vec3(1,0,1)), f.x), mix(sfHash(i + vec3(0,1,1)), sfHash(i + vec3(1,1,1)), f.x), f.y), f.z);
+    return texture(uSfNoise, (i + f + 0.5) / 32.0).r;
   }
   float sfFbm(vec3 p) { return sfNoise(p) * 0.55 + sfNoise(p * 2.03) * 0.3 + sfNoise(p * 4.11) * 0.15; }
   float sfLow(vec3 p) { return sfNoise(p) * 0.65 + sfNoise(p * 2.1) * 0.35; }
@@ -59,6 +83,7 @@ export function surface<T extends THREE.MeshStandardMaterial>(mat: T, kind: Surf
   mat.onBeforeCompile = (shader, renderer) => {
     prev.call(mat, shader, renderer);
     shader.uniforms.uSfTime = SURFACE.uTime;
+    shader.uniforms.uSfNoise = SURFACE.uNoise;
     shader.uniforms.uSfWet = SURFACE.uWet;
     shader.uniforms.uSfRain = SURFACE.uRain;
     shader.uniforms.uSfDetail = SURFACE.uDetail;
@@ -83,6 +108,7 @@ export function surface<T extends THREE.MeshStandardMaterial>(mat: T, kind: Surf
         varying vec3 vSfPos;
         varying vec3 vSfNrm;
         uniform float uSfTime; uniform float uSfWet; uniform float uSfRain; uniform float uSfDetail;
+        uniform highp sampler3D uSfNoise;
         ${NOISE}`,
       )
       .replace(

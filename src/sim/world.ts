@@ -259,12 +259,24 @@ export class World {
     return floor;
   }
 
+  /** Presses that land during hit-stop wait for the next real step: a strike or a jump is never swallowed. */
+  private queued = { jump: false, attack: false, heavy: false, dash: false };
+
   step(input: Input): void {
     this.events.length = 0;
     if (this.status !== 'playing') return;
+    const q = this.queued;
     if (this.hitstop > 0) {
       this.hitstop--;
+      q.jump ||= input.jump;
+      q.attack ||= input.attack;
+      q.heavy ||= input.heavy;
+      q.dash ||= input.dash;
       return;
+    }
+    if (q.jump || q.attack || q.heavy || q.dash) {
+      input = { ...input, jump: input.jump || q.jump, attack: input.attack || q.attack, heavy: input.heavy || q.heavy, dash: input.dash || q.dash };
+      q.jump = q.attack = q.heavy = q.dash = false;
     }
     const dt = CFG.dt;
     this.frame++;

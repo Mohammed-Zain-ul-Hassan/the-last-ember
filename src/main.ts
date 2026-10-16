@@ -123,7 +123,7 @@ function ensureLevel(): void {
   stage.world.add(levelView.group);
   const sh = world.level.shelter;
   rain.setShelter(sh ? sh.rect : null, sh?.y ?? 0);
-  hearth.group.visible = world.level.hearthX !== undefined;
+  hearth.setPresent(world.level.hearthX !== undefined);
   stage.setTerrain(world.level.id === 'cityWall' ? 'high' : world.level.id === 'cathedral' ? 'indoor' : 'open');
 }
 
@@ -207,6 +207,7 @@ function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   hud.choice(false);
   knight.pose = 'kneel';
   rig.go(cardShot(), quick ? 0.6 : 1.6);
+  warmShaders();
   setMode('intro');
   if (quick) modeT = 2.4;
   sfx('bell');
@@ -215,6 +216,16 @@ function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
 /** The hour card's wide shot: around him on the open grounds, high behind him down a street or a nave. */
 function cardShot() {
   return world.road ? ROAD_CARD_SHOT : CARD_SHOT;
+}
+
+/**
+ * Compile every shader this hour can need now, while its card covers the screen, so nothing stalls mid-fight:
+ * one of each enemy (and a dissolving one), every shadow pass. Cheap when they are already compiled.
+ */
+function warmShaders(): void {
+  shadeViews.prewarm(new THREE.Vector3(world.knight.x, 0, world.knight.z), smoke, glow);
+  stage.warmup([hearth.light.shadow, knight.torchLight.shadow]);
+  shadeViews.endPrewarm();
 }
 
 /** Fallen: on the road, rise again at the last lit brazier; on the grounds, the hour begins again. */
@@ -458,6 +469,71 @@ let simAcc = 0;
  * Advance the sim in fixed 1/60 s steps. `source` is asked for input once per step that actually runs, so a key
  * pressed on a frame where no step runs (high-refresh displays) stays latched for the next step instead of being lost.
  */
+// ---- render interpolation
+// The sim ticks at a fixed 60 Hz; screens refresh at 60, 120, 144... Drawing the latest tick as-is makes bodies hold
+// still for a frame and then jump (micro-stutter that also reads as input lag). Instead each frame draws a blend of
+// the last two ticks, by how far we are into the next one. The sim itself is untouched: the blended poses are
+// written in just for drawing and the true ones put back right after.
+interface Pose3 {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+}
+let prevWorld: World | null = null;
+const prevK: Pose3 = { x: 0, y: 0, z: 0, yaw: 0 };
+const prevS = new Map<number, Pose3>();
+function snapshot(): void {
+  const k = world.knight;
+  prevWorld = world;
+  prevK.x = k.x;
+  prevK.y = k.y;
+  prevK.z = k.z;
+  prevK.yaw = k.yaw;
+  for (const sh of world.shades) {
+    const p = prevS.get(sh.id);
+    if (p) {
+      p.x = sh.x;
+      p.y = sh.y;
+      p.z = sh.z;
+      p.yaw = sh.yaw;
+    } else prevS.set(sh.id, { x: sh.x, y: sh.y, z: sh.z, yaw: sh.yaw });
+  }
+  if (prevS.size > world.shades.length + 16) for (const id of prevS.keys()) if (!world.shades.some((q) => q.id === id)) prevS.delete(id);
+}
+const truePoses: number[] = [];
+function blendPose(o: Pose3, p: Pose3, a: number): void {
+  truePoses.push(o.x, o.y, o.z, o.yaw);
+  if (Math.abs(o.x - p.x) + Math.abs(o.z - p.z) + Math.abs(o.y - p.y) > 3) return; // a teleport: don't smear it
+  o.x = p.x + (o.x - p.x) * a;
+  o.y = p.y + (o.y - p.y) * a;
+  o.z = p.z + (o.z - p.z) * a;
+  o.yaw = p.yaw + angleDiff(p.yaw, o.yaw) * a;
+}
+function interpolate(): void {
+  truePoses.length = 0;
+  if (prevWorld !== world) return;
+  const a = Math.min(1, simAcc / CFG.dt);
+  blendPose(world.knight, prevK, a);
+  for (const sh of world.shades) {
+    const p = prevS.get(sh.id);
+    if (p) blendPose(sh, p, a);
+    else truePoses.push(sh.x, sh.y, sh.z, sh.yaw);
+  }
+}
+function restorePoses(): void {
+  if (!truePoses.length) return;
+  const put = (o: Pose3, i: number) => {
+    o.x = truePoses[i];
+    o.y = truePoses[i + 1];
+    o.z = truePoses[i + 2];
+    o.yaw = truePoses[i + 3];
+  };
+  put(world.knight, 0);
+  world.shades.forEach((sh, i) => put(sh, 4 + i * 4));
+  truePoses.length = 0;
+}
+
 function stepSim(source: Input | (() => Input), dt: number): void {
   simAcc += dt;
   let first = true;
@@ -473,6 +549,7 @@ function stepSim(source: Input | (() => Input), dt: number): void {
       world.knight.iframes = Math.max(world.knight.iframes, 0.2);
       world.hearthHp = Math.max(world.hearthHp, 50);
     }
+    snapshot();
     world.step(input);
     for (const e of world.events) {
       if (e.type === 'knightHurt') levelStats.wounds += e.dmg;
@@ -756,7 +833,8 @@ function update(now: number): void {
   if (mode === 'lost' && DEMO && modeT > 3) retry();
   if (mode === 'credits' && DEMO && modeT > 6) restartAll();
 
-  // ---- render-side updates
+  // ---- render-side updates (drawn from the blend of the last two sim ticks; see interpolate)
+  interpolate();
   if (mode === 'intro' || mode === 'play' || mode === 'outro' || mode === 'lost' || mode === 'title') {
     const sky = mode === 'outro' && CHAPTERS[chapterIndex + 1] && chapterIndex + 1 !== midnightIndex ? CHAPTERS[chapterIndex + 1].sky : world.chapter.sky;
     stage.setSky(sky, Math.min(1, rawDt * (mode === 'outro' ? 0.9 : 0.6)));
@@ -850,6 +928,7 @@ function update(now: number): void {
   const danger = mode === 'play' ? Math.min(1, world.shades.filter((s) => s.state !== 'dead' && Math.abs(s.x - world.knight.x) < 6).length / 3) : 0;
   setBeds(hearth.lit ? hearth.strength : knight.torchOn ? 0.5 : 0, danger);
   stage.render();
+  restorePoses();
 
   if (DEBUG) {
     frames++;

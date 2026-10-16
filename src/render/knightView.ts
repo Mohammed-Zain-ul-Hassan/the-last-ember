@@ -262,7 +262,9 @@ export class KnightView {
     );
     this.torchHalo.position.y = 0.8;
     this.torch.add(this.torchHalo);
-    this.torch.visible = false;
+    for (const c of this.torch.children) if (c !== this.torchLight) c.visible = false;
+    this.torchLight.castShadow = true; // always: toggling a shadow light recompiles every material (a freeze)
+    this.torchLight.shadow.autoUpdate = false;
     // a carried ember floats over his shoulder
     this.emberOrb = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(3.2, 1.3, 0.35), blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
@@ -323,8 +325,8 @@ export class KnightView {
 
   setTorch(on: boolean): void {
     this.torchOn = on;
-    this.torch.visible = on;
-    this.torchLight.castShadow = on;
+    for (const c of this.torch.children) if (c !== this.torchLight) c.visible = on;
+    this.torchLight.shadow.autoUpdate = on;
     if (!on) this.torchLight.intensity = 0;
     this.trailColor.copy(on ? new THREE.Color(3.4, 1.3, 0.35) : new THREE.Color(1.6, 1.3, 3.4));
     EDGE.color.copy(on ? new THREE.Color(3.0, 1.0, 0.25) : new THREE.Color(1.1, 0.9, 2.6));
