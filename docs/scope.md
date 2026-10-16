@@ -10,7 +10,7 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
 - [x] One hour of play, hearth lose, knight lose, R retry, hour-cleared screen (1u)
 
 ## TIER 1: theme proof + story spine (target Day 1 evening)
-- [ ] Chapter data 7/9/11 PM: sky, hearth strength, waves, hour-card text; the clock HUD (2u)
+- [x] Chapter data 7/9/11 PM: sky, hearth strength, waves, hour-card text; the clock HUD (2u)
 - [ ] Midnight cutscene: hearth dies, torch lit, camera orbit (2u)
 - [ ] Torch phase 1/3/5 AM: torch light follows the knight; a scrolling road east (2u)
 - [ ] Dawn and the choice: two endings with text cards (2u)
