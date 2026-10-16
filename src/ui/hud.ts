@@ -107,6 +107,16 @@ export class Hud {
     this.toastT = 3;
   }
 
+  /** The name of a place, the first time he reaches it. */
+  place(name: string, sub: string): void {
+    const el = $('place');
+    $('place-name').textContent = name;
+    $('place-sub').textContent = sub;
+    el.classList.remove('on');
+    void el.offsetWidth;
+    el.classList.add('on');
+  }
+
   choice(on: boolean): void {
     $('choice').classList.toggle('hidden', !on);
   }

@@ -14,6 +14,15 @@ export const TITLE_SHOT: Shot = { yaw: -0.32, height: 1.25, dist: 7.6, lookY: 2.
 export const MIDNIGHT_SHOT: Shot = { yaw: -0.5, height: 1.5, dist: 7.5, lookY: 1.7, fov: 34 };
 export const TORCH_SHOT: Shot = { yaw: 0.24, height: 2.7, dist: 13, lookY: 2.3, fov: 36 };
 export const DAWN_SHOT: Shot = { yaw: 0.28, height: 3.4, dist: 19, lookY: 3.2, fov: 36 };
+/** First sight of each place: wide, high or looking up, while play continues. */
+export const REVEAL_SHOTS: Record<string, Shot> = {
+  street: { yaw: 0.5, height: 5.2, dist: 21, lookY: 3.4, fov: 40 },
+  market: { yaw: 0.62, height: 6.5, dist: 23, lookY: 3.2, fov: 40 },
+  nave: { yaw: 0.12, height: 1.6, dist: 19, lookY: 7.2, fov: 46 },
+  apse: { yaw: -0.38, height: 2.6, dist: 21, lookY: 8.5, fov: 44 },
+  rampart: { yaw: 0.72, height: 7.5, dist: 24, lookY: 2.8, fov: 40 },
+  gatehouse: { yaw: 0.55, height: 4.5, dist: 25, lookY: 7, fov: 42 },
+};
 export const ENDING_SHOT: Shot = { yaw: -0.35, height: 1.8, dist: 8, lookY: 2.0, fov: 36 };
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);

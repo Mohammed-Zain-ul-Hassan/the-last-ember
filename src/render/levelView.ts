@@ -37,12 +37,15 @@ const TIMBER = rimify(new THREE.MeshStandardMaterial({ color: 0x1a120e, roughnes
 const FLAG = new THREE.MeshStandardMaterial({ color: 0x241f28, roughness: 0.9 });
 const IRON = rimify(new THREE.MeshStandardMaterial({ color: 0x15121a, roughness: 0.5, metalness: 0.6 }), 0.9, 'lviron');
 const FACADE = new THREE.MeshStandardMaterial({ color: 0x0b0a0f, roughness: 1 });
+const FG = new THREE.MeshBasicMaterial({ color: 0x020203 }); // foreground silhouettes: pure black
+const WARM_WINDOW = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.42, 0.12), fog: false });
 
 export class LevelView {
   readonly group = new THREE.Group();
   private banners: Banner[] = [];
   private shrines: ShrineView[] = [];
   private braziers: Brazier[] = [];
+  private smallFlames: Flame[] = [];
   private gate: THREE.Group | null = null;
   private gateOpen = 0;
   gateTarget = 1;
@@ -57,7 +60,10 @@ export class LevelView {
     this.buildFloor();
     for (const w of level.walls) this.buildWall(w);
     for (const p of level.platforms) this.buildPlatform(p);
-    for (const r of level.regions) this.dressRegion(r.kind, r.x0, r.x1);
+    for (const r of level.regions) {
+      this.dressRegion(r.kind, r.x0, r.x1);
+      this.foreground(r.kind, r.x0, r.x1);
+    }
     if (level.id === 'grounds') {
       this.groundsRuins();
       this.groundsStatues();
@@ -204,22 +210,33 @@ export class LevelView {
         for (let x = x0 + 3; x < x1; x += 6) this.pillar(x, -3.6, 11.5);
         for (let x = x0 + 3; x < x1 - 6; x += 6) this.pointedArch(x + 3, -3.6, 6, 8.2);
         this.naveWall(x0, x1, -9);
+        for (let x = x0 + 6; x < x1 - 3; x += 12) this.chandelier(x, 7.6, -1.2);
+        for (let x = x0 + 6; x < x1 - 3; x += 6) this.saint(x, -8.2);
+        for (let x = x0 + 9; x < x1; x += 18) this.hangingBanner(x, -3.0, 10.8, 4.2);
         break;
       case 'apse':
         for (let x = x0 + 3; x < x1; x += 7) this.pillar(x, -3.8, 12.5);
         this.roseWindow((x0 + x1) / 2 + 4, 10.5, -11);
         this.naveWall(x0, x1, -11.6);
         this.add(stoneBox(3.2, 1.0, 1.6, 77, 0.03), STONE, (x0 + x1) / 2 - 2, 0.5, -2.6); // the altar
+        this.organ((x0 + x1) / 2 + 4 - 8, -10.4);
+        this.organ((x0 + x1) / 2 + 4 + 8, -10.4);
+        for (let i = 0; i < 5; i++) this.candle((x0 + x1) / 2 - 3.2 + i * 0.6, 1.0, -2.4 - (i % 2) * 0.3);
         break;
       case 'rampart':
         // the wall walk: a low parapet in front, towers behind, the sheer drop beyond
         for (let x = x0; x < x1; x += 1.4) this.add(stoneBox(0.9, 0.55, 0.45, x * 3, 0.04), STONE, x, 0.27, 2.1);
-        for (let x = x0 + 8; x < x1; x += 28) this.tower(x, -4.5, 10);
+        for (let x = x0 + 8; x < x1; x += 28) {
+          this.tower(x, -4.5, 10);
+          this.hangingBanner(x, -4.5, 15.5, 3.2, true);
+        }
         break;
       case 'gatehouse':
         this.tower(x0 + 4, -4.2, 13);
         this.tower(x1 - 4, -4.2, 14);
         this.add(stoneBox(x1 - x0, 7, 1.6, x0, 0.05), DARK_STONE, (x0 + x1) / 2, 3.5, -3.6);
+        this.bell((x0 + x1) / 2 + 2, 10.5, -4.2);
+        this.portcullis((x0 + x1) / 2 - 6, -2.7);
         break;
       case 'grounds':
         break;
@@ -255,6 +272,120 @@ export class LevelView {
     const g = new THREE.ExtrudeGeometry(s, { depth: 0.6, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 2 });
     const m = this.add(g, FACADE, cx, 0, z - 0.3);
     m.receiveShadow = true;
+    // a candle someone left: one or two windows still glow
+    for (const hole of s.holes.slice(0, 6)) {
+      if (rng.next() > 0.18) continue;
+      const pts = hole.getPoints();
+      const xs = pts.map((p) => p.x);
+      const ys = pts.map((p) => p.y);
+      const pane = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)), WARM_WINDOW);
+      pane.position.set(cx + (Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2, z - 0.35);
+      this.group.add(pane);
+    }
+    if (!broken && rng.next() < 0.7) this.add(stoneBox(0.6, 1.6, 0.6, cx, 0.02), FACADE, cx + w * rng.range(-0.3, 0.3), h + w * 0.25, z);
+    if (rng.next() < 0.4) {
+      // a shop sign on an iron bracket
+      const sx = cx + w * rng.range(-0.35, 0.35);
+      this.add(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 8), IRON, sx + 0.5, 3.2, z + 0.5, 0, Math.PI / 2).castShadow = false;
+      this.add(stoneBox(0.7, 0.5, 0.06, sx, 0.004), TIMBER, sx + 0.8, 2.85, z + 0.5);
+    }
+  }
+
+  /** Dark shapes between the camera and the lane: depth, parallax, a sense of being somewhere. */
+  private foreground(kind: RegionKind, x0: number, x1: number): void {
+    const rng = this.rng;
+    const fg = (geo: THREE.BufferGeometry, x: number, y: number, z: number, rz = 0) => {
+      const m = new THREE.Mesh(geo, FG);
+      m.position.set(x, y, z);
+      m.rotation.z = rz;
+      this.group.add(m);
+    };
+    for (let x = x0 + rng.range(4, 12); x < x1; x += rng.range(16, 26)) {
+      const z = rng.range(5.2, 6.5);
+      switch (kind) {
+        case 'nave':
+        case 'apse':
+          fg(new THREE.CylinderGeometry(0.85, 0.95, 26, 24), x, 9, z); // a great pillar right in front of the lens
+          break;
+        case 'rampart':
+        case 'gatehouse':
+          fg(stoneBox(1.0, 1.3, 0.8, x, 0.03), x, 0.4, z - 1.2);
+          fg(stoneBox(1.0, 1.3, 0.8, x + 1, 0.03), x + 1.7, 0.4, z - 1.2);
+          break;
+        default:
+          if (rng.next() < 0.5) {
+            // a hanging chain with a broken lantern
+            fg(new THREE.CylinderGeometry(0.03, 0.03, 6, 6), x, 9.5, z);
+            fg(new THREE.CylinderGeometry(0.2, 0.26, 0.5, 8), x, 6.3, z);
+          } else {
+            // a leaning broken post
+            fg(new THREE.CylinderGeometry(0.16, 0.22, 4.6, 10), x, 1.6, z, rng.range(-0.3, 0.3));
+          }
+      }
+    }
+  }
+
+  private chandelier(x: number, y: number, z: number): void {
+    this.add(new THREE.CylinderGeometry(0.03, 0.03, 16 - y, 6), IRON, x, y + (16 - y) / 2, z).castShadow = false;
+    const ring = this.add(new THREE.TorusGeometry(1.0, 0.05, 8, 40), IRON, x, y, z);
+    ring.rotation.x = Math.PI / 2;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      this.add(new THREE.CylinderGeometry(0.03, 0.03, 0.18, 6), STONE, x + Math.cos(a), y + 0.1, z + Math.sin(a)).castShadow = false;
+    }
+  }
+
+  /** A saint in a niche between the windows: a hooded figure, hands folded. */
+  private saint(x: number, z: number): void {
+    this.add(stoneBox(0.9, 0.5, 0.7, x, 0.03), STONE, x, 2.7, z);
+    this.add(new THREE.CylinderGeometry(0.22, 0.42, 2.2, 20), STONE, x, 4.05, z);
+    this.add(new THREE.SphereGeometry(0.2, 18, 12), STONE, x, 5.35, z);
+    this.add(new THREE.ConeGeometry(0.28, 0.6, 18, 1, true), STONE, x, 5.5, z);
+  }
+
+  private hangingBanner(x: number, z: number, top: number, len: number, onPole = false): void {
+    const tat = tatterTexture(Math.round(x * 3));
+    if (onPole) this.add(new THREE.CylinderGeometry(0.05, 0.06, 3.4, 10), IRON, x, top - 1.6, z);
+    const geo = new THREE.PlaneGeometry(1.2, len, 4, 12);
+    geo.translate(onPole ? 0.6 : 0, -len / 2, 0);
+    const mat = rimify(new THREE.MeshStandardMaterial({ color: onPole ? 0x2a0c10 : 0x16080c, roughness: 1, side: THREE.DoubleSide, alphaMap: tat, alphaTest: 0.5 }), 0.7, 'lvbanner');
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x + (onPole ? 0.05 : 0), onPole ? top - 0.1 : top, z + 0.5);
+    m.castShadow = true;
+    m.customDistanceMaterial = new THREE.MeshDistanceMaterial({ alphaMap: tat, alphaTest: 0.5 });
+    this.group.add(m);
+    this.banners.push({ mesh: m, base: Float32Array.from(geo.attributes.position.array as Float32Array), seed: x });
+  }
+
+  private organ(x: number, z: number): void {
+    for (let i = 0; i < 9; i++) {
+      const h = 3 + Math.abs(4 - i) * -0.5 + 5;
+      this.add(new THREE.CylinderGeometry(0.16, 0.16, h, 16), IRON, x + (i - 4) * 0.42, h / 2 + 1.2, z).castShadow = false;
+    }
+    this.add(stoneBox(4.4, 1.2, 1.0, x, 0.02), TIMBER, x, 0.6, z);
+  }
+
+  private candle(x: number, y: number, z: number): void {
+    this.add(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 10), STONE, x, y + 0.2, z).castShadow = false;
+    const f = new Flame(0.1, 0.18, 1);
+    f.group.position.set(x, y + 0.42, z);
+    this.group.add(f.group);
+    this.smallFlames.push(f);
+  }
+
+  private bell(x: number, y: number, z: number): void {
+    const pts = [[0, 0], [1.0, 0], [0.95, 0.15], [0.7, 0.5], [0.55, 1.3], [0.45, 1.5], [0, 1.55]].map(([a, b]) => new THREE.Vector2(a, b));
+    this.add(new THREE.LatheGeometry(pts, 36), IRON, x, y - 1.55, z);
+    this.add(stoneBox(3.2, 0.4, 0.5, x, 0.02), TIMBER, x, y + 0.2, z);
+  }
+
+  private portcullis(x: number, z: number): void {
+    for (let i = 0; i < 7; i++) this.add(new THREE.CylinderGeometry(0.05, 0.05, 4.6, 8), IRON, x - 1.5 + i * 0.5, 2.6, z).castShadow = false;
+    for (let j = 0; j < 4; j++) {
+      const bar = this.add(new THREE.CylinderGeometry(0.04, 0.04, 3.4, 8), IRON, x, 1.0 + j * 1.2, z);
+      bar.rotation.z = Math.PI / 2;
+      bar.castShadow = false;
+    }
   }
 
   private lamp(x: number, z: number): void {
@@ -466,6 +597,7 @@ export class LevelView {
       s.flame.strength = s.on * 0.9;
       s.flame.update(t, camera);
     });
+    for (const f of this.smallFlames) f.update(t, camera);
     this.braziers.forEach((b, i) => {
       b.lit += ((i < checkpointsLit ? 1 : 0) - b.lit) * Math.min(1, dt * 2);
       b.flame.strength = b.lit;

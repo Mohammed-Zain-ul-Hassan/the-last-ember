@@ -5,7 +5,7 @@ import { CFG } from './config';
 import { CHAPTERS, DAWN_SKY, MIDNIGHT_SKY } from './data/chapters';
 import { playEvents, type FxTargets } from './fx';
 import { clearInput, initInput, onKey, readInput } from './input';
-import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, GAMEPLAY_SHOT, MIDNIGHT_SHOT, TITLE_SHOT, TORCH_SHOT } from './render/cameraRig';
+import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, GAMEPLAY_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, TITLE_SHOT, TORCH_SHOT } from './render/cameraRig';
 import { Hearth } from './render/hearth';
 import { KnightView, setKnightFade } from './render/knightView';
 import { Particles } from './render/particles';
@@ -139,9 +139,47 @@ function retry(): void {
   else startChapter(chapterIndex, true);
 }
 
+// ------------------------------------------------------------------ places: names and reveal shots
+const seenRegions = new Set<string>();
+let revealT = 0;
+function regionHere(): { x0: number; kind: string; name?: string; sub?: string } | undefined {
+  const x = world.knight.x;
+  return world.level.regions.find((r) => x >= r.x0 && x < r.x1);
+}
+function placeCheck(dt: number): void {
+  if (revealT > 0) {
+    revealT -= dt;
+    if (revealT <= 0) {
+      rig.fitSpan = true;
+      rig.go(world.torch ? TORCH_SHOT : GAMEPLAY_SHOT, 1.4);
+    }
+    return;
+  }
+  const r = regionHere();
+  if (!r?.name) return;
+  const key = `${world.level.id}:${r.x0}`;
+  if (seenRegions.has(key)) return;
+  seenRegions.add(key);
+  hud.place(r.name, r.sub ?? '');
+  const shot = REVEAL_SHOTS[r.kind];
+  if (shot) {
+    rig.fitSpan = false;
+    rig.go(shot, 1.2);
+    revealT = 2.9;
+  }
+}
+
 function beginPlay(): void {
   hud.hideCard();
   hud.show(true);
+  // the place he starts in is named, not revealed (the hour card already swung the camera)
+  seenRegions.clear();
+  revealT = 0;
+  const r0 = regionHere();
+  if (r0?.name) {
+    seenRegions.add(`${world.level.id}:${r0.x0}`);
+    hud.place(r0.name, r0.sub ?? '');
+  }
   knight.pose = 'stand';
   rig.minSpan = world.torch ? 13 : 17.5;
   rig.go(world.torch ? TORCH_SHOT : GAMEPLAY_SHOT, 2.2);
@@ -461,6 +499,7 @@ function update(now: number): void {
 
   if (mode === 'play') {
     stepSim(DEMO ? botInput(world) : readInput(), dt);
+    placeCheck(rawDt);
     if (world.status === 'cleared') {
       knightX = world.knight.x;
       knightY = world.knight.y;
@@ -524,7 +563,7 @@ function update(now: number): void {
   if (mode === 'title') camTarget = -0.9;
   else if (mode === 'midnight') camTarget = -1.1;
   else {
-    const look = world.knight.x + world.knight.facing * 2.2;
+    const look = world.knight.x + world.knight.facing * 2.2 + (revealT > 0 ? 5 : 0);
     camTarget = Math.max(world.minX + 7, Math.min(world.maxX - 7, look));
   }
   rig.liftTarget = mode === 'title' || mode === 'midnight' ? 0 : world.knight.y * 0.8;
@@ -533,6 +572,7 @@ function update(now: number): void {
   const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.abs(s.x - k.x) < 3.2);
   rig.zoomTarget = close && (k.state === 'attack' || k.state === 'heavy' || k.state === 'dash') ? 0.78 : close ? 0.88 : 1;
   if (mode === 'play' && close) camTarget = camTarget * 0.6 + k.x * 0.4;
+  if (revealT > 0) rig.zoomTarget = 1;
   rig.update(rawDt, t, camTarget);
   stage.update(t, rig.x);
   hud.update(world, rawDt);

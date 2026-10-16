@@ -66,6 +66,22 @@ const SCENES = {
     q: 'seed=16&chapter=5&demo=1',
     js: `G.skipTo(5); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.knight.x = 60; G.tick(16.67, 200);`,
   },
+  reveal_market: {
+    q: 'seed=21&chapter=3&demo=1',
+    js: `G.skipTo(3); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.knight.x = 47.5; G.world.knight.y = 0; G.tick(16.67, 100);`,
+  },
+  reveal_apse: {
+    q: 'seed=22&chapter=4&demo=1',
+    js: `G.skipTo(4); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.knight.x = 65.5; G.world.knight.y = 0; G.tick(16.67, 95);`,
+  },
+  reveal_gate: {
+    q: 'seed=23&chapter=5&demo=1',
+    js: `G.skipTo(5); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.knight.x = 63.5; G.world.knight.y = 0; G.tick(16.67, 100);`,
+  },
+  nave_dress: {
+    q: 'seed=24&chapter=4&demo=1',
+    js: `G.skipTo(4); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.knight.x = 44; G.tick(16.67, 260);`,
+  },
   boss: {
     q: 'seed=8&chapter=4',
     js: `G.skipTo(4); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 120);

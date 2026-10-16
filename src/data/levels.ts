@@ -20,6 +20,8 @@ export interface Region {
   x0: number;
   x1: number;
   kind: RegionKind;
+  name?: string; // shown with a reveal shot the first time he enters it
+  sub?: string;
 }
 
 export interface Level {
@@ -88,9 +90,9 @@ export const LEVELS: Record<string, Level> = {
     shrines: [],
     checkpoints: [34, 68],
     regions: [
-      { x0: -12, x1: 48, kind: 'street' },
-      { x0: 48, x1: 66, kind: 'market' },
-      { x0: 66, x1: 112, kind: 'street' },
+      { x0: -12, x1: 48, kind: 'street', name: "Weavers' Row", sub: 'where the lamps went out first' },
+      { x0: 48, x1: 66, kind: 'market', name: 'The Ash Market', sub: 'nothing has been sold here in a hundred years' },
+      { x0: 66, x1: 112, kind: 'street', name: 'The Gate Road', sub: 'the cathedral waits beyond' },
     ],
   },
 
@@ -117,8 +119,8 @@ export const LEVELS: Record<string, Level> = {
     shrines: [],
     checkpoints: [33, 64],
     regions: [
-      { x0: -12, x1: 66, kind: 'nave' },
-      { x0: 66, x1: 104, kind: 'apse' },
+      { x0: -12, x1: 66, kind: 'nave', name: 'The Nave', sub: 'they prayed here for the fire to last' },
+      { x0: 66, x1: 104, kind: 'apse', name: 'The Apse of the First Flame', sub: 'where the hearth was kindled' },
     ],
   },
 
@@ -138,8 +140,8 @@ export const LEVELS: Record<string, Level> = {
     shrines: [],
     checkpoints: [36],
     regions: [
-      { x0: -12, x1: 64, kind: 'rampart' },
-      { x0: 64, x1: 96, kind: 'gatehouse' },
+      { x0: -12, x1: 64, kind: 'rampart', name: 'The Wall Walk', sub: 'the city sleeps below' },
+      { x0: 64, x1: 96, kind: 'gatehouse', name: 'The Dawn Gate', sub: 'climb, the sky is turning' },
     ],
   },
 };
