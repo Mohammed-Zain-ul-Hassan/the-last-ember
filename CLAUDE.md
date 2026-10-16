@@ -11,8 +11,9 @@ Gameplay runs as a pure 2D sim in `src/sim/` (no three imports, unit-tested); `s
 Deployed to Vercel; Vite `base: './'`. Look up Three.js / postprocessing APIs with the context7 MCP, not memory.
 
 ## Commands
-- `python run.py`: one command to play locally (checks Node, installs deps when needed, starts Vite, opens the
-  browser). `--prod` serves the production build, `--debug` opens with `?debug=1`, `--port N`, `--no-browser`.
+- `python run.py`: one command to play locally on http://localhost:5174 (checks Node, installs deps when needed,
+  starts Vite, opens the browser). `--prod` serves the production build (port 4173), `--debug` opens with
+  `?debug=1`, `--port N`, `--no-browser`. Port 5173 is left free for another project.
 - `npm run dev` (use `preview_start game` in Claude Browser; do not start servers with Bash)
 - `npm run build`, `npm run check` (typecheck + tests + assets check)
 

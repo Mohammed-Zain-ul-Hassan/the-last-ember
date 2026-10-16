@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run The Last Ember locally with one command.
 
-    python run.py              dev server with hot reload, opens the game in your browser
+    python run.py              dev server with hot reload on port 5174, opens the game in your browser
     python run.py --prod       production build, served the way Vercel serves it
     python run.py --debug      open with ?debug=1 (fps counter and window.__game hooks)
     python run.py --no-browser start the server without opening a browser
@@ -31,6 +31,8 @@ LOCK = ROOT / "package-lock.json"
 MODULES = ROOT / "node_modules"
 STAMP = MODULES / ".run-py-lock-hash"
 MIN_NODE = (20, 19)  # Vite 8 needs Node 20.19+ or 22.12+
+DEV_PORT = 5174  # 5173 (Vite's default) is kept free for another project
+PROD_PORT = 4173
 IS_WINDOWS = os.name == "nt"
 
 
@@ -143,7 +145,7 @@ def main() -> None:
     ap.add_argument("--prod", action="store_true", help="build for production and serve the build")
     ap.add_argument("--debug", action="store_true", help="open with ?debug=1")
     ap.add_argument("--no-browser", action="store_true", help="do not open a browser")
-    ap.add_argument("--port", type=int, default=None, help="port (default 5173 dev, 4173 prod)")
+    ap.add_argument("--port", type=int, default=None, help=f"port (default {DEV_PORT} dev, {PROD_PORT} prod)")
     ap.add_argument("--reinstall", action="store_true", help="reinstall dependencies first")
     args = ap.parse_args()
 
@@ -154,7 +156,7 @@ def main() -> None:
     check_node(node)
 
     # before touching node_modules: a server that is already running holds files in it open
-    port = args.port or (4173 if args.prod else 5173)
+    port = args.port or (PROD_PORT if args.prod else DEV_PORT)
     url = f"http://localhost:{port}/" + ("?debug=1" if args.debug else "")
     if port_busy(port):
         fail(f"port {port} is already in use (is the game already running?). Close it, or pick another: python run.py --port {port + 1}")
