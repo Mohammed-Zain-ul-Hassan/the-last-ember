@@ -2,12 +2,34 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>The Last Ember</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,400;1,400&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="app"></div>
+    <div id="hud">
+      <div id="hp"></div>
+      <div id="clock"><div id="clock-roman">VII</div><div id="clock-bar"><i></i></div><div id="clock-label">7 PM</div></div>
+      <div id="hearth"><div id="hearth-label">The Hearth</div><div id="hearth-bar"><i></i></div></div>
+      <div id="fps"></div>
+    </div>
+    <div id="flash"></div>
+    <div id="card" class="hidden">
+      <div id="card-roman"></div>
+      <div id="card-title"></div>
+      <div id="card-line"></div>
+      <div id="card-hint"></div>
+    </div>
+    <div id="title" class="hidden">
+      <h1>The Last Ember</h1>
+      <p class="sub">A shadow knight. One fire. One night.</p>
+      <p class="hint">Press any key</p>
+      <p class="controls">A D move &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; J / click strike &nbsp;·&nbsp; K / right-click heavy &nbsp;·&nbsp; Shift shadow-step &nbsp;·&nbsp; M mute &nbsp;·&nbsp; Esc pause</p>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -42,7 +42,7 @@ describe('world', () => {
     const s = w.spawnShade(-12.6);
     s.state = 'walk';
     s.cd = 99; // never attacks
-    for (let i = 0; i < 120 && s.state !== 'dead'; i++) w.step(press({ attack: i % 6 === 0 }));
+    for (let i = 0; i < 120 && (s.state as string) !== 'dead'; i++) w.step(press({ attack: i % 6 === 0 }));
     expect(s.state).toBe('dead');
     expect(w.kills).toBe(1);
   });

@@ -3,18 +3,18 @@
 Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
 
 ## TIER 0: vertical slice (target Day 1 ~16:00)
-- [ ] Three.js boot: renderer, side camera (12° yaw), fog, sky gradient, bloom + vignette, resize, DPR cap (2u)
-- [ ] Hearth: point light with shadows, flicker, flame + ember particles, HP (2u)
-- [ ] Knight (primitive silhouette + cape): move, jump, 3-hit combo, dash, hurt, death (3u)
-- [ ] Shade: spawns in a shadow interval, walks to the hearth, attacks it, takes light + sword damage, dies (2u)
-- [ ] One hour of play, hearth lose, knight lose, R retry, hour-cleared screen (1u)
+- [x] Three.js boot: renderer, side camera (12° yaw), fog, sky gradient, bloom + vignette, resize, DPR cap (2u)
+- [x] Hearth: point light with shadows, flicker, flame + ember particles, HP (2u)
+- [x] Knight (primitive silhouette + cape): move, jump, 3-hit combo, dash, hurt, death (3u)
+- [x] Shade: spawns in a shadow interval, walks to the hearth, attacks it, takes light + sword damage, dies (2u)
+- [x] One hour of play, hearth lose, knight lose, R retry, hour-cleared screen (1u)
 
 ## TIER 1: theme proof + story spine (target Day 1 evening)
 - [ ] Chapter data 7/9/11 PM: sky, hearth strength, waves, hour-card text; the clock HUD (2u)
 - [ ] Midnight cutscene: hearth dies, torch lit, camera orbit (2u)
 - [ ] Torch phase 1/3/5 AM: torch light follows the knight; a scrolling road east (2u)
 - [ ] Dawn and the choice: two endings with text cards (2u)
-- [ ] `?debug=1`, `?seed=n`, `?demo=1` bot, `?capture=1` (2u)
+- [x] `?debug=1`, `?seed=n`, `?demo=1` bot, `?capture=1` (2u)
 
 ## TIER 2: feel (target Day 2 midday)
 - [ ] Juice: hit-stop, shake, sparks, shade death smoke, memory wisps, camera punch, low-hearth heartbeat (3u)
@@ -40,6 +40,6 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
   mechanic cut to story-only (user). Engine Phaser to Three.js (research agent recommendation).
 
 ## NOW / NEXT / DONE
-- NOW: Tier 0 slice.
-- NEXT: Tier 1 chapters + midnight cutscene.
-- DONE: preflight, themes Q&A (4 rounds), orientation deck read, engine research, spec/story/scope.
+- NOW: Tier 1: midnight cutscene, torch phase (1/3/5 AM), dawn choice.
+- NEXT: Vercel deploy; juice pass; KayKit models once downloaded.
+- DONE: Tier 0 slice (7/9/11 PM hearth chapters play end to end, demo bot, debug hooks), tagged playable-1. Preflight, themes Q&A (4 rounds), orientation deck read, engine research, spec/story/scope.
