@@ -5,8 +5,10 @@ Themes are revealed at 10:00 on Day 1; use >=1 (fusing several in one mechanic s
 Full rules, rubric and schedule: @docs/handbook.md
 
 ## Stack
-Phaser 3.90 (pinned, do NOT upgrade to v4) + TypeScript + Vite. Deployed to GitHub Pages; Vite `base: './'`.
-Prefer the classic Canvas/WebGL renderer. Look up Phaser 3 APIs with the context7 MCP, not memory.
+Three.js r186 (`three@0.186.1`, WebGLRenderer, not WebGPU/TSL) + `postprocessing@6.39.5` + TypeScript + Vite.
+Switched from Phaser on Day 1 (2.5D side-view with camera swings and fire-cast shadows needs real 3D; see docs/spec.md).
+Gameplay runs as a pure 2D sim in `src/sim/` (no three imports, unit-tested); `src/render/` draws it in 3D.
+Deployed to Vercel; Vite `base: './'`. Look up Three.js / postprocessing APIs with the context7 MCP, not memory.
 
 ## Commands
 - `npm run dev` (use `preview_start game` in Claude Browser; do not start servers with Bash)

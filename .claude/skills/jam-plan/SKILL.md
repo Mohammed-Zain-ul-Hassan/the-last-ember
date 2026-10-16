@@ -9,7 +9,7 @@ Competition facts (do not re-derive): 3-day event, ~2 days real build, team of 4
 trailer (>=2:00 raw gameplay), then top 5 are played. Must use >=1 of 3 themes; using several in one mechanic earns
 synergy points. Rubric: theme core integration 15, synergy 10, atmosphere 5; then gameplay/feel, visual polish,
 audio, innovation, stability, scope/completeness, trailer. Copied assets/code/mechanics = disqualification.
-Stack: Phaser 3 + TypeScript + Vite, deployed to GitHub Pages. 2D unless the themes truly demand 3D (decide by 10:30 Day 1).
+Stack: see CLAUDE.md (this jam: Three.js r186 + postprocessing + TypeScript + Vite, deployed to Vercel).
 
 ## Mode A - kickoff (themes just revealed)
 1. Ask the user for the 3 themes and any constraint they heard at the demo/QnA. Ask at most 3 questions.

@@ -1,6 +1,6 @@
 # Story and theme bible (decisions from the kickoff Q&A, 2026-10-16)
 
-Status: concept locked with the user; engine pending research. The old Sundial spec is superseded.
+Status: concept locked with the user. Title: **The Last Ember**. Engine: Three.js (see spec.md).
 
 ## Decisions
 - **Tone:** mythic and melancholic (Ori / Gris / Journey / Limbo / Inside).
@@ -25,9 +25,15 @@ Status: concept locked with the user; engine pending research. The old Sundial s
 | 9 PM | The first shades | Hearth light casts shadows from ruins; creatures come through them | Creatures | Moon rises |
 | 11 PM | The hearth falters | Light radius shrinks; shadows creep closer | More, bolder creatures | Hearth flicker = the clock |
 | **12 AM** | **Cutscene: the hearth dies, the torch is lit** | Ancient fire passes into a torch | | Midpoint |
-| 1 AM | Carrying the flame | Torch is light and weapon, and it burns him | Freed shades drop memory fragments | Torch burns down |
+| 1 AM | Carrying the flame | Torch is light and weapon; smoke rises off his gauntlet (story only) | Freed shades drop memory fragments | Torch burns down |
 | 3 AM | The darkest hour | Torch is the only light in the world | Biggest shadow (boss) | Stars wheel overhead |
 | 5 AM | Before dawn: the choice | Dawn light approaches | His own shadow is all that's left | The sun returns |
 
-Open: hero name, game title, what the memories reveal (who he was, who lit the hearth), whether the torch burning
-him is a mechanic (health = flame) or only story.
+## Round 4 decisions
+- **Title:** The Last Ember. Small itch.io games share the name (Aishah Teima's HTML5 platformer, a Slip Studios
+  prototype), and *Lost Ember* (Mooneye, 2019) is the well-known near-miss. Acceptable; a subtitle can disambiguate.
+- **Torch burning him:** story only (smoke and embers off his gauntlet). Health works normally.
+- **Memories:** as a living knight **he once let the fire die**, and his kingdom fell to shadow. This night is his
+  penance, which feeds the dawn choice.
+- **Narration:** a few lines of poetic text per hour card. No voice.
+- Open: hero name.

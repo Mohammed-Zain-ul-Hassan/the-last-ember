@@ -19,9 +19,7 @@ If `docs/spec.md` and `docs/scope.md` already exist, resume from NOW/NEXT instea
 ## Phase 0 - Preflight (2 min, report problems immediately)
 - `git status` clean or committed; `npm ci` if node_modules missing; `npm run build` passes.
 - GitHub: `gh auth status`. If no `origin`, create it: `gh repo create <name> --private --source . --push`.
-- Docs lookup: use the context7 MCP if loaded; otherwise its HTTP API, pinned to Phaser 3.90:
-  `curl -s "https://context7.com/api/v1/phaserjs/phaser/v3_90_0?type=txt&topic=<topic>&tokens=2000"`.
-  Phaser's GitHub `skills/` folder is written for Phaser 4: ideas only, verify every API against 3.90.
+- Docs lookup: use the context7 MCP for three.js r186 and pmndrs postprocessing 6.x; verify against the pinned versions.
 - Dev server: `preview_start game` in the Claude Browser pane (never via Bash).
 - Wrap anything longer than a minute in `caffeinate -is`.
 
@@ -36,8 +34,8 @@ Quality bar (this is what separates us from other entries; do not ship below it)
   verb every second; near-miss and combo feedback; flow-channel difficulty ramp over the first 60 s; instant
   one-key retry with best score shown (loss aversion + goal gradient). Ethical hooks only.
 - Art: placeholders per jam-plan Mode C, generated as PNGs by script, cohesive <=6-colour palette, outline,
-  shading, layered parallax background. Must look intentional in a screenshot. Use Phaser 3.60+ preFX/postFX
-  (glow, bloom, vignette), particles, blend modes and camera effects where they serve readability.
+  shading, layered parallax background. Must look intentional in a screenshot. Use postprocessing effects
+  (bloom, vignette, tone mapping), particles, blend modes and camera effects where they serve readability.
 - Audio: procedural WebAudio SFX for every event (layered envelopes, slight pitch variation), an adaptive music
   bed that intensifies with game state, mute key, audio starts on first input.
 - UX: animated title, playing within 2 s, onboarding by doing (no text walls), pause, settings (mute,

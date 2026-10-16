@@ -1,46 +1,45 @@
-# Scope: SUNDIAL
+# Scope: THE LAST EMBER
 
-Work strictly top-down. Estimates are in 30-min units (u).
+Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
 
-## TIER 0: vertical slice (target Day 1 14:00)
-- [ ] Phaser boot, manifest loader with fallback textures, scenes: Boot/Title/Game/End (2u)
-- [ ] One level from JSON: buildings with footprint and height (1u)
-- [ ] Sun from hour (azimuth/elevation) and shadow polygons drawn each frame (2u)
-- [ ] Hero movement, in-shade test, burn meter, death (2u)
-- [ ] Exit door, win, R to retry, no crashes (1u)
+## TIER 0: vertical slice (target Day 1 ~16:00)
+- [ ] Three.js boot: renderer, side camera (12° yaw), fog, sky gradient, bloom + vignette, resize, DPR cap (2u)
+- [ ] Hearth: point light with shadows, flicker, flame + ember particles, HP (2u)
+- [ ] Knight (primitive silhouette + cape): move, jump, 3-hit combo, dash, hurt, death (3u)
+- [ ] Shade: spawns in a shadow interval, walks to the hearth, attacks it, takes light + sword damage, dies (2u)
+- [ ] One hour of play, hearth lose, knight lose, R retry, hour-cleared screen (1u)
 
-## TIER 1: theme proof (target Day 1 evening)
-- [ ] Q/E time scrub with hourglass sand budget; sun auto-drift (2u)
-- [ ] Sky colour and light tint driven by the hour; sundial + hourglass HUD (2u)
-- [ ] 3 levels at dawn / mid-morning / sunset (2u)
-- [ ] `?debug=1` (`window.__game`), `?seed=n`, `?demo=1` (recorded-input playback per level) (2u)
+## TIER 1: theme proof + story spine (target Day 1 evening)
+- [ ] Chapter data 7/9/11 PM: sky, hearth strength, waves, hour-card text; the clock HUD (2u)
+- [ ] Midnight cutscene: hearth dies, torch lit, camera orbit (2u)
+- [ ] Torch phase 1/3/5 AM: torch light follows the knight; a scrolling road east (2u)
+- [ ] Dawn and the choice: two endings with text cards (2u)
+- [ ] `?debug=1`, `?seed=n`, `?demo=1` bot, `?capture=1` (2u)
 
 ## TIER 2: feel (target Day 2 midday)
-- [ ] Juice: ignition flames/smoke particles, ember death burst, shake, hit-stop, SCORCHED near-miss, door chime (3u)
-- [ ] Procedural audio: wind bed, adaptive percussion, tick, scrub whoosh, crackle, chimes, mute (3u)
-- [ ] Animated title (sun sweeping the logo's shadow), pause, settings (mute, shake), stars + best time (2u)
-- [ ] postFX: bloom on sun, vignette, heat shimmer (1u)
+- [ ] Juice: hit-stop, shake, sparks, shade death smoke, memory wisps, camera punch, low-hearth heartbeat (3u)
+- [ ] Procedural audio + adaptive drums, mute (3u)
+- [ ] Title screen (camera orbit around the hearth), pause, settings, end screens (2u)
+- [ ] CC0 KayKit models and animations swapped in (knight, shades, ruins) (3u)
 
 ## TIER 3: content
-- [ ] Levels 4-8 (2u)
-- [ ] Clouds drifting = moving global shade patches (1u)
-- [ ] Birds/windmill blades = moving shadows (2u)
-- [ ] Braziers/torches as point lights (fire hazards that also cast shadows) (2u)
-- [ ] Sand pickups (1u)
+- [ ] 3 AM boss (2u) · flying shade (1u) · memory-fragment vignettes between chapters (2u) · more ruin set dressing (1u)
 
 ## TIER 4: stretch
-- Level editor UI, night level with moon, story vignettes, leaderboard.
+- Voice-over, a photo mode, extra endings.
 
 ## Team split (names TBD)
-- **Gameplay core** (Zain + Claude, `main`): `src/game/*`, shadows, hero, levels.
-- **UI/HUD + level design** (teammate B, branch): `src/ui/*`, `public/levels/*.json`.
-- **Audio + VFX** (teammate C, branch): `src/audio/*`, `src/fx.ts`.
-- **Art** (teammate D, branch): final PNGs into `public/assets/` by filename, logged in `ASSETS.md`.
+- **Gameplay core + render** (Zain + Claude, `main`): `src/sim/*`, `src/render/*`.
+- **UI/HUD + story text** (teammate B, branch): `src/ui/*`, `src/data/chapters.ts` text.
+- **Audio** (teammate C, branch): `src/audio/*`.
+- **Art/assets** (teammate D, branch): download and prepare the KayKit packs into `public/assets/models/`, log them in
+  `ASSETS.md`, sky colour keys per hour.
 
 ## CUT LOG
-- (none yet)
+- 2026-10-16: Sundial concept dropped (user picked Last Light). Past-selves mechanic cut (user). Torch-burns-knight
+  mechanic cut to story-only (user). Engine Phaser to Three.js (research agent recommendation).
 
 ## NOW / NEXT / DONE
-- NOW: concept approval.
-- NEXT: Tier 0 slice.
-- DONE: preflight, git init, concepts + spec + scope.
+- NOW: Tier 0 slice.
+- NEXT: Tier 1 chapters + midnight cutscene.
+- DONE: preflight, themes Q&A (4 rounds), orientation deck read, engine research, spec/story/scope.
