@@ -81,6 +81,7 @@ and definition; fluid movement and a real idle"
 - **Idle:** an asymmetric breath (chest, shoulders, head, eyes, cape), weight shifting between legs, a guard stance
   after fighting that relaxes into rest, and fidgets: a glance back, a blade twirl, a shoulder roll, a flick.
 - **Bug found:** Low quality (or auto quality at its lowest step) rendered a black screen; fixed in Stage.setSmaa.
+- **Before / after:** docs/critique/hero-showcase.jpg (outline vs aura; run, swing, torch phase, idle fidget).
 - **Human checks Claude can't do:** whether the new idle and run *feel* right in the hand, and the aura's strength
   on a projector.
 
