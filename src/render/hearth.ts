@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Flame } from './flame';
 import type { Particles } from './particles';
 import { rimify } from './rim';
+import { surface } from './surface';
 import { stoneBox } from './shapes';
 import { glowTexture } from './textures';
 
@@ -19,7 +20,7 @@ export class Hearth {
   lit = true; // false after midnight
 
   constructor(x: number) {
-    const stone = rimify(new THREE.MeshStandardMaterial({ color: 0x2a232c, roughness: 0.85 }), 0.7, 'hearthstone');
+    const stone = surface(rimify(new THREE.MeshStandardMaterial({ color: 0x2a232c, roughness: 0.85 }), 0.7, 'hearthstone'), 'stone');
     const plinth1 = new THREE.Mesh(stoneBox(3.2, 0.35, 2.3, 41, 0.04), stone);
     plinth1.position.y = 0.175;
     const plinth2 = new THREE.Mesh(stoneBox(2.3, 0.3, 1.8, 42, 0.035), stone);
@@ -34,7 +35,7 @@ export class Hearth {
       new THREE.Vector2(1.08, 0.54),
       new THREE.Vector2(0.0, 0.44),
     ];
-    const iron = rimify(new THREE.MeshStandardMaterial({ color: 0x1a1518, roughness: 0.5, metalness: 0.6 }), 1, 'brazier');
+    const iron = surface(rimify(new THREE.MeshStandardMaterial({ color: 0x1a1518, roughness: 0.5, metalness: 0.6 }), 1, 'brazier'), 'iron');
     const bowl = new THREE.Mesh(new THREE.LatheGeometry(pts, 48), iron);
     bowl.position.y = 0.65;
     // four claw feet gripping the bowl

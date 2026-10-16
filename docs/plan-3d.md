@@ -54,3 +54,19 @@ safety net for the Day 3 09:30 submission.
 Rough size: phase 1 ~6 h, phase 2 ~5 h, phase 3 ~3 h, phase 4 ~2 h. This runs past the Day 2 evening feature
 freeze, which is why `main` stays shippable. Cut order if behind: lock-on, then plunge/air moves, then the
 lantern-eater, then the market square (street only).
+
+## Graphics pass (Day 2)
+- `render/surface.ts`: world-space surface shader on every world material (variation, bump, rain stains, puddles that
+  go mirror-smooth, rain ripples). The sky is rendered into an environment map every ~2 s, so wet stone and puddles
+  reflect it.
+- Moon key light with soft shadows (high quality; half-rate shadow map, texel-snapped), soft shadow filtering,
+  no moon at 3 AM. Lit windows bloom and spill light onto the street; moonbeams through the cathedral lancets.
+- Post: filmic grade (saturation, contrast), faint edge fringe, depth of field on the knight for title, cards,
+  cutscenes and endings (high quality only; play stays sharp).
+- Cost measured in the same 9 PM scene (1024x768 @1.5): before 14.4-15.6 ms/frame, after: high 15.1, medium 14.1,
+  low 14.3.
+
+- Ground mist (`render/mist.ts`, a patch of three's fog chunks): low things far away sink into it; the land below
+  the wall is lost in it. Lightning far off in the heavier rain (sky flare, cold key light, thunder after), scaled by
+  the screen-flash setting. Contact shadows under the knight and the shades (`render/blobs.ts`). 11 PM scene on
+  high: 12-13 ms/frame.

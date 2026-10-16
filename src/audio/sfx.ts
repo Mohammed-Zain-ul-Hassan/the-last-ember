@@ -93,6 +93,7 @@ function noise(t: number, dur: number, type: BiquadFilterType, f0: number, f1: n
   if (!ctx) return;
   const src = ctx.createBufferSource();
   src.buffer = noiseBuf;
+  src.loop = true; // long sounds outlast the 2 s buffer
   src.playbackRate.value = vary(1, 0.2);
   const f = ctx.createBiquadFilter();
   f.type = type;
@@ -122,7 +123,7 @@ function tone(t: number, type: OscillatorType, f0: number, f1: number, dur: numb
 export type SfxName =
   | 'swing' | 'swingHeavy' | 'hit' | 'hitHeavy' | 'kill' | 'burn' | 'dash' | 'jump' | 'land' | 'hurt' | 'hearthHurt'
   | 'spawn' | 'bell' | 'lose' | 'ui' | 'fireburst' | 'ignite' | 'bigSpawn' | 'dawn' | 'gutter' | 'dissolve'
-  | 'bolt' | 'cut' | 'cry' | 'pounce' | 'airJump' | 'chargeFull' | 'shard';
+  | 'bolt' | 'cut' | 'cry' | 'pounce' | 'airJump' | 'chargeFull' | 'shard' | 'thunder';
 
 export function sfx(name: SfxName, combo = 0): void {
   if (!ctx || ctx.state !== 'running') return;
@@ -192,6 +193,12 @@ export function sfx(name: SfxName, combo = 0): void {
       noise(t, 1.4, 'lowpass', 300, 5000, 0.7, 0.7, 0.25);
       tone(t, 'sine', 147, 147, 2.5, 0.25, 0.3, musicBus);
       tone(t, 'sine', 220, 220, 2.5, 0.18, 0.4, musicBus);
+      break;
+    case 'thunder':
+      // far thunder: a soft crack, then a long roll that comes back once
+      noise(t, 0.5, 'bandpass', 900, 300, 0.6, 0.12, 0.01);
+      noise(t + 0.05, 4.8, 'lowpass', 300, 45, 0.7, 0.5, 0.25);
+      noise(t + 0.9, 3.6, 'lowpass', 200, 40, 0.8, 0.32, 0.5);
       break;
     case 'gutter':
       noise(t, 2.2, 'lowpass', 2400, 120, 0.9, 0.5, 0.05);

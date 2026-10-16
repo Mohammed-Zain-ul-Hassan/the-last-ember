@@ -4,8 +4,9 @@ import type { Solid } from '../sim/geom';
 import { Rng } from '../sim/rng';
 import { Flame } from './flame';
 import { rimify } from './rim';
+import { surface } from './surface';
 import { column, stoneBox } from './shapes';
-import { glowTexture, tatterTexture } from './textures';
+import { glowTexture, shaftTexture, tatterTexture } from './textures';
 
 // Builds a level's 3D set from its data. Every sim solid is dressed by its tag (masonry, columns, houses, pews,
 // pillars, walks, galleries, steps...), so what you see is what you hit. Around them each region adds what you
@@ -32,17 +33,19 @@ interface Brazier {
   lit: number;
 }
 
-// rain-wet: stone and paving are smoother than dry, so the fire glints off them
-const STONE = rimify(new THREE.MeshStandardMaterial({ color: 0x17141b, roughness: 0.68, metalness: 0.08 }), 0.5, 'lvstone');
-const DARK_STONE = rimify(new THREE.MeshStandardMaterial({ color: 0x0e0c12, roughness: 0.95 }), 0.4, 'lvdark');
-const TIMBER = rimify(new THREE.MeshStandardMaterial({ color: 0x1a120e, roughness: 0.85 }), 0.45, 'lvtimber');
-const FLAG = new THREE.MeshStandardMaterial({ color: 0x1f1b23, roughness: 0.42, metalness: 0.12 });
-const IRON = rimify(new THREE.MeshStandardMaterial({ color: 0x15121a, roughness: 0.5, metalness: 0.6 }), 0.9, 'lviron');
+// Every world material carries the surface-detail shader (variation, bump, rain stains, puddles): see surface.ts.
+const STONE = surface(rimify(new THREE.MeshStandardMaterial({ color: 0x1d1a22, roughness: 0.8, metalness: 0.04 }), 0.5, 'lvstone'), 'stone');
+const DARK_STONE = surface(rimify(new THREE.MeshStandardMaterial({ color: 0x131118, roughness: 0.9 }), 0.4, 'lvdark'), 'stone');
+const TIMBER = surface(rimify(new THREE.MeshStandardMaterial({ color: 0x24170f, roughness: 0.8 }), 0.45, 'lvtimber'), 'timber');
+const FLAG = surface(new THREE.MeshStandardMaterial({ color: 0x252029, roughness: 0.62, metalness: 0.06 }), 'paving');
+const IRON = surface(rimify(new THREE.MeshStandardMaterial({ color: 0x15121a, roughness: 0.5, metalness: 0.6 }), 0.9, 'lviron'), 'iron');
 // house walls: dark wet plaster that still catches a passing torch
-const FACADE = rimify(new THREE.MeshStandardMaterial({ color: 0x241e27, roughness: 0.78, metalness: 0.04 }), 0.45, 'lvfacade');
-const ROOF = rimify(new THREE.MeshStandardMaterial({ color: 0x15100e, roughness: 0.55, metalness: 0.05 }), 0.55, 'lvroof');
-const STATUE = rimify(new THREE.MeshStandardMaterial({ color: 0x1b1820, roughness: 0.95 }), 0.6, 'statue');
-const WARM_WINDOW = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.42, 0.12), fog: false });
+const FACADE = surface(rimify(new THREE.MeshStandardMaterial({ color: 0x2a232c, roughness: 0.85, metalness: 0.02 }), 0.45, 'lvfacade'), 'plaster');
+const ROOF = surface(rimify(new THREE.MeshStandardMaterial({ color: 0x1a120e, roughness: 0.6, metalness: 0.05 }), 0.55, 'lvroof'), 'timber');
+const STATUE = surface(rimify(new THREE.MeshStandardMaterial({ color: 0x221e27, roughness: 0.9 }), 0.6, 'statue'), 'stone');
+const WARM_WINDOW = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.95, 0.3), fog: false }); // bright enough to bloom
+const WINDOW_SPILL = new THREE.MeshBasicMaterial({ map: glowTexture(), color: new THREE.Color(0.75, 0.32, 0.1), transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false });
+const MOONBEAM = new THREE.MeshBasicMaterial({ map: shaftTexture(), color: new THREE.Color(0.2, 0.25, 0.55), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
 
 export class LevelView {
   readonly group = new THREE.Group();
@@ -153,8 +156,16 @@ export class LevelView {
       const xs = pts.map((p) => p.x);
       const ys = pts.map((p) => p.y);
       const pane = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)), WARM_WINDOW);
-      pane.position.set(cx + (Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2, z - 0.35);
+      const wx = cx + (Math.max(...xs) + Math.min(...xs)) / 2;
+      const wy = (Math.max(...ys) + Math.min(...ys)) / 2;
+      pane.position.set(wx, wy, z - 0.35);
       this.target.add(pane);
+      // its light spills out onto the wet street below
+      const spill = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), WINDOW_SPILL);
+      spill.rotation.x = -Math.PI / 2;
+      spill.position.set(wx, 0.035, z + 0.9 + wy * 0.35);
+      spill.scale.set(2.6, 1.6 + wy * 0.5, 1);
+      this.target.add(spill);
     }
     if (!broken && rng.next() < 0.7) this.add(stoneBox(0.6, 1.6, 0.6, cx, 0.02), FACADE, cx + w * rng.range(-0.3, 0.3), h + w * 0.25, z);
     if (rng.next() < 0.4) {
@@ -307,6 +318,15 @@ export class LevelView {
       s.lineTo(x0, 16);
       s.closePath();
       for (let x = x0 + 3; x < x1 - 2; x += 6) {
+        // a moonbeam slanting in through the lancet to the floor of the nave (two crossed sheets, seen from anywhere)
+        const slope = Math.atan2(-5.5, 9);
+        for (const cross of [0, 1]) {
+          const beam = new THREE.Mesh(new THREE.PlaneGeometry(1.5, Math.hypot(5.5, 9)), MOONBEAM);
+          beam.position.set(x, 4.5, 2.75);
+          beam.rotation.set(slope, cross ? 0 : Math.PI / 2, 0);
+          beam.renderOrder = 4;
+          this.target.add(beam);
+        }
         const w = new THREE.Path();
         w.moveTo(x - 0.8, 4);
         w.lineTo(x + 0.8, 4);

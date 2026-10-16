@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { BloomEffect, EffectComposer, EffectPass, KernelSize, NoiseEffect, OutlineEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
+import { BloomEffect, BrightnessContrastEffect, ChromaticAberrationEffect, DepthOfFieldEffect, EffectComposer, EffectPass, HueSaturationEffect, KernelSize, NoiseEffect, OutlineEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
 import type { SkyKey } from '../data/chapters';
 import { Rng } from '../sim/rng';
 import { RIM, rimify } from './rim';
+import { SURFACE, surface } from './surface';
 import { rock } from './shapes';
 import { fogTexture, shaftTexture } from './textures';
 
@@ -14,7 +15,7 @@ const SKY_VERT = /* glsl */ `
   varying vec3 vDir;
   void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const SKY_FRAG = /* glsl */ `
-  uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uGlow; uniform float uGlowY; uniform float uTime; uniform float uDisc; uniform float uGlowAz;
+  uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uGlow; uniform float uGlowY; uniform float uTime; uniform float uDisc; uniform float uGlowAz; uniform float uFlash;
   varying vec3 vDir;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) {
@@ -43,6 +44,8 @@ const SKY_FRAG = /* glsl */ `
     float cl = noise(vec2(dir.x * 5.0 + dir.z * 3.0 + uTime * 0.004, y * 46.0)) * noise(vec2(dir.z * 2.0 - dir.x * 1.3 - uTime * 0.002, y * 13.0));
     float band = smoothstep(0.28, 0.6, cl) * smoothstep(0.15, 0.35, y) * smoothstep(0.75, 0.45, y);
     c = mix(c, c * 0.55 + uGlow * 0.18, band * 0.7);
+    // lightning: the cloud lights up from inside, brightest high in the sky
+    c += vec3(0.55, 0.6, 0.85) * uFlash * (0.35 + y) * (0.6 + cl * 1.4);
     gl_FragColor = vec4(c, 1.0);
   }`;
 
@@ -56,6 +59,16 @@ export class Stage {
   private stars: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   private fog: THREE.FogExp2;
   private moon: THREE.DirectionalLight;
+  readonly dof: DepthOfFieldEffect;
+  private dofPass: EffectPass;
+  private cine = 0; // 0..1 how cinematic the lens is (eased)
+  private moonFrame = 0;
+  private flash = 0; // lightning, 0..1+, decays fast
+  private flashes: number[] = []; // times of the flickers still to come
+  private cineTarget = 0;
+  /** What the lens and the moon's shadow frame: set every frame (the knight, or the scene's subject). */
+  readonly focus = new THREE.Vector3();
+  private quality: 'high' | 'medium' | 'low' = 'high';
   private hemi: THREE.HemisphereLight;
   readonly sun: THREE.DirectionalLight;
   readonly bloom: BloomEffect;
@@ -68,6 +81,11 @@ export class Stage {
   private ground!: THREE.Mesh;
   private scatterGroup = new THREE.Group(); // rubble and grass
   private skyAz = -1.134; // where the sun/moon glow sits around the horizon (angle on x/z)
+  // the sky as an environment map: puddles and wet stone reflect it (rebuilt every couple of seconds as it changes)
+  private pmrem!: THREE.PMREMGenerator;
+  private envScene = new THREE.Scene();
+  private envRT: THREE.WebGLRenderTarget | null = null;
+  private envT = 0;
   private fogCards: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private shafts: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private grassTime = { value: 0 };
@@ -79,7 +97,7 @@ export class Stage {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     canvasParent.appendChild(this.renderer.domElement);
@@ -102,21 +120,37 @@ export class Stage {
         vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, depthWrite: false, fog: false, side: THREE.BackSide,
         uniforms: {
           uTop: { value: this.cur.top }, uHorizon: { value: this.cur.horizon }, uGlow: { value: this.cur.glow },
-          uGlowY: { value: 0 }, uTime: { value: 0 }, uDisc: { value: 0.09 }, uGlowAz: { value: -1.134 },
+          uGlowY: { value: 0 }, uTime: { value: 0 }, uDisc: { value: 0.09 }, uGlowAz: { value: -1.134 }, uFlash: { value: 0 },
         },
       }),
     );
     this.sky.renderOrder = -10;
     this.far.add(this.sky);
 
+    this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.envScene.add(new THREE.Mesh(new THREE.SphereGeometry(100, 32, 16), this.sky.material));
+
     this.stars = this.makeStars();
     this.far.add(this.stars);
 
     this.hemi = new THREE.HemisphereLight(0x6a5a9a, 0x0a0810, 0.3);
     this.scene.add(this.hemi);
+    // the moon: a cold key light from high over the arch; on high quality it casts long soft shadows around him
     this.moon = new THREE.DirectionalLight(0x9fb0ff, 0.6);
     this.moon.position.set(-8, 14, -20);
-    this.scene.add(this.moon);
+    this.moon.shadow.mapSize.set(1024, 1024);
+    this.moon.shadow.autoUpdate = false; // redrawn every other frame (see update): half the cost, no visible lag
+    const mc = this.moon.shadow.camera;
+    mc.left = -20;
+    mc.right = 20;
+    mc.top = 20;
+    mc.bottom = -20;
+    mc.near = 1;
+    mc.far = 120;
+    this.moon.shadow.bias = -0.0008;
+    this.moon.shadow.normalBias = 0.04;
+    this.moon.shadow.radius = 3;
+    this.scene.add(this.moon, this.moon.target);
 
     // dawn sun: low, from the right, casting long shadows to the left
     this.sun = new THREE.DirectionalLight(0xffc89a, 0);
@@ -146,11 +180,28 @@ export class Stage {
       blur: true, kernelSize: KernelSize.SMALL, xRay: false, resolutionScale: 0.75,
     });
     this.composer.addPass(new EffectPass(this.camera, this.outline));
+    // a cinematic lens for cards and cutscenes: focus on the knight, the world falls away into bokeh
+    this.dof = new DepthOfFieldEffect(this.camera, { focusDistance: 8, focusRange: 4, bokehScale: 0, resolutionScale: 0.5 });
+    this.dof.target = this.focus;
+    this.dofPass = new EffectPass(this.camera, this.dof);
+    this.dofPass.enabled = false;
+    this.composer.addPass(this.dofPass);
     this.bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.85, luminanceSmoothing: 0.25, intensity: 1.15, radius: 0.7 });
     const grain = new NoiseEffect({ premultiply: true });
     grain.blendMode.opacity.value = 0.35;
+    // the grade: a little more contrast and colour after tone mapping, and a faint fringe toward the frame's edge
+    const fringe = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0007, 0.0005), radialModulation: true, modulationOffset: 0.35 });
     this.composer.addPass(
-      new EffectPass(this.camera, this.bloom, new VignetteEffect({ offset: 0.3, darkness: 0.68 }), new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }), grain),
+      new EffectPass(
+        this.camera,
+        this.bloom,
+        new VignetteEffect({ offset: 0.3, darkness: 0.68 }),
+        new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }),
+        new HueSaturationEffect({ saturation: 0.12 }),
+        new BrightnessContrastEffect({ contrast: 0.09, brightness: 0.01 }),
+        fringe,
+        grain,
+      ),
     );
     // SMAA on the final image: smooth, precise edges on every silhouette (MSAA on the half-float target renders black)
     this.smaa = new EffectPass(this.camera, new SMAAEffect({ preset: SMAAPreset.HIGH }));
@@ -158,6 +209,25 @@ export class Stage {
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
+  }
+
+  /** A lightning strike far off: two or three flickers over a third of a second. */
+  lightning(t: number, strength: number): void {
+    this.flashes.push(t, t + 0.09 + Math.random() * 0.05, t + 0.26 + Math.random() * 0.1);
+    this.flashStrength = strength;
+  }
+  private flashStrength = 1;
+
+  /** Cards, cutscenes and endings get a shallow depth of field; play stays sharp. */
+  setCinematic(on: boolean): void {
+    this.cineTarget = on ? 1 : 0;
+  }
+
+  /** What the graphics setting allows: moon shadows and the cinematic lens are high-only; low drops surface bump. */
+  setQuality(q: 'high' | 'medium' | 'low'): void {
+    this.quality = q;
+    this.moon.castShadow = q === 'high';
+    SURFACE.uDetail.value = q === 'low' ? 0 : 1;
   }
 
   /** Lower the internal resolution (adaptive quality on slow GPUs). */
@@ -212,8 +282,24 @@ export class Stage {
     for (const s of this.shafts) s.material.color.copy(c.glow).multiplyScalar(0.16 + this.dawn * 0.4);
   }
 
+  /** Re-render the sky into the environment map (a few ms; done every ~2 s). */
+  private updateEnv(): void {
+    const rt = this.pmrem.fromScene(this.envScene, 0, 0.1, 300);
+    this.scene.environment = rt.texture;
+    this.envRT?.dispose();
+    this.envRT = rt;
+  }
+
   update(t: number, cam: THREE.Vector3): void {
     this.sky.material.uniforms.uTime.value = t;
+    if (t - this.envT > 2 || !this.envRT) {
+      this.envT = t;
+      this.updateEnv();
+    }
+    // wet world: always damp tonight; puddles swell and ripple while it rains
+    SURFACE.uTime.value = t;
+    SURFACE.uWet.value = 0.45 + this.rain * 0.55;
+    SURFACE.uRain.value = this.rain;
     this.far.position.set(cam.x, 0, cam.z);
     this.skyline.position.set(cam.x * 0.8, 0, cam.z * 0.8);
     // haze cards turn with the camera so they always lie across the view
@@ -228,10 +314,29 @@ export class Stage {
       s.material.opacity = 0.55 + 0.45 * Math.sin(t * 0.25 + i * 1.7);
     });
     this.grassTime.value = t;
+    while (this.flashes.length && this.flashes[0] <= t) {
+      this.flashes.shift();
+      this.flash = Math.max(this.flash, this.flashStrength * (0.6 + Math.random() * 0.4));
+    }
+    this.flash *= 0.86;
+    this.sky.material.uniforms.uFlash.value = this.flash;
     this.sun.intensity = this.dawn * 4.2;
-    this.hemi.intensity = 0.3 + this.dawn * 0.3;
+    this.hemi.intensity = 0.3 + this.dawn * 0.3 + this.flash * 2.2;
     this.sun.castShadow = this.dawn > 0.05;
-    this.moon.intensity = 0.6 * (1 - this.dawn);
+    // no moon on the darkest hour (no disc in the sky), and none once the sun is up
+    this.moon.intensity = (0.25 + 0.55 * Math.min(1, this.cur.disc * 20)) * (1 - this.dawn) + this.flash * 3.5;
+    const f = this.focus;
+    this.moonFrame++;
+    if (this.moonFrame % 2 === 0) this.moon.shadow.needsUpdate = true;
+    // snap the shadow camera to whole texels so the shadows do not shimmer as he moves
+    const snap = 40 / 1024;
+    const fx = Math.round(f.x / snap) * snap;
+    const fz = Math.round(f.z / snap) * snap;
+    this.moon.position.set(fx - 16, f.y + 28, fz - 40);
+    this.moon.target.position.set(fx, f.y, fz);
+    this.cine += (this.cineTarget - this.cine) * 0.06;
+    this.dofPass.enabled = this.quality === 'high' && this.cine > 0.02;
+    this.dof.bokehScale = 3.4 * this.cine;
   }
 
   render(): void {
@@ -262,7 +367,7 @@ export class Stage {
 
   private buildGround(): void {
     // wet earth: rough enough to stay dark, smooth enough to catch the firelight
-    const mat = new THREE.MeshStandardMaterial({ color: 0x17141b, roughness: 0.62, metalness: 0.08 });
+    const mat = surface(new THREE.MeshStandardMaterial({ color: 0x1a161d, roughness: 0.8, metalness: 0.04 }), 'earth');
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), mat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(40, 0, 0);
@@ -270,7 +375,7 @@ export class Stage {
     this.scene.add(ground, this.scatterGroup);
     this.ground = ground;
     const rng = new Rng(8);
-    const rockMat = rimify(new THREE.MeshStandardMaterial({ color: SILHOUETTE, roughness: 1 }), 0.5, 'rock');
+    const rockMat = surface(rimify(new THREE.MeshStandardMaterial({ color: 0x141118, roughness: 0.9 }), 0.5, 'rock'), 'stone');
     for (let i = 0; i < 260; i++) {
       const s = rng.range(0.15, 0.5);
       const m = new THREE.Mesh(rock(s, i * 3.7), rockMat);

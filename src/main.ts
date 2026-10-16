@@ -1,4 +1,5 @@
 import './style.css';
+import './render/mist'; // patches the fog shaders before anything renders
 import * as THREE from 'three';
 import { initAudio, isMuted, setBeds, setMood, setMuted, setRain, setVolumes, sfx } from './audio/sfx';
 import { bestFor, gradeFor, markReached, reached, recordBest, resetProgress, saveSettings, settings } from './settings';
@@ -15,6 +16,7 @@ import { Hearth } from './render/hearth';
 import { KnightView, setKnightFade } from './render/knightView';
 import { Particles } from './render/particles';
 import { Rain } from './render/rain';
+import { Blobs } from './render/blobs';
 import { ShadeViews } from './render/shadeView';
 import { LevelView } from './render/levelView';
 import { Stage } from './render/stage';
@@ -46,6 +48,8 @@ const shadeViews = new ShadeViews();
 stage.world.add(shadeViews.group);
 const rain = new Rain();
 stage.scene.add(rain.mesh);
+const blobs = new Blobs();
+stage.world.add(blobs.group);
 const hud = new Hud();
 const worldUi = new WorldUi(stage.camera);
 let timeScale = 1;
@@ -652,7 +656,8 @@ applySettings();
 if (!DEMO) menu.open('title');
 
 let manualClock = false;
-let lookIdle = 0; // seconds since the player last turned the camera // trailer capture drives the game with exact steps (tick) instead of rAF
+let lookIdle = 0; // seconds since the player last turned the camera
+let boltT = 9; // seconds to the next lightning // trailer capture drives the game with exact steps (tick) instead of rAF
 function frame(now: number): void {
   if (!manualClock) update(now);
   requestAnimationFrame(frame);
@@ -666,6 +671,7 @@ function applyQuality(): void {
   const r = q === 'high' ? DPR_STEPS[0] : q === 'medium' ? 1 : q === 'low' ? 0.75 : DPR_STEPS[q === 'auto' ? dprStep : 0];
   stage.setPixelRatio(r);
   stage.smaa.enabled = q !== 'low' && !(q === 'auto' && dprStep === DPR_STEPS.length - 1);
+  stage.setQuality(q === 'low' ? 'low' : q === 'medium' || (q === 'auto' && dprStep > 0) ? 'medium' : 'high');
   fitParticles();
 }
 function adaptQuality(rawDt: number): void {
@@ -677,6 +683,7 @@ function adaptQuality(rawDt: number): void {
     slowFrames = 0;
     stage.setPixelRatio(DPR_STEPS[dprStep]);
     if (dprStep === DPR_STEPS.length - 1) stage.smaa.enabled = false;
+    stage.setQuality(dprStep === DPR_STEPS.length - 1 ? 'low' : 'medium'); // the first thing to go: moon shadows, the lens
     fitParticles();
     console.info(`[quality] pixel ratio -> ${DPR_STEPS[dprStep]}`);
   }
@@ -762,7 +769,17 @@ function update(now: number): void {
   levelView?.update(dt, t, stage.camera, world.shrines.map((s) => s.active), world.checkpointsLit);
   if (mode !== 'paused') {
     knight.update(world.knight, dt, t, smoke, glow, stage.camera);
+    // contact shadows: under him, and under every shade that is up and walking
+    const kb = world.knight;
     const live = mode === 'play' || mode === 'outro' || mode === 'lost';
+    const spots = [{ x: kb.x, y: kb.y, z: kb.z, floor: world.floorAt(kb.x, kb.z, 0.2, kb.y), r: 0.55, a: knight.root.visible ? 1 : 0 }];
+    if (live)
+      for (const s of world.shades) {
+        if (s.kind === 'lantern') continue; // it floats too high to touch the ground
+        const a = s.state === 'dead' ? Math.max(0, 1 - s.deadT * 3) : s.state === 'rise' ? Math.min(1, s.stateT / 0.9) : 1;
+        spots.push({ x: s.x, y: s.y, z: s.z, floor: world.floorAt(s.x, s.z, 0.2, s.y), r: s.big ? 1.1 : s.kind === 'crawler' ? 0.6 : 0.5, a });
+      }
+    blobs.update(spots);
     shadeViews.update(live ? world.shades : [], dt, t, smoke, glow);
     ambient(dt);
     drawProjectiles(dt);
@@ -804,6 +821,9 @@ function update(now: number): void {
   const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.hypot(s.x - k.x, s.z - k.z) < 3.2);
   rig.zoomTarget = close && (k.state === 'attack' || k.state === 'heavy' || k.state === 'dash') ? 0.88 : close ? 0.94 : 1;
   rig.update(rawDt, t, world.solids);
+  // the lens: shallow focus on him for cards, cutscenes and endings; sharp while you play
+  stage.focus.set(k.x, k.y + 1.3, k.z);
+  stage.setCinematic(mode === 'title' || mode === 'intro' || (mode === 'outro' && memories.active < 0) || mode === 'midnight' || mode === 'dawn' || mode === 'ending' || mode === 'credits');
   // rain: steady through the night, heaviest at the darkest hour, gone at dawn
   const dry = mode === 'dawn' || mode === 'choice' || mode === 'ending' || mode === 'credits';
   rain.level += ((dry ? 0 : world.chapter.rain) - rain.level) * Math.min(1, rawDt * (dry ? 0.35 : 0.6));
@@ -812,6 +832,16 @@ function update(now: number): void {
   rain.update(t, stage.camera.position, { x: L0.x, y: L0.y, z: L0.z, radius: L0.radius, on: hearth.lit || knight.torchOn });
   rain.mesh.visible = rain.mesh.visible && memories.active < 0;
   setRain(memories.active >= 0 || mode === 'paused' ? rain.level * 0.35 : rain.level);
+  // now and then, in the heavier rain, lightning far off, and its thunder a moment later
+  const stormy = rain.level > 0.4 && memories.active < 0 && (mode === 'play' || mode === 'intro' || mode === 'title' || mode === 'midnight');
+  boltT -= stormy ? rawDt : 0;
+  if (boltT <= 0) {
+    boltT = 18 + Math.random() * 26;
+    if (stormy && settings.flashes > 0.05) {
+      stage.lightning(t, 0.55 + Math.random() * 0.45 * settings.flashes);
+      setTimeout(() => sfx('thunder'), 700 + Math.random() * 1800);
+    }
+  }
   memories.update(rawDt, stage.camera, glow, smoke);
   stage.update(t, stage.camera.position);
   hud.update(world, rawDt);
