@@ -52,7 +52,8 @@ export class Stage {
   private hemi: THREE.HemisphereLight;
   readonly sun: THREE.DirectionalLight;
   readonly bloom: BloomEffect;
-  readonly smaa: EffectPass;
+  private readonly smaa: EffectPass;
+  private readonly grade: EffectPass;
   readonly outline: OutlineEffect;
   private far = new THREE.Group(); // follows the camera like the sky
   private fogCards: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
@@ -136,15 +137,24 @@ export class Stage {
     this.bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.85, luminanceSmoothing: 0.25, intensity: 1.15, radius: 0.7 });
     const grain = new NoiseEffect({ premultiply: true });
     grain.blendMode.opacity.value = 0.35;
-    this.composer.addPass(
-      new EffectPass(this.camera, this.bloom, new VignetteEffect({ offset: 0.3, darkness: 0.68 }), new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }), grain),
-    );
+    this.grade = new EffectPass(this.camera, this.bloom, new VignetteEffect({ offset: 0.3, darkness: 0.68 }), new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }), grain);
+    this.composer.addPass(this.grade);
     // SMAA on the final image: smooth, precise edges on every silhouette (MSAA on the half-float target renders black)
     this.smaa = new EffectPass(this.camera, new SMAAEffect({ preset: SMAAPreset.HIGH }));
     this.composer.addPass(this.smaa);
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
+  }
+
+  /**
+   * SMAA on or off. The composer only marks the last pass added as the one that draws to the screen, so switching
+   * SMAA off must hand that job to the grade pass, or nothing reaches the canvas and the game renders black.
+   */
+  setSmaa(on: boolean): void {
+    this.smaa.enabled = on;
+    this.smaa.renderToScreen = on;
+    this.grade.renderToScreen = !on;
   }
 
   /** Lower the internal resolution (adaptive quality on slow GPUs). */

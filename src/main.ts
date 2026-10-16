@@ -628,7 +628,7 @@ function applyQuality(): void {
   const q = settings.quality;
   const r = q === 'high' ? DPR_STEPS[0] : q === 'medium' ? 1 : q === 'low' ? 0.75 : DPR_STEPS[q === 'auto' ? dprStep : 0];
   stage.setPixelRatio(r);
-  stage.smaa.enabled = q !== 'low' && !(q === 'auto' && dprStep === DPR_STEPS.length - 1);
+  stage.setSmaa(q !== 'low' && !(q === 'auto' && dprStep === DPR_STEPS.length - 1));
   fitParticles();
 }
 function adaptQuality(rawDt: number): void {
@@ -639,7 +639,7 @@ function adaptQuality(rawDt: number): void {
     dprStep++;
     slowFrames = 0;
     stage.setPixelRatio(DPR_STEPS[dprStep]);
-    if (dprStep === DPR_STEPS.length - 1) stage.smaa.enabled = false;
+    if (dprStep === DPR_STEPS.length - 1) stage.setSmaa(false);
     fitParticles();
     console.info(`[quality] pixel ratio -> ${DPR_STEPS[dprStep]}`);
   }
