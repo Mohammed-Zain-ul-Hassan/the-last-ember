@@ -40,7 +40,8 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
   mechanic cut to story-only (user). Engine Phaser to Three.js (research agent recommendation).
 
 ## NOW / NEXT / DONE
-- NOW: critique round 3 (combat close-ups, shade hit-flash, title pose); human playtest for feel and audio.
-- NEXT: trailer capture (`?demo=1&capture=1`), clips into trailer/raw; KayKit swap only if packs land.
-- DONE: Tier 0 + Tier 1 (all 6 hours, midnight cutscene, torch phase, great shade, dawn, both endings), Tier 2
-  look/feel/audio pass, live on Vercel (https://the-last-ember-xi.vercel.app), tags playable-1..3.
+- NOW: human playtest of the round-3 feel (springs, slashes, jump); trailer v0 edit from trailer/raw (jam-trailer).
+- NEXT: human-played 20 s climax take; balance pass; KayKit swap only if packs land.
+- DONE: Tiers 0-2, all six hours + midnight + dawn + both endings; round-3 shadow knight, spring animation, jump
+  cycle, slash variants, hit-flash, combat lean-in, adaptive resolution; 9 deterministic trailer clips (tags
+  playable-1..5); live on Vercel (https://the-last-ember-xi.vercel.app).

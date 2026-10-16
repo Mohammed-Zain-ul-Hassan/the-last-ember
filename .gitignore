@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# trailer captures are large and regenerable (trailer/scripts/drive.mjs)
+trailer/raw/*.mp4
+trailer/raw/*.h264
+trailer/raw/*.json
+trailer/work/

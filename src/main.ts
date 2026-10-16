@@ -246,7 +246,7 @@ function midnight(dt: number): void {
     for (let i = 0; i < 90; i++)
       glow.emit({ x: hx + (Math.random() - 0.5) * 1.5, y: 1.3, vx: (world.knight.x - hx) * 1.6 + (Math.random() - 0.5) * 2, vy: 2 + Math.random() * 3, spread: 0.6, life: 1.1, size: 0.12, sizeEnd: 0.02, r: 5, g: 2.2, b: 0.5, gravity: 3, drag: 0.8 });
     for (let i = 0; i < 40; i++)
-      smoke.emit({ x: hx + (Math.random() - 0.5), y: 1.3, vy: 1.5, spread: 0.8, life: 3.5, size: 1, sizeEnd: 3, r: 0.1, g: 0.09, b: 0.11, alpha: 0.5, drag: 0.4 });
+      smoke.emit({ x: hx + (Math.random() - 0.5), y: 1.3, vy: 1.5, spread: 0.8, life: 3.5, size: 0.9, sizeEnd: 2.4, r: 0.03, g: 0.025, b: 0.035, alpha: 0.4, drag: 0.4 });
   });
   at(5.6, 4, () => hud.card('XII', 'Midnight', 'The hearth is ash. Its fire lives in your hand now.'));
   at(7.2, 5, () => {
@@ -349,8 +349,9 @@ knight.pose = 'kneel';
 world.knight.x = -1.7;
 fitParticles();
 
+let manualClock = false; // trailer capture drives the game with exact steps (tick) instead of rAF
 function frame(now: number): void {
-  update(now);
+  if (!manualClock) update(now);
   requestAnimationFrame(frame);
 }
 
@@ -525,6 +526,7 @@ if (DEBUG) {
     dawn: () => { hud.title(false); hud.hideCard(); chapterIndex = CHAPTERS.length - 1; applyPhase(chapterIndex); knightX = 0; setMode('dawn'); },
     endHour: () => { world.time = world.chapter.duration - 0.1; },
     set godMode(v: boolean) { godMode = v; },
+    set manual(v: boolean) { manualClock = v; },
     set timeScale(v: number) { timeScale = v; slowT = v === 1 ? 0 : 1e9; },
     get godMode() { return godMode; },
     setSeed: (n: number) => { seed = n; },
@@ -543,4 +545,9 @@ if (DEBUG) {
     rig,
     THREE,
   };
+}
+
+// ------------------------------------------------------------------ trailer capture (?debug=1&trailer=1, dev only)
+if (DEBUG && params.get('trailer') === '1') {
+  void import('./trailer').then((m) => m.installTrailer((window as unknown as { __game: Parameters<typeof m.installTrailer>[0] }).__game));
 }

@@ -45,3 +45,21 @@ brazier; dawn was flat sepia. All fixed.
 - Shade hit-flash (ember rim pulse) and a stagger silhouette pop.
 - The kneel pose reads hunched on the title; straighten the back, plant the sword more visibly.
 - Human checks Claude can't do: does combat feel good? Is the audio mix right?
+
+## Round 3 result (Day 1 afternoon) — user notes: "a shadow with an aura, not a stiff body"; "slashes are all the
+same vertical swing"; "no jump animation"; "animations must be consistent"
+- **Living shadow:** the body is pure matte black (no specular, so the fire can't light him like a mannequin).
+  Silhouette edges erode into drifting smoke (noise discard on the fresnel edge), a deep-violet inner rim glows,
+  every part has a flickering aura shell, violet shadow-fire rises behind him, and smoke bleeds off every limb.
+  The dawn ending dissolves him through the same shader.
+- **No more stiffness:** every pose goes through damped springs (follow-through and overshoot; stiff and exact
+  during swings so they still hit their frames). The head lags the chest; idle has weight shift and breathing.
+- **Jump cycle:** take-off stretch, rising tuck, falling reach, landing squash and crouch, then back to idle.
+  Verified numerically per phase (sy 1.057 rise, knees 1.52 tucked, 0.6 extended falling, sy 0.944 on landing).
+- **Slashes:** five variants (overhead cleave, diagonal, rising diagonal, horizontal sweep, backhand) with
+  randomized angles and swing-plane tilt; the trail lives in the same tilted plane. Fixed a bug where the trail
+  started mid-swing.
+- **Round 3 asks:** shades flash ember-red when struck, the camera leans in during close combat, the kneel is
+  straighter with the sword planted.
+- **Bugs found:** a negative frame time from debug ticks exploded the springs (dt clamped, springs self-heal);
+  adaptive resolution added for slow GPUs.
