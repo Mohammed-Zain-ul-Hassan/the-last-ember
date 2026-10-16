@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CFG } from '../config';
 import type { Shade, ShadeKind } from '../sim/world';
-import { CrawlerMesh, LanternMesh, type EnemyMesh } from './enemyViews';
+import { CrawlerMesh, LanternMesh, turnToward, type EnemyMesh } from './enemyViews';
 import type { Particles } from './particles';
 import { rimify } from './rim';
 import { tatterTexture } from './textures';
@@ -37,6 +37,7 @@ class ShadeMesh {
   private pool: THREE.Mesh<THREE.CircleGeometry, THREE.ShaderMaterial>;
   private seed = Math.random() * 10;
   flash = 0;
+  turnYaw?: number;
   private robeMat: THREE.MeshStandardMaterial;
 
   constructor() {
@@ -119,8 +120,9 @@ class ShadeMesh {
   update(s: Shade, dt: number, t: number, smoke: Particles, embers: Particles): void {
     const S = CFG.shade;
     const big = s.big ? 1.65 : 1;
-    this.root.position.set(s.x, s.y, 0.2);
-    this.root.scale.set(s.facing * big, big, big);
+    this.root.position.set(s.x, s.y, s.z);
+    this.root.rotation.y = -turnToward(this, s.yaw, dt);
+    this.root.scale.set(big, big, big);
     const tt = t + this.seed;
     let rise = 1;
     let lean = 0.32 + Math.sin(tt * 1.7) * 0.05;
@@ -191,25 +193,25 @@ class ShadeMesh {
     this.eyeMat.color.setRGB(4.5 * tel, 0.8 * tel, 0.3);
     // the great shade smoulders with a red heart so it reads in the dark
     if (s.big && s.state !== 'dead' && Math.random() < dt * 40)
-      embers.emit({ x: s.x + (Math.random() - 0.5) * 1.6, y: s.y + 0.5 + Math.random() * 2.6, z: -0.1, vy: 0.6, spread: 0.3, life: 1.2, size: 0.12, sizeEnd: 0.02, r: 4, g: 0.5, b: 0.2, gravity: -0.5, wobble: 0.5 });
+      embers.emit({ x: s.x + (Math.random() - 0.5) * 1.6, y: s.y + 0.5 + Math.random() * 2.6, z: s.z + (Math.random() - 0.5) * 1.6, vy: 0.6, spread: 0.3, life: 1.2, size: 0.12, sizeEnd: 0.02, r: 4, g: 0.5, b: 0.2, gravity: -0.5, wobble: 0.5 });
     this.eyeMat.opacity = opacity;
 
     if (s.state === 'dead') return;
     if (Math.random() < dt * 26 * big) {
       smoke.emit({
-        x: s.x + (Math.random() - 0.5) * 0.7 * big, y: s.y + 0.1 + Math.random() * 0.9 * big, z: -0.2 + (Math.random() - 0.5) * 0.5,
-        vx: -s.facing * 0.5, vy: 0.35, spread: 0.2, life: 1.1, size: 0.8 * big, sizeEnd: 1.4 * big, r: 0.025, g: 0.015, b: 0.045, alpha: 0.75, drag: 1,
+        x: s.x + (Math.random() - 0.5) * 0.7 * big, y: s.y + 0.1 + Math.random() * 0.9 * big, z: s.z + (Math.random() - 0.5) * 0.7 * big,
+        vx: -Math.cos(s.yaw) * 0.5, vz: -Math.sin(s.yaw) * 0.5, vy: 0.35, spread: 0.2, life: 1.1, size: 0.8 * big, sizeEnd: 1.4 * big, r: 0.025, g: 0.015, b: 0.045, alpha: 0.75, drag: 1,
       });
     }
     if (s.light > 0.05 && Math.random() < s.light * dt * 50) {
       // burning in the light: edges smoulder and flake into embers
       embers.emit({
-        x: s.x + (Math.random() - 0.5) * 0.8 * big, y: s.y + 0.3 + Math.random() * 1.6 * big, z: -0.1,
+        x: s.x + (Math.random() - 0.5) * 0.8 * big, y: s.y + 0.3 + Math.random() * 1.6 * big, z: s.z + (Math.random() - 0.5) * 0.8 * big,
         vy: 1, spread: 0.5, life: 0.7, size: 0.09, sizeEnd: 0.02, r: 5, g: 1.5, b: 0.3, gravity: -1.2, wobble: 0.6,
       });
     }
     if (s.state === 'rise' && Math.random() < 0.7) {
-      smoke.emit({ x: s.x + (Math.random() - 0.5) * 1.4, y: 0.05, z: -0.2, vy: 1.6, spread: 0.4, life: 0.9, size: 1.0, sizeEnd: 1.8, r: 0.02, g: 0.01, b: 0.04, alpha: 0.9, drag: 1 });
+      smoke.emit({ x: s.x + (Math.random() - 0.5) * 1.4, y: s.y + 0.05, z: s.z + (Math.random() - 0.5) * 1.4, vy: 1.6, spread: 0.4, life: 0.9, size: 1.0, sizeEnd: 1.8, r: 0.02, g: 0.01, b: 0.04, alpha: 0.9, drag: 1 });
     }
   }
 }
@@ -232,6 +234,7 @@ export class ShadeViews {
       let e = this.live.get(s.id);
       if (!e) {
         const v = this.pools[s.kind].pop() ?? this.make(s.kind);
+        v.turnYaw = undefined; // a pooled view snaps to its new shade's facing
         e = { kind: s.kind, v };
         this.group.add(v.root);
         this.live.set(s.id, e);

@@ -43,9 +43,13 @@ export class WorldUi {
     this.nameIdx = Math.floor(Math.random() * NAMES.length);
   }
 
-  private project(x: number, y: number, z: number): { x: number; y: number; on: boolean } {
+  /** Screen position of a world point; `on` is false behind the camera; `side` is -1/1 for left/right of view. */
+  private project(x: number, y: number, z: number): { x: number; y: number; on: boolean; side: number } {
+    this.v.set(x, y, z).applyMatrix4(this.camera.matrixWorldInverse);
+    const ahead = this.v.z < -0.1;
+    const side = Math.sign(this.v.x) || 1;
     this.v.set(x, y, z).project(this.camera);
-    return { x: (this.v.x * 0.5 + 0.5) * window.innerWidth, y: (-this.v.y * 0.5 + 0.5) * window.innerHeight, on: this.v.z < 1 };
+    return { x: (this.v.x * 0.5 + 0.5) * window.innerWidth, y: (-this.v.y * 0.5 + 0.5) * window.innerHeight, on: ahead && this.v.z < 1, side };
   }
 
   private headY(big: boolean, kind: string = 'shade'): number {
@@ -86,20 +90,20 @@ export class WorldUi {
         if (bar) bar.lastHit = this.t;
         if (big) this.bossLastHit = this.t;
         const kind = w.torch && e.heavy ? 'fire' : e.heavy ? 'heavy' : e.move === 'light' ? 'light' : 'skill';
-        if (this.numbers) this.pop(e.heavy ? `${e.dmg}!` : `${e.dmg}`, e.x, (s ? s.y : 0) + this.headY(big, s?.kind) + 0.1, kind, -0.2, TAGS[e.move]);
+        if (this.numbers) this.pop(e.heavy ? `${e.dmg}!` : `${e.dmg}`, e.x, (s ? s.y : 0) + this.headY(big, s?.kind) + 0.1, kind, e.z, TAGS[e.move]);
       } else if (e.type === 'kill') {
         const name = NAMES[this.nameIdx++ % NAMES.length];
-        this.pop(e.big ? 'the Hollow Marshal is free' : name, e.x, e.y + 1.9, e.big ? 'soul big' : 'soul', -0.2);
-        if (e.burned && !e.big) this.pop('burned away', e.x, e.y + 1.4, 'burn', -0.2);
+        this.pop(e.big ? 'the Hollow Marshal is free' : name, e.x, e.y + 1.9, e.big ? 'soul big' : 'soul', e.z);
+        if (e.burned && !e.big) this.pop('burned away', e.x, e.y + 1.4, 'burn', e.z);
       } else if (e.type === 'move') {
         for (const old of Array.from(this.root.querySelectorAll('.pop.callout'))) old.remove(); // one callout at a time
-        this.pop(e.count >= 2 ? `${e.name} ×${e.count}` : e.name, e.x, e.y + 0.4, 'callout', 0);
+        this.pop(e.count >= 2 ? `${e.name} ×${e.count}` : e.name, e.x, e.y + 0.4, 'callout', e.z);
       } else if (e.type === 'marshalCry') {
-        this.pop('the Marshal remembers his oath, and hates you for keeping yours', e.x, e.y + 0.6, 'soul big', 0);
+        this.pop('the Marshal remembers his oath, and hates you for keeping yours', e.x, e.y + 0.6, 'soul big', e.z);
       } else if (e.type === 'knightHurt') {
-        if (this.numbers) this.pop(`-${e.dmg}`, e.x, e.y + 2.9, 'hurt', 0);
+        if (this.numbers) this.pop(`-${e.dmg}`, e.x, e.y + 2.9, 'hurt', e.z);
       } else if (e.type === 'lifeLost') {
-        this.pop(e.lives === 1 ? 'the last shard' : 'a shard breaks', e.x, e.y + 3.3, 'soul big', 0);
+        this.pop(e.lives === 1 ? 'the last shard' : 'a shard breaks', e.x, e.y + 3.3, 'soul big', e.z);
       }
     }
   }
@@ -125,7 +129,7 @@ export class WorldUi {
         const el = b.hb.el;
         const target = s.state === 'rise' ? 0 : 1;
         b.shown += (target - b.shown) * Math.min(1, dt * 6);
-        const p = this.project(s.x, s.y + this.headY(false, s.kind), -0.2);
+        const p = this.project(s.x, s.y + this.headY(false, s.kind), s.z);
         el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
         el.style.opacity = p.on ? (b.shown * (s.light > 0.05 ? 1 : 0.85)).toFixed(2) : '0';
         el.classList.toggle('burning', s.light > 0.05);
@@ -152,12 +156,12 @@ export class WorldUi {
   /** Points home when the hearth is off-screen; pulses when it is struck. */
   hearthMarker(w: World, show: boolean): void {
     const el = $('hearth-marker');
-    const p = this.project(w.hearthX, 1.4, 0);
+    const p = this.project(w.hearthX, 1.4, w.hearthZ);
     const off = p.x < 40 || p.x > window.innerWidth - 40 || !p.on;
     const on = show && w.level.hearthX !== undefined && !w.torch && off;
     el.classList.toggle('on', on);
     if (!on) return;
-    const left = p.x < window.innerWidth / 2;
+    const left = p.on ? p.x < window.innerWidth / 2 : p.side < 0;
     el.classList.toggle('left', left);
     el.classList.toggle('right', !left);
     (el.querySelector('.hp') as HTMLElement).textContent = `${Math.round(w.hearthHp)}%`;

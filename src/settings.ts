@@ -9,8 +9,10 @@ export interface Settings {
   flashes: number; // 0..1 screen flash strength
   numbers: boolean; // damage numbers over enemies
   quality: Quality;
+  sens: number; // 0..1 mouse look sensitivity
+  invertY: boolean;
 }
-const DEFAULTS: Settings = { volume: 1, music: 0.8, sfx: 1, shake: 1, flashes: 1, numbers: true, quality: 'auto' };
+const DEFAULTS: Settings = { volume: 1, music: 0.8, sfx: 1, shake: 1, flashes: 1, numbers: true, quality: 'auto', sens: 0.45, invertY: false };
 export interface Best {
   grade: string; // S A B C
   wounds: number;

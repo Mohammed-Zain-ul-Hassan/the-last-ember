@@ -10,11 +10,22 @@ import { glowTexture, tatterTexture } from './textures';
 export interface EnemyMesh {
   readonly root: THREE.Group;
   flash: number;
+  turnYaw?: number;
   update(s: Shade, dt: number, t: number, smoke: Particles, embers: Particles): void;
 }
 
 const black = (key: string, side: THREE.Side = THREE.FrontSide) =>
   rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, side }), 0.8, key);
+
+/** Ease a view's facing toward the sim's yaw the short way round; the first call snaps. Returns the eased yaw. */
+export function turnToward(v: { turnYaw?: number }, yaw: number, dt: number): number {
+  if (v.turnYaw === undefined || dt <= 0) return (v.turnYaw = yaw);
+  let d = (yaw - v.turnYaw) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  v.turnYaw += d * Math.min(1, dt * 12);
+  return v.turnYaw;
+}
 
 function fade(mats: THREE.MeshStandardMaterial[], opacity: number, flash: number): void {
   const fl = flash * flash;
@@ -29,6 +40,7 @@ function fade(mats: THREE.MeshStandardMaterial[], opacity: number, flash: number
 export class CrawlerMesh implements EnemyMesh {
   readonly root = new THREE.Group();
   flash = 0;
+  turnYaw?: number;
   private body = new THREE.Group();
   private legs: { hip: THREE.Group; knee: THREE.Group; phase: number }[] = [];
   private mat = black('crawler');
@@ -81,8 +93,8 @@ export class CrawlerMesh implements EnemyMesh {
   }
 
   update(s: Shade, dt: number, t: number, smoke: Particles): void {
-    this.root.position.set(s.x, s.y, 0.25);
-    this.root.scale.set(s.facing, 1, 1);
+    this.root.position.set(s.x, s.y, s.z);
+    this.root.rotation.y = -turnToward(this, s.yaw, dt);
     const tt = t + this.seed;
     const moving = s.state === 'walk' || s.state === 'strike';
     const crouch = s.state === 'windup' ? s.stateT / CFG.crawler.windup : 0;
@@ -103,7 +115,7 @@ export class CrawlerMesh implements EnemyMesh {
     this.eyeMat.color.setRGB(4.5 * tel, 0.8 * tel, 0.3);
     this.eyeMat.opacity = opacity;
     if (s.state !== 'dead' && Math.random() < dt * 14)
-      smoke.emit({ x: s.x - s.facing * 0.5, y: s.y + 0.4, z: 0.25, vx: -s.facing * 0.6, vy: 0.3, spread: 0.2, life: 0.7, size: 0.5, sizeEnd: 1, r: 0.02, g: 0.01, b: 0.04, alpha: 0.6, drag: 1.5 });
+      smoke.emit({ x: s.x - Math.cos(s.yaw) * 0.5, y: s.y + 0.4, z: s.z - Math.sin(s.yaw) * 0.5, vx: -Math.cos(s.yaw) * 0.6, vz: -Math.sin(s.yaw) * 0.6, vy: 0.3, spread: 0.2, life: 0.7, size: 0.5, sizeEnd: 1, r: 0.02, g: 0.01, b: 0.04, alpha: 0.6, drag: 1.5 });
   }
 }
 
@@ -111,6 +123,7 @@ export class CrawlerMesh implements EnemyMesh {
 export class LanternMesh implements EnemyMesh {
   readonly root = new THREE.Group();
   flash = 0;
+  turnYaw?: number;
   private body = new THREE.Group();
   private mat = black('lantern');
   private cloakMat: THREE.MeshStandardMaterial;
@@ -171,8 +184,8 @@ export class LanternMesh implements EnemyMesh {
   }
 
   update(s: Shade, dt: number, t: number, smoke: Particles, embers: Particles): void {
-    this.root.position.set(s.x, s.y, 0.15);
-    this.root.scale.set(s.facing, 1, 1);
+    this.root.position.set(s.x, s.y, s.z);
+    this.root.rotation.y = -turnToward(this, s.yaw, dt);
     const tt = t + this.seed;
     const charge = s.state === 'windup' ? s.stateT / CFG.lantern.windup : 0;
     const rise = s.state === 'rise' ? Math.min(1, s.stateT / CFG.shade.riseTime) : 1;
@@ -189,8 +202,8 @@ export class LanternMesh implements EnemyMesh {
     (this.core.material as THREE.SpriteMaterial).opacity = opacity;
     if (s.state === 'dead') return;
     if (Math.random() < dt * 18)
-      smoke.emit({ x: s.x + (Math.random() - 0.5) * 0.4, y: s.y + 0.1, z: 0.15, vy: -0.4, spread: 0.2, life: 1.0, size: 0.6, sizeEnd: 1.2, r: 0.02, g: 0.01, b: 0.05, alpha: 0.6, drag: 1 });
+      smoke.emit({ x: s.x + (Math.random() - 0.5) * 0.4, y: s.y + 0.1, z: s.z + (Math.random() - 0.5) * 0.4, vy: -0.4, spread: 0.2, life: 1.0, size: 0.6, sizeEnd: 1.2, r: 0.02, g: 0.01, b: 0.05, alpha: 0.6, drag: 1 });
     if (charge > 0 && Math.random() < dt * 40)
-      embers.emit({ x: s.x + (Math.random() - 0.5) * 1.2, y: s.y + 1.35 + (Math.random() - 0.5) * 1.2, z: 0.15, vx: 0, vy: 0, spread: 0.2, life: 0.4, size: 0.07, sizeEnd: 0.02, r: 1.4, g: 0.6, b: 4, drag: 2 });
+      embers.emit({ x: s.x + (Math.random() - 0.5) * 1.2, y: s.y + 1.35 + (Math.random() - 0.5) * 1.2, z: s.z + (Math.random() - 0.5) * 1.2, vx: 0, vy: 0, spread: 0.2, life: 0.4, size: 0.07, sizeEnd: 0.02, r: 1.4, g: 0.6, b: 4, drag: 2 });
   }
 }

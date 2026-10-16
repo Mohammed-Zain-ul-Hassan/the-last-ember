@@ -34,13 +34,13 @@ const QUALITY: Quality[] = ['auto', 'high', 'medium', 'low'];
 const QUALITY_NAME: Record<Quality, string> = { auto: 'Auto', high: 'High', medium: 'Medium', low: 'Low' };
 
 const CONTROLS: [string, string][] = [
-  ['A  D  /  ←  →', 'move'],
-  ['Space  /  W  /  ↑', 'jump  ·  again in the air to double jump'],
-  ['J  /  left click', 'strike  ·  in the air: aerial  ·  running: lunge'],
-  ['K  /  right click', 'heavy cleave  ·  hold to charge, release to rend  ·  in the air: plunge'],
+  ['W  A  S  D', 'move  ·  relative to the camera'],
+  ['Mouse', 'look  ·  click the game to capture the mouse'],
+  ['Space', 'jump  ·  again in the air to double jump'],
+  ['Left click  /  J', 'strike  ·  in the air: aerial  ·  running: lunge  ·  turns toward the nearest shade'],
+  ['Right click  /  K', 'heavy cleave  ·  hold to charge, release to rend  ·  in the air: plunge'],
   ['Shift  /  L', 'shadow-step  ·  strike out of it to pierce'],
-  ['S  /  ↓  +  jump', 'drop through a ledge'],
-  ['Esc', 'pause and settings'],
+  ['Esc', 'pause and settings  ·  releases the mouse'],
   ['M', 'mute'],
 ];
 
@@ -131,7 +131,7 @@ export class Menu {
           cur.value = String(Math.max(0, Math.min(100, Number(cur.value) + d * 5)));
           this.slide(cur);
         } else if (cur?.dataset.act === 'quality') this.cycleQuality(d);
-        else if (cur?.dataset.act === 'numbers') this.act(cur);
+        else if (cur?.dataset.act === 'numbers' || cur?.dataset.act === 'invertY') this.act(cur);
         return true;
       }
       case 'Enter':
@@ -183,6 +183,11 @@ export class Menu {
         this.hooks.changed();
         el.querySelector('b')!.textContent = s.numbers ? 'On' : 'Off';
         return;
+      case 'invertY':
+        s.invertY = !s.invertY;
+        this.hooks.changed();
+        el.querySelector('b')!.textContent = s.invertY ? 'On' : 'Off';
+        return;
       case 'quality':
         return this.cycleQuality(1);
       case 'fullscreen':
@@ -215,7 +220,7 @@ export class Menu {
   }
 
   private slide(el: HTMLInputElement): void {
-    const key = el.dataset.key as 'volume' | 'music' | 'sfx' | 'shake' | 'flashes';
+    const key = el.dataset.key as 'volume' | 'music' | 'sfx' | 'shake' | 'flashes' | 'sens';
     const v = Number(el.value) / 100;
     this.hooks.settings[key] = v;
     el.style.setProperty('--v', `${el.value}%`);
@@ -264,6 +269,9 @@ export class Menu {
           ${slider('volume', 'Master volume', s.volume)}
           ${slider('music', 'Music', s.music)}
           ${slider('sfx', 'Effects', s.sfx)}
+          <h3>Camera</h3>
+          ${slider('sens', 'Mouse sensitivity', s.sens)}
+          ${toggle('invertY', 'Invert mouse Y', s.invertY ? 'On' : 'Off')}
           <h3>Screen</h3>
           ${slider('shake', 'Screenshake', s.shake)}
           ${slider('flashes', 'Screen flashes', s.flashes)}

@@ -7,7 +7,9 @@ Full rules, rubric and schedule: @docs/handbook.md
 ## Stack
 Three.js r186 (`three@0.186.1`, WebGLRenderer, not WebGPU/TSL) + `postprocessing@6.39.5` + TypeScript + Vite.
 Switched from Phaser on Day 1 (2.5D side-view with camera swings and fire-cast shadows needs real 3D; see docs/spec.md).
-Gameplay runs as a pure 2D sim in `src/sim/` (no three imports, unit-tested); `src/render/` draws it in 3D.
+Branch `3D_Branch`: a third-person 3D action game (main keeps the 2.5D side-scroller). Gameplay runs as a pure 3D
+sim in `src/sim/` (x/z ground plane, y up, facing = yaw; solids in `sim/geom.ts`; no three imports, unit-tested);
+`src/render/` draws it. Plan and phase status: docs/plan-3d.md.
 Deployed to Vercel; Vite `base: './'`. Look up Three.js / postprocessing APIs with the context7 MCP, not memory.
 
 ## Commands

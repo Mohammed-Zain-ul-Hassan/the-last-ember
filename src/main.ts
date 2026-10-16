@@ -8,8 +8,9 @@ import { CHAPTERS, DAWN_SKY, MIDNIGHT_SKY } from './data/chapters';
 import { LEVELS } from './data/levels';
 import { MEMORY_TIME, Memories } from './render/memory';
 import { playEvents, type FxTargets } from './fx';
-import { clearInput, initInput, onKey, readInput } from './input';
-import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, GAMEPLAY_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, TITLE_SHOT, TORCH_SHOT } from './render/cameraRig';
+import { clearInput, initInput, isLocked, keyTurn, onKey, onLockChange, readInput, requestLock, takeLook } from './input';
+import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, TITLE_SHOT } from './render/cameraRig';
+import { angleDiff } from './sim/geom';
 import { Hearth } from './render/hearth';
 import { KnightView, setKnightFade } from './render/knightView';
 import { Particles } from './render/particles';
@@ -189,7 +190,6 @@ function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   stage.outline.edgeStrength = 3.2;
   setMood('night');
   stage.dawn = 0;
-  rig.fitSpan = true;
   const c = world.chapter;
   const best = bestFor(c.id);
   hud.card(c.roman, c.title, c.line, best ? `best grade  ${best.grade}` : '', { eyebrow: levelTitle(i), level: i, levels: CHAPTERS.length });
@@ -211,6 +211,7 @@ function retry(): void {
 // ------------------------------------------------------------------ places: names and reveal shots
 const seenRegions = new Set<string>();
 let revealT = 0;
+let revealYaw = 0; // the follow camera's heading before a reveal shot, restored after it
 function regionHere(): { x0: number; kind: string; name?: string; sub?: string } | undefined {
   const x = world.knight.x;
   return world.level.regions.find((r) => x >= r.x0 && x < r.x1);
@@ -218,10 +219,7 @@ function regionHere(): { x0: number; kind: string; name?: string; sub?: string }
 function placeCheck(dt: number): void {
   if (revealT > 0) {
     revealT -= dt;
-    if (revealT <= 0) {
-      rig.fitSpan = true;
-      rig.go(world.torch ? TORCH_SHOT : GAMEPLAY_SHOT, 1.4);
-    }
+    if (revealT <= 0) rig.follow(1.4, revealYaw);
     return;
   }
   const r = regionHere();
@@ -232,7 +230,7 @@ function placeCheck(dt: number): void {
   hud.place(r.name, r.sub ?? '');
   const shot = REVEAL_SHOTS[r.kind];
   if (shot) {
-    rig.fitSpan = false;
+    revealYaw = rig.yaw;
     rig.go(shot, 1.2);
     revealT = 2.9;
   }
@@ -250,9 +248,10 @@ function beginPlay(): void {
     hud.place(r0.name, r0.sub ?? '');
   }
   knight.pose = 'stand';
-  rig.minSpan = world.torch ? 13 : 17.5;
-  rig.go(world.torch ? TORCH_SHOT : GAMEPLAY_SHOT, 2.2);
+  rig.torch = world.torch;
+  rig.follow(2.2, world.level.startYaw);
   setMode('play');
+  if (!DEMO && !isLocked()) hud.toast('click to take the mouse  ·  look around');
 }
 
 function restartAll(): void {
@@ -262,21 +261,30 @@ function restartAll(): void {
   startChapter(0);
 }
 
+/** Where something is, in words, relative to where the camera looks. */
+function emberWords(x: number, z: number): string {
+  const k = world.knight;
+  const a = angleDiff(rig.yaw, Math.atan2(z - k.z, x - k.x));
+  if (Math.abs(a) < 0.6) return 'an ember wakes in the ruins ahead';
+  if (Math.abs(a) > 2.5) return 'an ember wakes in the ruins behind you';
+  return a > 0 ? 'an ember wakes in the ruins  →' : '←  an ember wakes in the ruins';
+}
+
 /** Embers, braziers and the gate: toasts, sounds and the level's props. */
 function journeyEvents(): void {
   for (const e of world.events) {
     switch (e.type) {
       case 'shrine':
-        hud.toast(e.x < world.knight.x ? '← an ember wakes in the ruins' : 'an ember wakes in the ruins →');
+        hud.toast(emberWords(e.x, e.z));
         sfx('ui');
         break;
       case 'ember':
-        worldUi.pop('an ember', e.x, e.y + 2.4, 'soul', 0);
+        worldUi.pop('an ember', e.x, e.y + 2.4, 'soul', e.z);
         hud.toast('carry it home to the hearth');
         sfx('ignite');
         break;
       case 'feed':
-        worldUi.pop(`+${CFG.hearth.emberHeal} the hearth drinks`, e.x, 3.4, 'soul big', 0);
+        worldUi.pop(`+${CFG.hearth.emberHeal} the hearth drinks`, e.x, 3.4, 'soul big', e.z);
         hud.flash(0.25, '#ffb070');
         sfx('ignite');
         break;
@@ -296,6 +304,8 @@ function journeyEvents(): void {
 initInput(stage.renderer.domElement);
 onKey((code) => {
   initAudio();
+  // take the mouse for looking whenever the player acts in the game (a click or a key is the gesture it needs)
+  if (!DEMO && (mode === 'play' || mode === 'intro' || mode === 'choice') && code !== 'Escape' && code !== 'KeyP') requestLock();
   if (code === 'KeyM') return setMuted(!isMuted());
   // Esc opens the menu from anywhere in the game (the title has its own menu; credits go back to it)
   if ((code === 'Escape' || code === 'KeyP') && mode !== 'title' && mode !== 'paused' && mode !== 'credits') return pause();
@@ -336,6 +346,10 @@ onKey((code) => {
 window.addEventListener('blur', () => {
   if (mode === 'play' && !DEMO) pause();
 });
+// Esc releases the mouse without a keydown reaching the page: treat that as pause
+onLockChange((locked) => {
+  if (!locked && (mode === 'play' || mode === 'choice') && !DEMO) pause();
+});
 
 function applySettings(): void {
   setVolumes(settings.volume, settings.music, settings.sfx);
@@ -345,6 +359,7 @@ function applySettings(): void {
 }
 
 function pause(): void {
+  if (mode === 'paused') return;
   pausedFrom = mode;
   hud.hideCard();
   hud.show(false);
@@ -365,6 +380,7 @@ const menu = new Menu({
   resume: () => {
     menu.close();
     clearInput();
+    if (!DEMO) requestLock();
     if (pausedFrom === 'play') hud.show(true);
     setMode(pausedFrom);
   },
@@ -385,6 +401,7 @@ const menu = new Menu({
 function goLevel(i: number): void {
   initAudio();
   menu.close();
+  if (!DEMO) requestLock();
   endMemory();
   ending = null;
   stage.dawn = 0;
@@ -414,8 +431,7 @@ function goTitle(): void {
   stage.setSky(CHAPTERS[0].sky, 1);
   setMood('night');
   knight.pose = 'kneel';
-  world.knight.x = -1.7;
-  rig.fitSpan = false;
+  kneelAtHearth();
   rig.go(TITLE_SHOT, 1.4);
   setMode('title');
   menu.open('title');
@@ -460,20 +476,30 @@ function stepSim(source: Input | (() => Input), dt: number): void {
   }
 }
 
-/** Walk the knight towards x during cutscenes (drives the sim so animation stays consistent). */
-function walkTo(x: number, dt: number): boolean {
+/** Walk the knight towards (x, z) during cutscenes (drives the sim so animation stays consistent). */
+function walkTo(x: number, z: number, dt: number): boolean {
   const dx = x - world.knight.x;
-  const done = Math.abs(dx) < 0.25;
-  stepSim(done ? NO_INPUT : { ...NO_INPUT, right: dx > 0, left: dx < 0 }, dt);
+  const dz = z - world.knight.z;
+  const d = Math.hypot(dx, dz);
+  const done = d < 0.25;
+  stepSim(done ? NO_INPUT : { ...NO_INPUT, mx: dx / d, mz: dz / d }, dt);
   return done;
+}
+
+/** The title and midnight pose: beside the hearth, facing it. */
+function kneelAtHearth(): void {
+  const k = world.knight;
+  k.x = world.hearthX - 1.75;
+  k.z = world.hearthZ;
+  k.yaw = 0;
 }
 
 function midnight(dt: number): void {
   world.spawning = false;
   world.endless = true;
   world.status = 'playing';
-  const arrived = modeT > 0.2 ? walkTo(-1.6, dt) : false;
-  if (arrived && world.knight.facing < 0) stepSim({ ...NO_INPUT, right: true }, CFG.dt);
+  const arrived = modeT > 0.2 ? walkTo(world.hearthX - 1.75, world.hearthZ, dt) : false;
+  if (arrived) world.knight.yaw += angleDiff(world.knight.yaw, 0) * Math.min(1, dt * 6); // turn to the fire
   stage.setSky(MIDNIGHT_SKY, Math.min(1, dt * 0.5));
   // the hearth gutters
   if (modeT < 4.6) {
@@ -483,7 +509,6 @@ function midnight(dt: number): void {
   }
   at(0.0, 0, () => {
     hud.show(false);
-    rig.fitSpan = false;
     rig.go(MIDNIGHT_SHOT, 2.5);
     sfx('gutter');
     setMood('silent');
@@ -502,11 +527,12 @@ function midnight(dt: number): void {
     hud.flash(0.55, '#ffb070');
     rig.kick(1.2);
     rig.shake(0.3);
-    const hx = CFG.hearth.x;
+    const hx = world.hearthX;
+    const hz = world.hearthZ;
     for (let i = 0; i < 90; i++)
-      glow.emit({ x: hx + (Math.random() - 0.5) * 1.5, y: 1.3, vx: (world.knight.x - hx) * 1.6 + (Math.random() - 0.5) * 2, vy: 2 + Math.random() * 3, spread: 0.6, life: 1.1, size: 0.12, sizeEnd: 0.02, r: 5, g: 2.2, b: 0.5, gravity: 3, drag: 0.8 });
+      glow.emit({ x: hx + (Math.random() - 0.5) * 1.5, y: 1.3, z: hz + (Math.random() - 0.5) * 1.5, vx: (world.knight.x - hx) * 1.6 + (Math.random() - 0.5) * 2, vz: (world.knight.z - hz) * 1.6 + (Math.random() - 0.5) * 2, vy: 2 + Math.random() * 3, spread: 0.6, life: 1.1, size: 0.12, sizeEnd: 0.02, r: 5, g: 2.2, b: 0.5, gravity: 3, drag: 0.8 });
     for (let i = 0; i < 40; i++)
-      smoke.emit({ x: hx + (Math.random() - 0.5), y: 1.3, vy: 1.5, spread: 0.8, life: 3.5, size: 0.9, sizeEnd: 2.4, r: 0.03, g: 0.025, b: 0.035, alpha: 0.4, drag: 0.4 });
+      smoke.emit({ x: hx + (Math.random() - 0.5), y: 1.3, z: hz + (Math.random() - 0.5), vy: 1.5, spread: 0.8, life: 3.5, size: 0.9, sizeEnd: 2.4, r: 0.03, g: 0.025, b: 0.035, alpha: 0.4, drag: 0.4 });
   });
   at(5.6, 4, () => hud.card('XII', 'Midnight', 'The hearth is ash. Its fire lives in your hand now.'));
   at(7.2, 5, () => {
@@ -524,7 +550,7 @@ function dawn(dt: number): void {
     rig.go(DAWN_SHOT, 3);
     sfx('dawn');
     setMood('dawn');
-    world = new World(chapterIndex, seed, { startX: knightX, startY: knightY, checkpointsLit: world.checkpointsLit });
+    world = new World(chapterIndex, seed, { startX: knightX, startY: knightY, startZ: knightZ, checkpointsLit: world.checkpointsLit });
     dawnBase = knightX;
     sunEdge = dawnBase + 30;
     world.spawning = false;
@@ -537,12 +563,12 @@ function dawn(dt: number): void {
   if (modeT > 5.8) {
     setMode('choice');
     choiceHold = 0;
-    rig.minSpan = 17.5;
-    rig.go(GAMEPLAY_SHOT, 2.5);
+    rig.follow(2.5, 0);
   }
 }
 let knightX = 0;
 let knightY = 0;
+let knightZ = 0;
 let dawnBase = 0;
 
 function choice(dt: number): void {
@@ -551,7 +577,7 @@ function choice(dt: number): void {
   const target = dawnBase + 2.5;
   sunEdge += (target - sunEdge) * Math.min(1, dt * 0.9);
   hud.choice(modeT > 0.6);
-  stepSim(DEMO ? { ...NO_INPUT, right: true } : () => ({ ...readInput(), attack: false, heavy: false }), dt);
+  stepSim(DEMO ? { ...NO_INPUT, mx: 1 } : () => ({ ...readInput(rig.yaw), attack: false, heavy: false }), dt);
   const k = world.knight;
   const inLight = k.x > sunEdge + 0.4;
   const inShadow = k.x < dawnBase - 4.4; // back into the shadow of the gatehouse
@@ -568,7 +594,6 @@ function endingScene(dt: number): void {
   stage.dawn = 1;
   at(0, 0, () => {
     rig.go(ENDING_SHOT, 4);
-    rig.fitSpan = false;
     if (light) sfx('dissolve');
   });
   if (light) {
@@ -580,14 +605,14 @@ function endingScene(dt: number): void {
     if (p > 0 && p < 1) {
       const k = world.knight;
       for (let i = 0; i < 6; i++)
-        glow.emit({ x: k.x + (Math.random() - 0.5) * 1.0, y: k.y + Math.random() * 2.2, z: (Math.random() - 0.5) * 0.6, vy: 1.2 + Math.random(), vx: -0.4, spread: 0.3, life: 2.4, size: 0.12, sizeEnd: 0.02, r: 4, g: 3.2, b: 2.2, gravity: -0.6, wobble: 0.8 });
+        glow.emit({ x: k.x + (Math.random() - 0.5) * 1.0, y: k.y + Math.random() * 2.2, z: k.z + (Math.random() - 0.5) * 0.6, vy: 1.2 + Math.random(), vx: -0.4, spread: 0.3, life: 2.4, size: 0.12, sizeEnd: 0.02, r: 4, g: 3.2, b: 2.2, gravity: -0.6, wobble: 0.8 });
     }
     at(1.0, 2, () => hud.card('', '', 'He stepped into the light.'));
     at(5.5, 3, () => hud.card('', '', 'For a moment, he remembered every name.'));
     at(10, 4, () => hud.card('', '', 'The ember lives. The knight does not.'));
   } else {
     sunEdge += (dawnBase - 4.5 - sunEdge) * Math.min(1, dt * 0.5);
-    const arrived = walkTo(dawnBase - 5.2, dt);
+    const arrived = walkTo(dawnBase - 5.2, world.knight.z, dt);
     at(0.2, 1, () => hud.card('', '', 'He turned from the light.'));
     if (arrived) knight.pose = 'kneel';
     at(5.0, 2, () => hud.card('', '', 'In the shadow of the arch, he keeps the cold hearth still.'));
@@ -610,12 +635,13 @@ hud.show(false);
 rig.snap(TITLE_SHOT);
 stage.setSky(CHAPTERS[0].sky, 1);
 knight.pose = 'kneel';
-world.knight.x = -1.7;
+kneelAtHearth();
 fitParticles();
 applySettings();
 if (!DEMO) menu.open('title');
 
-let manualClock = false; // trailer capture drives the game with exact steps (tick) instead of rAF
+let manualClock = false;
+let lookIdle = 0; // seconds since the player last turned the camera // trailer capture drives the game with exact steps (tick) instead of rAF
 function frame(now: number): void {
   if (!manualClock) update(now);
   requestAnimationFrame(frame);
@@ -669,11 +695,12 @@ function update(now: number): void {
   if (mode === 'intro' && modeT > 3.8) beginPlay();
 
   if (mode === 'play') {
-    stepSim(DEMO ? () => botInput(world) : readInput, dt);
+    stepSim(DEMO ? () => botInput(world) : () => readInput(rig.yaw), dt);
     placeCheck(rawDt);
     if (world.status === 'cleared') {
       knightX = world.knight.x;
       knightY = world.knight.y;
+      knightZ = world.knight.z;
       if (world.chapter.phase === 'dawn') setMode('dawn');
       else {
         setMode('outro');
@@ -737,23 +764,31 @@ function update(now: number): void {
   sunWash.scale.x = 40;
   sunWash.position.x = sunEdge + 20 - 3; // the ramp's soft edge sits on sunEdge
 
-  let camTarget = 0;
-  if (mode === 'title') camTarget = -0.9;
-  else if (mode === 'midnight') camTarget = -1.1;
-  else {
-    const look = world.knight.x + world.knight.facing * 2.2 + (revealT > 0 ? 5 : 0);
-    camTarget = Math.max(world.minX + 7, Math.min(world.maxX - 7, look));
-  }
-  rig.liftTarget = mode === 'title' || mode === 'midnight' ? 0 : world.knight.y * 0.8;
-  // lean in when the knight is fighting at close quarters
+  // the camera: authored shots frame the hearth on the title and at midnight, otherwise the knight
   const k = world.knight;
-  const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.abs(s.x - k.x) < 3.2);
-  rig.zoomTarget = close && (k.state === 'attack' || k.state === 'heavy' || k.state === 'dash') ? 0.78 : close ? 0.88 : 1;
-  if (mode === 'play' && close) camTarget = camTarget * 0.6 + k.x * 0.4;
-  if (revealT > 0) rig.zoomTarget = 1;
-  rig.update(rawDt, t, camTarget);
+  if (mode === 'title') rig.target.set(world.hearthX - 0.9, 0, world.hearthZ);
+  else if (mode === 'midnight') rig.target.set(world.hearthX - 1.1, 0, world.hearthZ);
+  else rig.target.set(k.x, k.y, k.z);
+  // mouse look (and Q / E) while the follow camera is up
+  const [lookX, lookY] = takeLook();
+  if (rig.following && (mode === 'play' || mode === 'choice')) {
+    rig.look(lookX, lookY, settings.sens, settings.invertY);
+    const turn = keyTurn();
+    rig.yaw += turn * 2.4 * rawDt;
+    // with the mouse idle, the camera drifts back behind him while he runs (the demo bot relies on it)
+    lookIdle = lookX !== 0 || lookY !== 0 || turn !== 0 ? 0 : lookIdle + rawDt;
+    const speed = Math.hypot(k.vx, k.vz);
+    if ((DEMO || lookIdle > 1.2) && speed > 1 && k.state !== 'dash') {
+      const rate = (DEMO ? 2.2 : 0.9) * Math.min(1, speed / CFG.knight.speed);
+      rig.yaw += angleDiff(rig.yaw, k.yaw) * Math.min(1, rawDt * rate);
+    }
+  }
+  // lean in a little when the knight is fighting at close quarters
+  const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.hypot(s.x - k.x, s.z - k.z) < 3.2);
+  rig.zoomTarget = close && (k.state === 'attack' || k.state === 'heavy' || k.state === 'dash') ? 0.88 : close ? 0.94 : 1;
+  rig.update(rawDt, t, world.solids);
   memories.update(rawDt, stage.camera, glow, smoke);
-  stage.update(t, rig.x);
+  stage.update(t, stage.camera.position);
   hud.update(world, rawDt);
   worldUi.update(world, rawDt, mode === 'play' && memories.active < 0);
   worldUi.hearthMarker(world, mode === 'play');
@@ -786,45 +821,54 @@ function drawProjectiles(dt: number): void {
     const b = live[i];
     sp.visible = !!b;
     if (!b) return;
-    sp.position.set(b.x, b.y, 0.3);
+    sp.position.set(b.x, b.y, b.z);
     sp.scale.setScalar(0.65 + Math.sin(t * 30 + i) * 0.1);
     for (let j = 0; j < 2; j++)
-      smoke.emit({ x: b.x, y: b.y, z: 0.3, vx: -b.vx * 0.05, vy: -b.vy * 0.05, spread: 0.1, life: 0.45, size: 0.45, sizeEnd: 0.15, r: 0.03, g: 0.0, b: 0.06, alpha: 0.85, drag: 2 });
-    glow.emit({ x: b.x, y: b.y, z: 0.3, spread: 0.3, life: 0.25, size: 0.08, sizeEnd: 0.01, r: 1.2, g: 0.5, b: 3.5 });
+      smoke.emit({ x: b.x, y: b.y, z: b.z, vx: -b.vx * 0.05, vy: -b.vy * 0.05, vz: -b.vz * 0.05, spread: 0.1, life: 0.45, size: 0.45, sizeEnd: 0.15, r: 0.03, g: 0.0, b: 0.06, alpha: 0.85, drag: 2 });
+    glow.emit({ x: b.x, y: b.y, z: b.z, spread: 0.3, life: 0.25, size: 0.08, sizeEnd: 0.01, r: 1.2, g: 0.5, b: 3.5 });
   });
   if (mode !== 'play') return;
+  // the Marshal's shockwave: a ring of fire and smoke racing outward along the ground
   for (const w of world.waves) {
-    const n = Math.max(1, Math.round(dt * 160));
+    const n = Math.max(1, Math.round(dt * 60 * w.r));
     for (let i = 0; i < n; i++) {
-      glow.emit({ x: w.x, y: 0.15, z: (Math.random() - 0.5) * 1.6, vy: 2.5 + Math.random() * 2, vx: w.dir * 2, spread: 0.4, life: 0.4, size: 0.18, sizeEnd: 0.03, r: 4, g: 0.6, b: 0.25, gravity: 6, drag: 1 });
-      smoke.emit({ x: w.x, y: 0.2, z: (Math.random() - 0.5) * 1.4, vy: 1.6, spread: 0.3, life: 0.6, size: 0.7, sizeEnd: 1.4, r: 0.05, g: 0.0, b: 0.02, alpha: 0.7, drag: 2 });
+      const a = Math.random() * Math.PI * 2;
+      const x = w.x + Math.cos(a) * w.r;
+      const z = w.z + Math.sin(a) * w.r;
+      glow.emit({ x, y: 0.15, z, vy: 2.5 + Math.random() * 2, vx: Math.cos(a) * 2, vz: Math.sin(a) * 2, spread: 0.3, life: 0.4, size: 0.18, sizeEnd: 0.03, r: 4, g: 0.6, b: 0.25, gravity: 6, drag: 1 });
+      if (i % 2) smoke.emit({ x, y: 0.2, z, vy: 1.6, spread: 0.3, life: 0.6, size: 0.7, sizeEnd: 1.4, r: 0.05, g: 0.0, b: 0.02, alpha: 0.7, drag: 2 });
     }
   }
 }
 
 /** Ash drifting down through every frame; ink mist seeping from every shadow the fire casts. */
 function ambient(dt: number): void {
+  const cam = stage.camera.position;
   if (mode === 'play' || mode === 'intro' || mode === 'title') {
-    for (const [a, b] of world.shadows) {
-      const lo = Math.max(a, rig.x - 16);
-      const hi = Math.min(b, rig.x + 16);
-      if (hi - lo < 0.3) continue;
-      const rate = dt * (hi - lo) * 3.2;
-      for (let i = 0; i < rate + (Math.random() < rate % 1 ? 1 : 0); i++) {
-        smoke.emit({
-          x: lo + Math.random() * (hi - lo), y: 0.05, z: (Math.random() - 0.5) * 2.4,
-          vx: (Math.random() - 0.5) * 0.2, vy: 0.22, spread: 0.08, life: 2.6, size: 1.0, sizeEnd: 1.9,
-          r: 0.035, g: 0.015, b: 0.07, alpha: 0.3, drag: 0.3,
-        });
-        if (Math.random() < 0.08)
-          glow.emit({ x: lo + Math.random() * (hi - lo), y: 0.1, z: (Math.random() - 0.5) * 2, vy: 0.35, spread: 0.05, life: 2.2, size: 0.05, sizeEnd: 0.01, r: 0.9, g: 0.4, b: 2.2, wobble: 0.3 });
-      }
+    // sample the ground around him: wherever a ruin's shadow falls inside the firelight, ink seeps up
+    const L = world.light;
+    const cx = rig.target.x;
+    const cz = rig.target.z;
+    const tries = Math.round(dt * 900);
+    for (let i = 0; i < tries; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * 18;
+      const x = cx + Math.cos(a) * r;
+      const z = cz + Math.sin(a) * r;
+      if (Math.hypot(x - L.x, z - L.z) > L.radius * 1.4 || !world.inShadow(x, z)) continue;
+      smoke.emit({
+        x, y: 0.05, z,
+        vx: (Math.random() - 0.5) * 0.2, vy: 0.22, spread: 0.08, life: 2.6, size: 1.0, sizeEnd: 1.9,
+        r: 0.035, g: 0.015, b: 0.07, alpha: 0.3, drag: 0.3,
+      });
+      if (Math.random() < 0.08)
+        glow.emit({ x, y: 0.1, z, vy: 0.35, spread: 0.05, life: 2.2, size: 0.05, sizeEnd: 0.01, r: 0.9, g: 0.4, b: 2.2, wobble: 0.3 });
     }
   }
-  const n = dt * (stage.dawn > 0.5 ? 3 : 6);
+  const n = dt * (stage.dawn > 0.5 ? 6 : 12);
   for (let i = 0; i < n + (Math.random() < n % 1 ? 1 : 0); i++) {
     smoke.emit({
-      x: rig.x + (Math.random() - 0.5) * 30, y: 8 + Math.random() * 3, z: (Math.random() - 0.5) * 8,
+      x: cam.x + (Math.random() - 0.5) * 30, y: 8 + Math.random() * 3, z: cam.z + (Math.random() - 0.5) * 30,
       vx: 0.5, vy: -0.55, spread: 0.1, life: 14, size: 0.06, sizeEnd: 0.045, r: 0.13, g: 0.12, b: 0.14, alpha: 0.6, wobble: 0.5,
     });
   }
@@ -852,7 +896,7 @@ if (DEBUG) {
     set timeScale(v: number) { timeScale = v; slowT = v === 1 ? 0 : 1e9; },
     get godMode() { return godMode; },
     setSeed: (n: number) => { seed = n; },
-    snapshot: () => JSON.stringify({ mode, chapter: world.chapter.id, t: world.time, knight: { x: world.knight.x, y: world.knight.y, hp: world.knight.hp, state: world.knight.state }, hearth: world.hearthHp, shades: world.shades.map((s) => ({ id: s.id, x: +s.x.toFixed(2), hp: +s.hp.toFixed(2), state: s.state, big: s.big })) }),
+    snapshot: () => JSON.stringify({ mode, chapter: world.chapter.id, t: world.time, knight: { x: world.knight.x, y: world.knight.y, z: world.knight.z, yaw: world.knight.yaw, hp: world.knight.hp, state: world.knight.state }, hearth: world.hearthHp, shades: world.shades.map((s) => ({ id: s.id, x: +s.x.toFixed(2), z: +s.z.toFixed(2), hp: +s.hp.toFixed(2), state: s.state, big: s.big })) }),
     renderer: stage.renderer,
     kv: knight,
     stage,

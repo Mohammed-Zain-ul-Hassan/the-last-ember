@@ -19,7 +19,7 @@ describe('crawlers', () => {
   it('crouch, then pounce from range and wound the knight', () => {
     const w = at('lowerCity');
     w.knight.x = 20.5;
-    const c = awake(w.spawnShade(23, false, 'crawler'));
+    const c = awake(w.spawnShade(23.5, 0.5, false, 'crawler'));
     c.cd = 0;
     let pounced = false;
     for (let i = 0; i < 90; i++) {
@@ -49,7 +49,7 @@ describe('lantern-eaters', () => {
   it('hover above jump height, keep their distance, and their bolts wound and dim the torch', () => {
     const w = at('lowerCity');
     w.knight.x = 20.5;
-    const l = awake(w.spawnShade(24, false, 'lantern'));
+    const l = awake(w.spawnShade(24, 1, false, 'lantern'));
     l.cd = 0;
     let fired = false;
     let hit = false;
@@ -61,14 +61,14 @@ describe('lantern-eaters', () => {
     expect(fired).toBe(true);
     expect(hit).toBe(true);
     expect(l.y).toBeGreaterThan(2);
-    expect(Math.abs(l.x - w.knight.x)).toBeGreaterThan(CFG.lantern.near - 1);
+    expect(Math.hypot(l.x - w.knight.x, l.z - w.knight.z)).toBeGreaterThan(CFG.lantern.near - 1.5);
     expect(w.knight.hp).toBeLessThan(CFG.knight.maxHp);
   });
 
   it('cannot be burned by light (they eat it)', () => {
     const w = new World(CHAPTERS.findIndex((c) => c.id === '11pm'), 2);
     w.spawning = false;
-    const l = awake(w.spawnShade(w.hearthX + 1.5, false, 'lantern'));
+    const l = awake(w.spawnShade(w.hearthX + 1.8, w.hearthZ + 1.5, false, 'lantern'));
     l.cd = 1e9;
     const hp = l.hp;
     for (let i = 0; i < 120; i++) w.step(NO_INPUT);
@@ -78,11 +78,11 @@ describe('lantern-eaters', () => {
   it('a sword stroke cuts a bolt out of the air', () => {
     const w = at('lowerCity');
     w.knight.x = 20.5;
-    w.knight.facing = 1;
-    w.bolts.push({ id: 999, x: 22.2, y: 1.2, vx: -1, vy: 0, life: 3 });
+    w.knight.yaw = 0;
+    w.bolts.push({ id: 999, x: 22.2, y: 1.2, z: 0, vx: -1, vy: 0, vz: 0, life: 3 });
     let cut = false;
     for (let i = 0; i < 20; i++) {
-      w.step(press({ attack: i === 0 }));
+      w.step(press({ attack: i === 0, aim: 0 }));
       if (w.events.some((e) => e.type === 'boltCut')) cut = true;
     }
     expect(cut).toBe(true);
@@ -91,11 +91,11 @@ describe('lantern-eaters', () => {
 });
 
 describe('the Hollow Marshal', () => {
-  it('below half health cries out, calls crawlers, and strikes send ground waves you must jump', () => {
+  it('below half health cries out, calls crawlers, and strikes send a ground ring you must jump', () => {
     const w = at('cathedral');
     w.knight.x = 80;
     w.knight.iframes = 0;
-    const m = awake(w.spawnShade(82, true));
+    const m = awake(w.spawnShade(82, 0, true));
     m.cd = 1e9;
     m.hp = m.maxHp * 0.4;
     let cried = false;
@@ -104,7 +104,7 @@ describe('the Hollow Marshal', () => {
     expect(cried).toBe(true);
     expect(w.shades.filter((s) => s.kind === 'crawler').length).toBe(2);
     for (const s of w.shades) if (s.kind === 'crawler') s.state = 'dead';
-    // the next strike sends waves both ways
+    // the next strike sends a wave
     m.cd = 0;
     let waved = false;
     for (let i = 0; i < 60; i++) {
@@ -114,15 +114,21 @@ describe('the Hollow Marshal', () => {
     expect(waved).toBe(true);
   });
 
-  it('a wave passes under a jumping knight', () => {
+  it('a wave wounds a knight on the ground and passes under a jumping one', () => {
     const w = at('cathedral');
     w.knight.x = 80;
-    w.knight.y = 1.5;
-    w.knight.vy = 0;
-    w.knight.onGround = false;
-    w.waves.push({ x: 79, dir: 1, life: 1, hit: false });
-    w.step(NO_INPUT);
-    w.step(NO_INPUT);
-    expect(w.knight.hp).toBe(CFG.knight.maxHp);
+    w.waves.push({ x: 78, z: 0, r: 1.5, life: 1, hit: false });
+    for (let i = 0; i < 10; i++) w.step(NO_INPUT);
+    expect(w.knight.hp).toBeLessThan(CFG.knight.maxHp);
+
+    const w2 = at('cathedral');
+    w2.knight.x = 80;
+    w2.knight.y = 1.5;
+    w2.knight.vy = 0;
+    w2.knight.onGround = false;
+    w2.waves.push({ x: 79, z: 0, r: 0.6, life: 1, hit: false });
+    w2.step(NO_INPUT);
+    w2.step(NO_INPUT);
+    expect(w2.knight.hp).toBe(CFG.knight.maxHp);
   });
 });

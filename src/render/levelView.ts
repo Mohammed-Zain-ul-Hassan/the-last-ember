@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Wall } from '../data/chapters';
 import type { Level, Platform, RegionKind } from '../data/levels';
+import type { Solid } from '../sim/geom';
 import { Rng } from '../sim/rng';
 import { Flame } from './flame';
 import { rimify } from './rim';
@@ -38,6 +39,7 @@ const FLAG = new THREE.MeshStandardMaterial({ color: 0x241f28, roughness: 0.9 })
 const IRON = rimify(new THREE.MeshStandardMaterial({ color: 0x15121a, roughness: 0.5, metalness: 0.6 }), 0.9, 'lviron');
 const FACADE = new THREE.MeshStandardMaterial({ color: 0x0b0a0f, roughness: 1 });
 const FG = new THREE.MeshBasicMaterial({ color: 0x020203 }); // foreground silhouettes: pure black
+const STATUE = rimify(new THREE.MeshStandardMaterial({ color: 0x1b1820, roughness: 0.95 }), 0.6, 'statue');
 const WARM_WINDOW = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.42, 0.12), fog: false });
 
 export class LevelView {
@@ -57,19 +59,22 @@ export class LevelView {
     this.level = level;
     this.id = level.id;
     this.rng = new Rng(level.id.length * 131 + 7);
-    this.buildFloor();
-    for (const w of level.walls) this.buildWall(w);
-    for (const p of level.platforms) this.buildPlatform(p);
+    if (level.area.kind === 'disc') {
+      // the hearth grounds: everything is built from the sim's solids, so what you see is what you hit
+      this.plazaFloor(level.area.r);
+      for (const s of level.solids) this.buildSolid(s);
+      this.groundsArch();
+      this.groundsBanners();
+    } else {
+      this.buildFloor();
+      for (const w of level.walls) this.buildWall(w);
+      for (const p of level.platforms) this.buildPlatform(p);
+    }
     for (const r of level.regions) {
       this.dressRegion(r.kind, r.x0, r.x1);
-      this.foreground(r.kind, r.x0, r.x1);
+      if (r.kind !== 'grounds') this.foreground(r.kind, r.x0, r.x1);
     }
-    if (level.id === 'grounds') {
-      this.groundsRuins();
-      this.groundsStatues();
-      this.groundsBanners();
-    }
-    for (const s of level.shrines) this.buildShrine(s.x, s.y);
+    for (const s of level.shrines) this.buildShrine(s.x, s.y, s.z);
     for (const x of level.checkpoints) this.buildBrazier(x);
     if (level.end !== undefined) this.buildGate(level.end, level.bossAt !== undefined);
   }
@@ -513,9 +518,9 @@ export class LevelView {
   }
 
   // ------------------------------------------------------------- props
-  private buildShrine(x: number, y: number): void {
+  private buildShrine(x: number, y: number, z: number): void {
     const root = new THREE.Group();
-    root.position.set(x, y, -0.6);
+    root.position.set(x, y, z);
     const plinth = new THREE.Mesh(stoneBox(0.8, 0.5, 0.8, x, 0.03), STONE);
     plinth.position.y = 0.25;
     plinth.castShadow = true;
@@ -618,22 +623,149 @@ export class LevelView {
     this.group.removeFromParent();
   }
 
-  // ------------------------------------------------------------- the hearth grounds (Level 1's ruins)
-  /** Lit 3D ruins near the lane: they catch firelight and cast the shadows you see. */
-  private groundsRuins(): void {
-    const stone = STONE;
-    const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number, ry = 0, rz = 0) => {
-      const m = new THREE.Mesh(geo, stone);
+  // ------------------------------------------------------------- the hearth grounds: a round ruined plaza
+  /** Paving in rings around the hearth, whole near the fire and broken further out (instanced: few draw calls). */
+  private plazaFloor(radius: number): void {
+    const rng = new Rng(57);
+    const variants = [0, 1, 2, 3].map((v) => stoneBox(1, 0.12, 1, 300 + v, 0.012));
+    const mats: THREE.Matrix4[][] = variants.map(() => []);
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    for (let r = 2.1; r < radius - 2; r += 1.08) {
+      const n = Math.floor((Math.PI * 2 * r) / 1.12);
+      const skip = r < 13 ? 0.08 : 0.55;
+      const off = rng.range(0, Math.PI * 2);
+      for (let i = 0; i < n; i++) {
+        if (rng.next() < skip) continue;
+        const a = off + (i / n) * Math.PI * 2;
+        q.setFromAxisAngle(up, -a + rng.range(-0.03, 0.03));
+        const m = new THREE.Matrix4().compose(
+          new THREE.Vector3(Math.cos(a) * r, -0.05 + rng.range(-0.02, 0.02), Math.sin(a) * r),
+          q,
+          new THREE.Vector3(1.0 + rng.range(-0.06, 0.06), 1, ((Math.PI * 2 * r) / n) * 0.94),
+        );
+        mats[Math.floor(rng.next() * variants.length)].push(m);
+      }
+    }
+    variants.forEach((g, v) => {
+      const inst = new THREE.InstancedMesh(g, FLAG, mats[v].length);
+      mats[v].forEach((m, i) => inst.setMatrixAt(i, m));
+      inst.receiveShadow = true;
+      this.group.add(inst);
+    });
+  }
+
+  /** One sim solid, dressed by its tag. */
+  private buildSolid(s: Solid): void {
+    const h = s.y1 - s.y0;
+    switch (s.tag) {
+      case 'hearth':
+        return; // the Hearth draws itself
+      case 'pier':
+        if (s.kind === 'box') return; // the great arch's piers are part of the arch
+        this.add(column(s.hw * 0.9, s.hw, h, s.x * 7 + s.z), STONE, s.x, s.y0 + h / 2, s.z);
+        return;
+      case 'column':
+        return this.plazaColumn(s);
+      case 'statue':
+        return this.statue(s.x, s.z);
+      case 'walk':
+        return this.raisedWalk(s);
+      case 'step': {
+        const m = this.add(stoneBox(s.hw * 2, h, s.hd * 2, s.x * 5 + s.z, 0.05), STONE, s.x, s.y0 + h / 2, s.z);
+        m.rotation.y = s.ry;
+        return;
+      }
+      default:
+        if (s.kind === 'box') this.masonry(s);
+        else this.add(column(s.hw * 0.95, s.hw, h, s.x * 3), STONE, s.x, s.y0 + h / 2, s.z);
+    }
+  }
+
+  /** Coursed masonry, broken along the top, laid along a (rotated) wall. */
+  private masonry(s: Solid): void {
+    const rng = this.rng;
+    const g = new THREE.Group();
+    g.position.set(s.x, s.y0, s.z);
+    g.rotation.y = s.ry;
+    const len = s.hw * 2;
+    const depth = s.hd * 2;
+    const H = s.y1 - s.y0;
+    const courses = Math.max(2, Math.round(H / 0.36));
+    const ch = H / courses;
+    let seed = Math.round(s.x * 13 + s.z * 7);
+    for (let c = 0; c < courses; c++) {
+      let x = -len / 2;
+      let first = c % 2 ? rng.range(0.2, 0.35) : 0;
+      while (x < len / 2 - 0.05) {
+        const bl = Math.min(len / 2 - x, first || rng.range(0.45, 0.8));
+        first = 0;
+        if (c === courses - 1 && rng.next() < 0.3) {
+          x += bl;
+          continue;
+        }
+        const m = new THREE.Mesh(stoneBox(bl - 0.03, ch - 0.025, depth + rng.range(-0.08, 0.04), seed++, 0.03), STONE);
+        m.position.set(x + bl / 2, ch * c + ch / 2, rng.range(-0.03, 0.03));
+        m.rotation.set(0, rng.range(-0.04, 0.04), c === courses - 1 ? rng.range(-0.08, 0.08) : rng.range(-0.015, 0.015));
+        m.castShadow = true;
+        m.receiveShadow = true;
+        g.add(m);
+        x += bl;
+      }
+    }
+    // rubble at its foot
+    for (let i = 0; i < 3; i++) {
+      const m = new THREE.Mesh(stoneBox(0.5, 0.35, 0.45, seed++, 0.06), STONE);
+      m.position.set(rng.range(-len / 2, len / 2), 0.15, (rng.next() < 0.5 ? -1 : 1) * (depth / 2 + rng.range(0.2, 0.6)));
+      m.rotation.set(rng.range(-0.4, 0.4), rng.range(0, 3), rng.range(-0.4, 0.4));
+      m.castShadow = true;
+      g.add(m);
+    }
+    this.group.add(g);
+  }
+
+  /** A fluted column: tall ones keep a capital, short ones are broken with a fallen drum beside them. */
+  private plazaColumn(s: Solid): void {
+    const h = s.y1 - s.y0;
+    const r = s.hw;
+    const seed = Math.round(s.x * 11 + s.z * 5);
+    this.add(stoneBox(r * 2.4, 0.25, r * 2.4, seed, 0.03), STONE, s.x, 0.125, s.z);
+    this.add(column(r * 0.9, r, h - 0.25, seed + 1), STONE, s.x, 0.25 + (h - 0.25) / 2, s.z);
+    if (h > 3) this.add(stoneBox(r * 2.6, 0.4, r * 2.6, seed + 2, 0.05), STONE, s.x, h + 0.2, s.z, s.x);
+    else {
+      const a = s.x * 1.7 + s.z;
+      const drum = this.add(column(r * 0.9, r * 0.9, 0.9, seed + 3), STONE, s.x + Math.cos(a) * 1.4, r * 0.9, s.z + Math.sin(a) * 1.4);
+      drum.rotation.set(Math.PI / 2, a, 0);
+    }
+  }
+
+  /** A raised stone walk on piers: slab, a balustrade along its outer edge, corbels beneath. */
+  private raisedWalk(s: Solid): void {
+    const g = new THREE.Group();
+    g.position.set(s.x, 0, s.z);
+    g.rotation.y = s.ry;
+    const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number) => {
+      const m = new THREE.Mesh(geo, STONE);
       m.position.set(x, y, z);
-      m.rotation.set(0, ry, rz);
       m.castShadow = true;
       m.receiveShadow = true;
-      this.group.add(m);
-      return m;
+      g.add(m);
     };
+    const W = s.hw * 2;
+    const D = s.hd * 2;
+    add(stoneBox(W, s.y1 - s.y0, D, s.x * 3, 0.03), 0, s.y0 + (s.y1 - s.y0) / 2, 0);
+    const out = Math.sign(s.x) || 1; // the outer edge faces away from the hearth
+    for (let z = -D / 2 + 0.3; z < D / 2; z += 0.42) add(new THREE.CylinderGeometry(0.06, 0.08, 0.75, 12), out * (W / 2 - 0.15), s.y1 + 0.37, z);
+    add(stoneBox(0.24, 0.1, D, s.x + 3, 0.01), out * (W / 2 - 0.15), s.y1 + 0.8, 0);
+    for (let z = -D / 2 + 1.2; z < D / 2; z += 2.4) add(stoneBox(1.4, 0.6, 0.35, z + s.x, 0.03), 0, s.y0 - 0.3, z);
+    this.group.add(g);
+  }
+
+  /** The hearth's great broken arch (its piers are sim solids), and fallen voussoirs. */
+  private groundsArch(): void {
+    const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number, ry = 0, rz = 0) => this.add(geo, STONE, x, y, z, ry, rz);
     const rng = new Rng(21);
     let seed = 1;
-    // the hearth's great broken arch: stacked piers and a ring of wedge stones, the right side collapsed
     const pier = (px: number, blocks: number) => {
       for (let i = 0; i < blocks; i++) add(stoneBox(1.15, 0.95, 1.15, seed++, 0.05), px + rng.range(-0.04, 0.04), 0.6 + i * 0.97 + 0.475, -3.2, rng.range(-0.05, 0.05));
       add(stoneBox(1.7, 0.6, 1.7, seed++, 0.05), px, 0.3, -3.2);
@@ -647,60 +779,43 @@ export class LevelView {
       const m = add(stoneBox(0.85, 0.62, 1.05, seed++, 0.05), Math.cos(a) * R, cy + Math.sin(a) * R, -3.2);
       m.rotation.z = a - Math.PI / 2;
     }
-    // fallen voussoirs on the ground
     for (let i = 0; i < 4; i++) {
       const m = add(stoneBox(0.85, 0.62, 1.05, seed++, 0.06), 4.6 + i * 0.8 + rng.range(-0.2, 0.2), 0.3, -2.4 + rng.range(-0.8, 0.6));
       m.rotation.set(rng.range(-0.4, 0.4), rng.range(0, 3), rng.range(-0.5, 0.5));
     }
-    // colonnade further back: fluted columns with capitals and bases
-    for (let i = 0; i < 14; i++) {
-      const x = -26 + i * 4 + rng.range(-0.8, 0.8);
-      if (Math.abs(x) < 5) continue;
-      const h = rng.range(1.5, 6.5);
-      const z = rng.range(-5.5, -4.2);
-      add(column(0.4, 0.46, h, seed++), x, h / 2 + 0.25, z);
-      add(stoneBox(1.05, 0.25, 1.05, seed++, 0.03), x, 0.125, z);
-      if (rng.next() < 0.4) add(stoneBox(1.15, 0.38, 1.15, seed++, 0.05), x, h + 0.44, z, rng.range(0, 1));
-    }
   }
 
-  /** Stone knights of his fallen order, kneeling forever behind the hearth. */
-  private groundsStatues(): void {
-    const stone = rimify(new THREE.MeshStandardMaterial({ color: 0x1b1820, roughness: 0.95 }), 0.6, 'statue');
-    const rng = new Rng(31);
-    const spots = [-15, -9.5, 8.5, 14.5, 20];
-    for (const sx of spots) {
-      const g = new THREE.Group();
-      const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number, rz = 0) => {
-        const m = new THREE.Mesh(geo, stone);
-        m.position.set(x, y, z);
-        m.rotation.z = rz;
-        m.castShadow = true;
-        m.receiveShadow = true;
-        g.add(m);
-      };
-      add(stoneBox(1.6, 0.5, 1.4, sx * 3, 0.05), 0, 0.25, 0); // plinth
-      add(new THREE.CapsuleGeometry(0.2, 0.35, 6, 16), 0.2, 0.78, 0.2, 1.3); // thigh, knee forward
-      add(new THREE.CapsuleGeometry(0.17, 0.3, 6, 16), 0.42, 0.72, 0.2); // shin
-      add(new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), -0.15, 0.62, -0.2, 1.4); // kneeling leg
-      add(new THREE.CylinderGeometry(0.42, 0.26, 0.92, 24), 0, 1.35, 0, -0.25); // torso, bowed
-      if (rng.next() > 0.3) add(new THREE.SphereGeometry(0.22, 20, 14), 0.27, 1.95, 0); // head (some lost)
-      add(stoneBox(0.09, 1.8, 0.04, sx, 0.004), 0.55, 1.0, 0.25); // planted sword
-      add(stoneBox(0.42, 0.07, 0.09, sx + 1, 0.004), 0.55, 1.6, 0.25);
-      for (const z of [0.38, -0.38]) {
-        const p = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.6), stone);
-        p.position.set(-0.05, 1.72, z);
-        p.scale.set(1.2, 0.9, 1);
-        p.castShadow = true;
-        g.add(p);
-      }
-      const s = rng.range(1.35, 1.8);
-      g.scale.setScalar(s);
-      g.position.set(sx, 0, rng.range(-7.5, -6.2));
-      g.rotation.y = sx < 0 ? 0.35 : -0.35 + Math.PI; // all face the hearth
-      if (sx > 0) g.scale.x *= 1;
-      this.group.add(g);
+  /** A stone knight of his fallen order, kneeling forever, facing the hearth. */
+  private statue(x: number, z: number): void {
+    const stone = STATUE;
+    const g = new THREE.Group();
+    const add = (geo: THREE.BufferGeometry, px: number, py: number, pz: number, rz = 0) => {
+      const m = new THREE.Mesh(geo, stone);
+      m.position.set(px, py, pz);
+      m.rotation.z = rz;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      g.add(m);
+    };
+    add(stoneBox(1.6, 0.5, 1.4, x * 3, 0.05), 0, 0.25, 0); // plinth
+    add(new THREE.CapsuleGeometry(0.2, 0.35, 6, 16), 0.2, 0.78, 0.2, 1.3); // thigh, knee forward
+    add(new THREE.CapsuleGeometry(0.17, 0.3, 6, 16), 0.42, 0.72, 0.2); // shin
+    add(new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), -0.15, 0.62, -0.2, 1.4); // kneeling leg
+    add(new THREE.CylinderGeometry(0.42, 0.26, 0.92, 24), 0, 1.35, 0, -0.25); // torso, bowed
+    if ((Math.round(x * 7 + z) & 3) !== 0) add(new THREE.SphereGeometry(0.22, 20, 14), 0.27, 1.95, 0); // head (some lost)
+    add(stoneBox(0.09, 1.8, 0.04, x, 0.004), 0.55, 1.0, 0.25); // planted sword
+    add(stoneBox(0.42, 0.07, 0.09, x + 1, 0.004), 0.55, 1.6, 0.25);
+    for (const pz of [0.38, -0.38]) {
+      const p = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.6), stone);
+      p.position.set(-0.05, 1.72, pz);
+      p.scale.set(1.2, 0.9, 1);
+      p.castShadow = true;
+      g.add(p);
     }
+    g.scale.setScalar(1.25);
+    g.position.set(x, 0, z);
+    g.rotation.y = -Math.atan2(-z, -x); // local +x (its face) toward the hearth
+    this.group.add(g);
   }
 
   private groundsBanners(): void {

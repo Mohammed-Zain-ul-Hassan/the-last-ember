@@ -8,23 +8,29 @@ import { fogTexture, shaftTexture } from './textures';
 
 export const SILHOUETTE = 0x09080d;
 
+// The sky is a dome around the camera; the shader works from the view direction, so it is the same whichever way
+// you look: horizon to zenith, a sun/moon glow in one fixed direction, streaked clouds.
 const SKY_VERT = /* glsl */ `
-  varying vec2 vUv;
-  void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+  varying vec3 vDir;
+  void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const SKY_FRAG = /* glsl */ `
   uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uGlow; uniform float uGlowY; uniform float uTime; uniform float uDisc;
-  varying vec2 vUv;
+  varying vec3 vDir;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) {
     vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
   }
   void main() {
-    float y = vUv.y;
+    vec3 dir = normalize(vDir);
+    float y = clamp(dir.y * 1.25 + 0.22, 0.0, 1.0);
     vec3 c = mix(uHorizon, uTop, smoothstep(0.2, 0.8, y));
-    vec2 p = vec2(vUv.x * 2.36, y);
-    vec2 gp = vec2(0.62 * 2.36, 0.5 + uGlowY * 0.42);
-    float d = distance(p, gp);
+    // the glow sits off to the east of north (-z), raised or sunk by uGlowY
+    float el = uGlowY * 0.55;
+    vec3 g = normalize(vec3(0.42 * cos(el), sin(el), -0.9 * cos(el)));
+    float d = acos(clamp(dot(dir, g), -1.0, 1.0));
+    vec2 p = vec2(atan(dir.x, -dir.z), dir.y);
+    vec2 gp = vec2(atan(g.x, -g.z), g.y);
     c += uGlow * (exp(-d * 10.0) * 1.3 + exp(-d * 2.6) * 0.3);
     // sun / moon disc with a soft rim and faint surface detail
     if (uDisc > 0.0) {
@@ -33,7 +39,7 @@ const SKY_FRAG = /* glsl */ `
       c = mix(c, uGlow * 2.4 * detail, disc);
     }
     // long streaked clouds catching the light
-    float cl = noise(vec2(vUv.x * 7.0 + uTime * 0.004, y * 46.0)) * noise(vec2(vUv.x * 2.0 - uTime * 0.002, y * 13.0));
+    float cl = noise(vec2(dir.x * 5.0 + dir.z * 3.0 + uTime * 0.004, y * 46.0)) * noise(vec2(dir.z * 2.0 - dir.x * 1.3 - uTime * 0.002, y * 13.0));
     float band = smoothstep(0.28, 0.6, cl) * smoothstep(0.15, 0.35, y) * smoothstep(0.75, 0.45, y);
     c = mix(c, c * 0.55 + uGlow * 0.18, band * 0.7);
     gl_FragColor = vec4(c, 1.0);
@@ -45,7 +51,7 @@ export class Stage {
   readonly camera: THREE.PerspectiveCamera;
   readonly composer: EffectComposer;
   readonly world = new THREE.Group();
-  private sky: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  private sky: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
   private stars: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   private fog: THREE.FogExp2;
   private moon: THREE.DirectionalLight;
@@ -55,6 +61,9 @@ export class Stage {
   readonly smaa: EffectPass;
   readonly outline: OutlineEffect;
   private far = new THREE.Group(); // follows the camera like the sky
+  private skyline = new THREE.Group(); // rings of distant silhouettes, drifting a little with the camera
+  private haze = new THREE.Group(); // fog banks: always ahead of the camera, between it and the distance
+  private v = new THREE.Vector3();
   private fogCards: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private shafts: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private grassTime = { value: 0 };
@@ -72,7 +81,7 @@ export class Stage {
 
     this.camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.1, 400);
     this.scene.add(this.world);
-    this.scene.add(this.far);
+    this.scene.add(this.far, this.skyline, this.haze);
 
     this.fog = new THREE.FogExp2(0x1b1730, 0.022);
     this.scene.fog = this.fog;
@@ -83,16 +92,15 @@ export class Stage {
     };
 
     this.sky = new THREE.Mesh(
-      new THREE.PlaneGeometry(520, 220),
+      new THREE.SphereGeometry(300, 48, 24),
       new THREE.ShaderMaterial({
-        vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, depthWrite: false, fog: false,
+        vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, depthWrite: false, fog: false, side: THREE.BackSide,
         uniforms: {
           uTop: { value: this.cur.top }, uHorizon: { value: this.cur.horizon }, uGlow: { value: this.cur.glow },
           uGlowY: { value: 0 }, uTime: { value: 0 }, uDisc: { value: 0.09 },
         },
       }),
     );
-    this.sky.position.set(0, 60, -150);
     this.sky.renderOrder = -10;
     this.far.add(this.sky);
 
@@ -188,10 +196,15 @@ export class Stage {
     for (const s of this.shafts) s.material.color.copy(c.glow).multiplyScalar(0.16 + this.dawn * 0.4);
   }
 
-  update(t: number, camX: number): void {
+  update(t: number, cam: THREE.Vector3): void {
     this.sky.material.uniforms.uTime.value = t;
-    this.far.position.x = camX * 0.9;
-    this.stars.rotation.z = t * 0.004;
+    this.far.position.set(cam.x, 0, cam.z);
+    this.skyline.position.set(cam.x * 0.8, 0, cam.z * 0.8);
+    // haze cards turn with the camera so they always lie across the view
+    this.camera.getWorldDirection(this.v);
+    this.haze.position.set(cam.x, 0, cam.z);
+    this.haze.rotation.y = Math.atan2(-this.v.x, -this.v.z);
+    this.stars.rotation.y = t * 0.004;
     this.fogCards.forEach((f, i) => {
       (f.material.map as THREE.Texture).offset.x = t * (0.004 + i * 0.002) + i * 0.3;
     });
@@ -214,113 +227,129 @@ export class Stage {
     const rng = new Rng(99);
     const n = 1100;
     const p = new Float32Array(n * 3);
+    for (let i = 0; i < n * 3; i++) p[i] = 0;
     for (let i = 0; i < n; i++) {
-      p[i * 3] = rng.range(-240, 240);
-      p[i * 3 + 1] = rng.range(-10, 110) * Math.sqrt(rng.next());
-      p[i * 3 + 2] = 0;
+      // upper hemisphere, thinning toward the horizon
+      const a = rng.range(0, Math.PI * 2);
+      const el = Math.asin(Math.pow(rng.next(), 0.7)) * 0.95 + 0.03;
+      p[i * 3] = Math.cos(a) * Math.cos(el) * 280;
+      p[i * 3 + 1] = Math.sin(el) * 280;
+      p[i * 3 + 2] = Math.sin(a) * Math.cos(el) * 280;
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(p, 3));
-    const m = new THREE.PointsMaterial({ color: 0xdfe6ff, size: 0.55, sizeAttenuation: true, transparent: true, opacity: 0, fog: false, depthWrite: false });
+    const m = new THREE.PointsMaterial({ color: 0xdfe6ff, size: 1.1, sizeAttenuation: true, transparent: true, opacity: 0, fog: false, depthWrite: false });
     const s = new THREE.Points(g, m);
-    s.position.set(0, 20, -145);
     s.renderOrder = -9;
     return s;
   }
 
   private buildGround(): void {
     const mat = new THREE.MeshStandardMaterial({ color: 0x1a161e, roughness: 1, metalness: 0 });
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 120), mat);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), mat);
     ground.rotation.x = -Math.PI / 2;
-    ground.position.set(0, 0, -40);
+    ground.position.set(40, 0, 0);
     ground.receiveShadow = true;
     this.scene.add(ground);
     const rng = new Rng(8);
     const rockMat = rimify(new THREE.MeshStandardMaterial({ color: SILHOUETTE, roughness: 1 }), 0.5, 'rock');
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 260; i++) {
       const s = rng.range(0.15, 0.5);
       const m = new THREE.Mesh(rock(s, i * 3.7), rockMat);
-      m.position.set(rng.range(-60, 130), s * 0.1, rng.range(1.9, 3.2));
+      // rubble over the plaza (clear of the hearth) and along the edges of the road east
+      const [x, z] = scatter(rng, i % 2 === 0);
+      m.position.set(x, s * 0.1, z);
       m.rotation.set(rng.next() * 3, rng.next() * 3, rng.next() * 3);
       m.castShadow = true;
       this.scene.add(m);
     }
   }
 
-  /** Flat silhouette skylines at several depths; fog does the layering. A dead kingdom's cathedral and towers. */
+  /**
+   * Silhouette skylines in rings all around, at several distances; fog does the layering. A dead kingdom's
+   * colonnades, castles, citadel and mountains, and its cathedral as one landmark behind the hearth. Each ring is
+   * built from flat panels set edge to edge around the circle, every panel facing the middle.
+   */
   private buildSkyline(): void {
     const layers = [
-      { z: -13, w: 260, hMin: 2.5, hMax: 7, seed: 11, kind: 'colonnade' },
-      { z: -26, w: 320, hMin: 4, hMax: 10, seed: 12, kind: 'castle' },
-      { z: -46, w: 400, hMin: 7, hMax: 19, seed: 13, kind: 'citadel' },
-      { z: -80, w: 520, hMin: 14, hMax: 36, seed: 14, kind: 'mountain' },
+      { r: 44, hMin: 2.5, hMax: 7, seed: 11, kind: 'colonnade' },
+      { r: 58, hMin: 4, hMax: 11, seed: 12, kind: 'castle' },
+      { r: 80, hMin: 8, hMax: 21, seed: 13, kind: 'citadel' },
+      { r: 120, hMin: 16, hMax: 40, seed: 14, kind: 'mountain' },
     ] as const;
-    const mat = new THREE.MeshBasicMaterial({ color: 0x050407, fog: true });
+    const mat = new THREE.MeshBasicMaterial({ color: 0x050407, fog: true, side: THREE.DoubleSide });
     for (const L of layers) {
       const rng = new Rng(L.seed);
-      const shape = new THREE.Shape();
-      const x0 = -L.w / 2;
-      shape.moveTo(x0, -2);
-      let x = x0;
-      while (x < L.w / 2) {
-        const h = rng.range(L.hMin, L.hMax);
-        if (L.kind === 'mountain') {
-          const w = rng.range(12, 30);
-          shape.lineTo(x + w * 0.45, h);
-          shape.lineTo(x + w * 0.55, h * rng.range(0.85, 1));
-          x += w;
-          shape.lineTo(x, h * rng.range(0.3, 0.6));
-          continue;
-        }
-        if (L.kind === 'colonnade') {
-          // broken columns with capitals
-          const w = rng.range(0.7, 1.1);
-          shape.lineTo(x, h);
-          shape.lineTo(x - 0.25, h);
-          shape.lineTo(x - 0.25, h + 0.35);
-          shape.lineTo(x + w * 0.6, h + 0.35 + rng.range(-0.3, 0.1));
-          shape.lineTo(x + w + 0.25, h + 0.3);
-          shape.lineTo(x + w, h);
-          shape.lineTo(x + w, 0);
-          x += w + rng.range(2.2, 4.5);
-          shape.lineTo(x, 0);
-          continue;
-        }
-        const w = rng.range(2.5, 6.5);
-        const gap = rng.range(0.3, 3);
-        shape.lineTo(x, h);
-        const roll = rng.next();
-        if (roll < 0.35) {
-          // gothic spire with a pinnacle
-          shape.lineTo(x + w * 0.2, h + 0.5);
-          shape.lineTo(x + w / 2, h + rng.range(3, 7.5));
-          shape.lineTo(x + w * 0.8, h + 0.5);
-        } else if (roll < 0.6) {
-          // crenellated tower top
-          const n = Math.max(2, Math.floor(w / 0.9));
-          for (let i = 0; i < n; i++) {
-            const a = x + (i / n) * w;
-            const b = x + ((i + 0.5) / n) * w;
-            shape.lineTo(a, h + 0.8);
-            shape.lineTo(b, h + 0.8);
-            shape.lineTo(b, h);
+      const P = L.kind === 'mountain' ? 26 : 12; // panel width
+      const panels = Math.ceil((Math.PI * 2 * L.r) / P);
+      for (let pi = 0; pi < panels; pi++) {
+        const shape = new THREE.Shape();
+        const x0 = -P / 2;
+        shape.moveTo(x0, -2);
+        let x = x0;
+        while (x < P / 2) {
+          const h = rng.range(L.hMin, L.hMax);
+          if (L.kind === 'mountain') {
+            const w = rng.range(12, 30);
+            shape.lineTo(x + w * 0.45, h);
+            shape.lineTo(x + w * 0.55, h * rng.range(0.85, 1));
+            x += w;
+            shape.lineTo(x, h * rng.range(0.3, 0.6));
+            continue;
           }
-        } else {
-          // broken, collapsed top
-          shape.lineTo(x + w * 0.3, h - rng.range(0.4, 2.5));
-          shape.lineTo(x + w * 0.55, h + rng.range(-0.5, 1.2));
-          shape.lineTo(x + w * 0.7, h - rng.range(1, 3));
+          if (L.kind === 'colonnade') {
+            // broken columns with capitals
+            const w = rng.range(0.7, 1.1);
+            shape.lineTo(x, h);
+            shape.lineTo(x - 0.25, h);
+            shape.lineTo(x - 0.25, h + 0.35);
+            shape.lineTo(x + w * 0.6, h + 0.35 + rng.range(-0.3, 0.1));
+            shape.lineTo(x + w + 0.25, h + 0.3);
+            shape.lineTo(x + w, h);
+            shape.lineTo(x + w, 0);
+            x += w + rng.range(2.2, 4.5);
+            shape.lineTo(x, 0);
+            continue;
+          }
+          const w = rng.range(2.5, 6.5);
+          const gap = rng.range(0.3, 3);
+          shape.lineTo(x, h);
+          const roll = rng.next();
+          if (roll < 0.35) {
+            // gothic spire with a pinnacle
+            shape.lineTo(x + w * 0.2, h + 0.5);
+            shape.lineTo(x + w / 2, h + rng.range(3, 7.5));
+            shape.lineTo(x + w * 0.8, h + 0.5);
+          } else if (roll < 0.6) {
+            // crenellated tower top
+            const n = Math.max(2, Math.floor(w / 0.9));
+            for (let i = 0; i < n; i++) {
+              const a = x + (i / n) * w;
+              const b = x + ((i + 0.5) / n) * w;
+              shape.lineTo(a, h + 0.8);
+              shape.lineTo(b, h + 0.8);
+              shape.lineTo(b, h);
+            }
+          } else {
+            // broken, collapsed top
+            shape.lineTo(x + w * 0.3, h - rng.range(0.4, 2.5));
+            shape.lineTo(x + w * 0.55, h + rng.range(-0.5, 1.2));
+            shape.lineTo(x + w * 0.7, h - rng.range(1, 3));
+          }
+          shape.lineTo(x + w, h * rng.range(0.75, 1));
+          shape.lineTo(x + w, rng.range(0, L.hMin * 0.5));
+          x += w + gap;
+          shape.lineTo(x, rng.range(0, L.hMin * 0.5));
         }
-        shape.lineTo(x + w, h * rng.range(0.75, 1));
-        shape.lineTo(x + w, rng.range(0, L.hMin * 0.5));
-        x += w + gap;
-        shape.lineTo(x, rng.range(0, L.hMin * 0.5));
+        shape.lineTo(x, -2);
+        shape.lineTo(x0, -2);
+        const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat);
+        const th = ((pi + 0.5) / panels) * Math.PI * 2;
+        mesh.position.set(Math.sin(th) * L.r, 0, -Math.cos(th) * L.r);
+        mesh.rotation.y = -th;
+        mesh.scale.x = ((Math.PI * 2 * L.r) / panels / P) * 1.02; // panels meet edge to edge
+        this.skyline.add(mesh);
       }
-      shape.lineTo(L.w / 2, -2);
-      shape.lineTo(x0, -2);
-      const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat);
-      mesh.position.set(40, 0, L.z);
-      this.scene.add(mesh);
     }
     // the cathedral: one unmistakable landmark behind the hearth
     const c = new THREE.Shape();
@@ -345,8 +374,9 @@ export class Stage {
     rose.absarc(0, 19, 2.4, 0, Math.PI * 2, true);
     c.holes.push(rose);
     const cath = new THREE.Mesh(new THREE.ShapeGeometry(c), mat);
-    cath.position.set(4, 0, -34);
-    this.scene.add(cath);
+    cath.position.set(8, 0, -68);
+    cath.scale.setScalar(1.6);
+    this.skyline.add(cath);
   }
 
   /** Dry grass tufts along the front edge, swaying in the wind (vertex shader). */
@@ -379,10 +409,8 @@ export class Stage {
     const q = new THREE.Quaternion();
     const e = new THREE.Euler();
     for (let i = 0; i < n; i++) {
-      const front = rng.next() < 0.6;
-      const x = rng.range(-62, 132);
-      const z = front ? rng.range(1.75, 3.4) : rng.range(-3.5, -1.8);
-      const s = rng.range(0.5, 1.4) * (front ? 1 : 0.8);
+      const [x, z] = scatter(rng, i % 2 === 0);
+      const s = rng.range(0.5, 1.4);
       e.set(rng.range(-0.25, 0.25), rng.range(0, 3), rng.range(-0.3, 0.3));
       q.setFromEuler(e);
       m.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s * rng.range(0.7, 1.4), s));
@@ -397,11 +425,10 @@ export class Stage {
   private buildAtmosphere(): void {
     const tex = fogTexture();
     const cards = [
-      { z: -9, y: 0.2, h: 4, o: 0.18 },
-      { z: -18, y: 0.8, h: 8, o: 0.26 },
-      { z: -31, y: 1.5, h: 13, o: 0.34 },
-      { z: -56, y: 3, h: 22, o: 0.42 },
-      { z: 3.5, y: -0.6, h: 2, o: 0.12 }, // low ground mist in front
+      { z: -14, y: 0.2, h: 4, o: 0.14 },
+      { z: -24, y: 0.8, h: 8, o: 0.24 },
+      { z: -38, y: 1.5, h: 13, o: 0.34 },
+      { z: -62, y: 3, h: 22, o: 0.42 },
     ];
     for (const c of cards) {
       const map = tex.clone();
@@ -414,7 +441,7 @@ export class Stage {
       m.position.set(0, c.y + c.h * 0.3, c.z);
       m.renderOrder = -5;
       this.fogCards.push(m);
-      this.scene.add(m);
+      this.haze.add(m);
     }
     const st = shaftTexture();
     for (let i = 0; i < 5; i++) {
@@ -432,3 +459,14 @@ export class Stage {
 }
 
 const _c = new THREE.Color();
+
+/** A spot for rubble or grass: on the plaza (clear of the hearth) or along the edges of the road east. */
+function scatter(rng: Rng, plaza: boolean): [number, number] {
+  if (plaza) {
+    const a = rng.range(0, Math.PI * 2);
+    const r = Math.sqrt(rng.range(0.012, 1)) * 31;
+    return [Math.cos(a) * r, Math.sin(a) * r];
+  }
+  const side = rng.next() < 0.5 ? -1 : 1;
+  return [rng.range(-12, 112), side * rng.range(2.6, 7)];
+}

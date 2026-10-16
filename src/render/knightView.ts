@@ -8,9 +8,9 @@ import { rimify } from './rim';
 import { SHADOW, shadowify } from './shadowBody';
 import { glowTexture, tatterTexture } from './textures';
 
-// The shadow knight: living shadow in the shape of a knight. Built from primitives facing +x; facing is applied with
-// scale.x so the sword arm stays nearest the camera. Every pose goes through springs, so motion has follow-through
-// and overshoot instead of snapping between keyframes.
+// The shadow knight: living shadow in the shape of a knight. Built from primitives facing +x; the sim's yaw turns
+// the root (rotation.y = -yaw), so the sword arm (local +z) is his right. Every pose goes through springs, so
+// motion has follow-through and overshoot instead of snapping between keyframes.
 // pure black and fully matte: a shadow does not reflect the fire, only the aura gives it shape
 const BODY = shadowify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0 }), 0.42, 'kbody');
 const DARK = shadowify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0 }), 0.55, 'kdark');
@@ -273,9 +273,10 @@ export class KnightView {
     this.chest.add(this.offShoulder);
     this.chest.add(this.shoulder);
 
-    // cape: torn shadow-cloth
+    // cape: torn shadow-cloth hanging across his back (the plane spans his shoulders along z; it trails along -x)
     const capeGeo = new THREE.PlaneGeometry(0.9, 2.1, 5, 16);
     capeGeo.translate(-0.05, -1.05, 0);
+    capeGeo.rotateY(Math.PI / 2);
     const tat = tatterTexture(7);
     const capeMat = shadowify(
       new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, side: THREE.DoubleSide, alphaMap: tat, alphaTest: 0.5 }),
@@ -298,7 +299,7 @@ export class KnightView {
 
     // shadow-fire rising off him, behind the body
     this.aura = new Flame(1.5, 2.5, 2, new THREE.Color(1, 1, 1), true);
-    this.aura.group.position.set(-0.15, 0.75, -0.45);
+    this.aura.group.position.set(-0.3, 0.75, 0);
     this.aura.opacity = 0.5;
     this.root.add(this.aura.group);
 
@@ -343,7 +344,7 @@ export class KnightView {
     const p: Pose = { ...REST };
     let stiff = 170;
     let zeta = 0.62;
-    const speed = Math.abs(k.vx);
+    const speed = Math.hypot(k.vx, k.vz);
     const breathe = Math.sin(t * 1.9);
     switch (k.state) {
       case 'idle':
@@ -607,9 +608,14 @@ export class KnightView {
   }
 
   update(k: Knight, dt: number, t: number, smoke: Particles, glow: Particles, camera: THREE.Camera): void {
-    this.root.position.set(k.x, k.y, 0);
-    this.turn += (k.facing - this.turn) * Math.min(1, dt * 22);
-    this.root.scale.x = Math.abs(this.turn) < 0.08 ? 0.08 * Math.sign(this.turn || 1) : this.turn;
+    this.root.position.set(k.x, k.y, k.z);
+    // turn toward the sim's yaw the short way round (quick, but never a pop)
+    let d = (k.yaw - this.turn) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    this.turn += d * Math.min(1, dt * 22);
+    this.root.rotation.y = -this.turn;
+    this.root.scale.x = 1;
     this.kneelK += ((this.pose === 'kneel' ? 1 : 0) - this.kneelK) * Math.min(1, dt * (this.pose === 'kneel' ? 6 : 2.2));
 
     // jump / land detection from the sim state
@@ -710,7 +716,7 @@ export class KnightView {
       this.emberOrb.position.y = 2.75 + Math.sin(t * 2.2) * 0.08;
       if (Math.random() < dt * 30) {
         this.emberOrb.getWorldPosition(this.tmp);
-        glow.emit({ x: this.tmp.x, y: this.tmp.y, z: this.tmp.z, vy: 0.8, vx: -k.vx * 0.1, spread: 0.25, life: 0.9, size: 0.09, sizeEnd: 0.01, r: 5, g: 2, b: 0.4, gravity: -0.5, wobble: 0.5 });
+        glow.emit({ x: this.tmp.x, y: this.tmp.y, z: this.tmp.z, vy: 0.8, vx: -k.vx * 0.1, vz: -k.vz * 0.1, spread: 0.25, life: 0.9, size: 0.09, sizeEnd: 0.01, r: 5, g: 2, b: 0.4, gravity: -0.5, wobble: 0.5 });
       }
     }
     const hs = 2.6 + Math.sin(t * 13) * 0.15;
@@ -724,8 +730,8 @@ export class KnightView {
         const part = this.parts[Math.floor(Math.random() * this.parts.length)];
         part.getWorldPosition(this.tmp);
         smoke.emit({
-          x: this.tmp.x + (Math.random() - 0.5) * 0.2, y: this.tmp.y, z: this.tmp.z * 0.5,
-          vx: -k.vx * 0.2 - k.facing * 0.15, vy: 0.7 + Math.random() * 0.4, spread: 0.12, life: 0.9, size: 0.38, sizeEnd: 0.85,
+          x: this.tmp.x + (Math.random() - 0.5) * 0.2, y: this.tmp.y, z: this.tmp.z + (Math.random() - 0.5) * 0.2,
+          vx: -k.vx * 0.2 - Math.cos(k.yaw) * 0.15, vz: -k.vz * 0.2 - Math.sin(k.yaw) * 0.15, vy: 0.7 + Math.random() * 0.4, spread: 0.12, life: 0.9, size: 0.38, sizeEnd: 0.85,
           r: 0.015, g: 0.008, b: 0.035, alpha: 0.6 * fade, drag: 1.4, wobble: 0.4,
         });
       }
@@ -733,24 +739,29 @@ export class KnightView {
         const part = this.parts[Math.floor(Math.random() * this.parts.length)];
         part.getWorldPosition(this.tmp);
         glow.emit({
-          x: this.tmp.x, y: this.tmp.y, z: 0.25, vy: 0.8, spread: 0.25, life: 1.3, size: 0.07, sizeEnd: 0.01,
+          x: this.tmp.x, y: this.tmp.y, z: this.tmp.z, vy: 0.8, spread: 0.25, life: 1.3, size: 0.07, sizeEnd: 0.01,
           r: this.torchOn ? 3.4 : 1.1, g: this.torchOn ? 1.2 : 0.6, b: this.torchOn ? 0.3 : 3.0, gravity: -0.4, wobble: 0.6,
         });
       }
     }
-    if ((k.state === 'dash' || Math.abs(k.vx) > 6) && k.state !== 'dead') {
+    if ((k.state === 'dash' || Math.hypot(k.vx, k.vz) > 6) && k.state !== 'dead') {
       const e = this.eyePos;
       for (let i = 0; i < 3; i++)
-        glow.emit({ x: e.x - k.vx * i * 0.005, y: e.y, z: e.z, life: 0.25, size: 0.09, sizeEnd: 0.01, r: this.torchOn ? 4 : 2, g: this.torchOn ? 2 : 1.8, b: this.torchOn ? 1 : 4.5 });
+        glow.emit({ x: e.x - k.vx * i * 0.005, y: e.y, z: e.z - k.vz * i * 0.005, life: 0.25, size: 0.09, sizeEnd: 0.01, r: this.torchOn ? 4 : 2, g: this.torchOn ? 2 : 1.8, b: this.torchOn ? 1 : 4.5 });
     }
     if (k.state === 'dash') {
       // shadow-step: the body smears into a streak of dark smoke
       for (let i = 0; i < 6; i++)
-        smoke.emit({ x: k.x - k.facing * Math.random() * 1.2, y: k.y + 0.2 + Math.random() * 2.0, z: (Math.random() - 0.5) * 0.4, vx: -k.facing * 2, spread: 0.3, life: 0.45, size: 0.9, sizeEnd: 0.3, r: 0.02, g: 0.01, b: 0.05, alpha: 0.75, drag: 3 });
+        smoke.emit((() => {
+          const b = Math.random() * 1.2;
+          const fx = Math.cos(k.yaw);
+          const fz = Math.sin(k.yaw);
+          return { x: k.x - fx * b, y: k.y + 0.2 + Math.random() * 2.0, z: k.z - fz * b + (Math.random() - 0.5) * 0.4, vx: -fx * 2, vz: -fz * 2, spread: 0.3, life: 0.45, size: 0.9, sizeEnd: 0.3, r: 0.02, g: 0.01, b: 0.05, alpha: 0.75, drag: 3 };
+        })());
     }
     if (this.landT > 0.2 && this.landImpact > 0.5) {
       for (let i = 0; i < 4; i++)
-        smoke.emit({ x: k.x + (Math.random() - 0.5) * 1.4, y: k.y + 0.05, vx: (Math.random() - 0.5) * 4, vy: 0.4, spread: 0.3, life: 0.6, size: 0.7, sizeEnd: 1.3, r: 0.03, g: 0.02, b: 0.05, alpha: 0.6, drag: 3 });
+        smoke.emit({ x: k.x + (Math.random() - 0.5) * 1.4, y: k.y + 0.05, z: k.z + (Math.random() - 0.5) * 1.4, vx: (Math.random() - 0.5) * 4, vz: (Math.random() - 0.5) * 4, vy: 0.4, spread: 0.3, life: 0.6, size: 0.7, sizeEnd: 1.3, r: 0.03, g: 0.02, b: 0.05, alpha: 0.6, drag: 3 });
     }
   }
 
@@ -767,7 +778,7 @@ export class KnightView {
   }
 
   private updateCape(k: Knight, dt: number, t: number): void {
-    this.capeVx += (Math.abs(k.vx) - this.capeVx) * Math.min(1, dt * 5);
+    this.capeVx += (Math.hypot(k.vx, k.vz) - this.capeVx) * Math.min(1, dt * 5);
     this.capeVy += (k.vy - this.capeVy) * Math.min(1, dt * 7);
     const pos = this.cape.geometry.attributes.position as THREE.BufferAttribute;
     const base = this.capeBase;
@@ -776,14 +787,15 @@ export class KnightView {
     for (let i = 0; i < pos.count; i++) {
       const bx = base[i * 3];
       const by = base[i * 3 + 1];
+      const bw = base[i * 3 + 2]; // across the shoulders
       const f = Math.max(0, Math.min(1, -by / 2.1));
-      const wind = Math.sin(t * 1.3 + f * 2) * 0.12 * f + Math.sin(t * 4.7 - f * 5 + bx * 3) * 0.05 * f;
-      const sway = Math.sin(t * 5.5 - f * 4 + bx * 2) * 0.06 * f * (0.4 + this.capeVx * 0.15);
+      const wind = Math.sin(t * 1.3 + f * 2) * 0.12 * f + Math.sin(t * 4.7 - f * 5 + bw * 3) * 0.05 * f;
+      const sway = Math.sin(t * 5.5 - f * 4 + bw * 2) * 0.06 * f * (0.4 + this.capeVx * 0.15);
       const back = -Math.pow(f, 1.25) * (0.16 + lift * 1.35) - wind;
       const pool = kneel * Math.max(0, f - 0.45) * 1.1;
       // rising: the cape trails down; falling: it billows up
       const yDrop = by * (1 - lift * 0.55 * f) + Math.max(0, this.capeVy) * -0.02 * f + pool * 0.9;
-      pos.setXYZ(i, bx + back + sway - pool, yDrop, base[i * 3 + 2] + Math.sin(t * 3 + f * 3) * 0.05 * f);
+      pos.setXYZ(i, bx + back + sway - pool, yDrop, bw * (1 + f * 0.25) + Math.sin(t * 3 + f * 3 + bw) * 0.05 * f);
     }
     pos.needsUpdate = true;
     this.cape.geometry.computeVertexNormals();

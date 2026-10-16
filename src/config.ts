@@ -6,7 +6,11 @@ export const CFG = {
 
   knight: {
     w: 0.7,
+    r: 0.36, // body radius on the ground plane
     h: 2.1,
+    turnRate: 16, // rad/s he turns toward where he runs
+    aimRange: 4.6, // soft aim: swings turn toward a shade this close...
+    aimCone: 1.25, // ...within this many radians of where he (or the camera) faces
     maxHp: 100, // health per life
     lives: 3, // shards: lose one when health runs out, rise again at full health
     lifeIframes: 1.8,
@@ -52,6 +56,7 @@ export const CFG = {
 
   shade: {
     w: 0.9,
+    r: 0.42,
     h: 1.75,
     riseTime: 0.9,
     attackRange: 1.15,
