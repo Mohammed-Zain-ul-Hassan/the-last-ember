@@ -62,7 +62,7 @@ export interface Shade {
 
 export type GameEvent =
   | { type: 'swing'; x: number; y: number; facing: number; combo: number; heavy: boolean }
-  | { type: 'hit'; x: number; y: number; dmg: number; heavy: boolean; facing: number }
+  | { type: 'hit'; x: number; y: number; dmg: number; heavy: boolean; facing: number; id: number }
   | { type: 'kill'; x: number; y: number; burned: boolean; big: boolean }
   | { type: 'spawn'; x: number }
   | { type: 'jump' | 'land' | 'dash'; x: number; y: number }
@@ -311,7 +311,7 @@ export class World {
       if (d < -0.5 || d > 4.2 || Math.abs(s.y - k.y) > 2) continue;
       s.hp -= 2;
       s.vx = k.facing * (s.big ? 3 : 9);
-      this.events.push({ type: 'hit', x: s.x, y: s.y + 1, dmg: 2, heavy: true, facing: k.facing });
+      this.events.push({ type: 'hit', x: s.x, y: s.y + 1, dmg: 2, heavy: true, facing: k.facing, id: s.id });
       if (s.hp <= 0) this.killShade(s, true);
       else {
         s.state = 'stagger';
@@ -354,7 +354,7 @@ export class World {
       s.hp -= sp.dmg;
       s.vx = k.facing * sp.knock * (s.big ? 0.25 : 1);
       s.facing = (-k.facing) as 1 | -1;
-      this.events.push({ type: 'hit', x: s.x, y: s.y + 1, dmg: sp.dmg, heavy, facing: k.facing });
+      this.events.push({ type: 'hit', x: s.x, y: s.y + 1, dmg: sp.dmg, heavy, facing: k.facing, id: s.id });
       if (s.hp <= 0) {
         this.killShade(s, false);
         this.hitstop = Math.max(this.hitstop, heavy ? CFG.hitstop.heavy : CFG.hitstop.kill);

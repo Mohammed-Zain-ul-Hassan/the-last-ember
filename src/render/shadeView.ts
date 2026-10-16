@@ -34,11 +34,13 @@ class ShadeMesh {
   private eyeMat: THREE.MeshBasicMaterial;
   private pool: THREE.Mesh<THREE.CircleGeometry, THREE.ShaderMaterial>;
   private seed = Math.random() * 10;
+  flash = 0;
+  private robeMat: THREE.MeshStandardMaterial;
 
   constructor() {
-    this.mat = rimify(new THREE.MeshStandardMaterial({ color: 0x040306, roughness: 1, transparent: true }), 0.75, 'shade');
+    this.mat = rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, transparent: true }), 0.75, 'shade');
     const robeMat = rimify(
-      new THREE.MeshStandardMaterial({ color: 0x040306, roughness: 1, alphaMap: TATTER, alphaTest: 0.5, side: THREE.DoubleSide, transparent: true }),
+      new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, alphaMap: TATTER, alphaTest: 0.5, side: THREE.DoubleSide, transparent: true }),
       0.6,
       'shaderobe',
     );
@@ -46,6 +48,7 @@ class ShadeMesh {
 
     const robeGeo = new THREE.ConeGeometry(0.62, 1.75, 16, 10, true);
     robeGeo.translate(0, 0.875, 0);
+    this.robeMat = robeMat;
     this.robe = new THREE.Mesh(robeGeo, robeMat);
     this.robe.castShadow = true;
     this.robe.customDistanceMaterial = new THREE.MeshDistanceMaterial({ alphaMap: TATTER, alphaTest: 0.5 });
@@ -131,6 +134,12 @@ class ShadeMesh {
     this.arms.forEach((a, i) => (a.rotation.z = armA + (i ? 0.25 : 0) + Math.sin(tt * 3 + i) * 0.08));
     this.hood.rotation.z = -lean * 0.4 + Math.sin(tt * 1.3) * 0.06;
     this.mat.opacity = opacity;
+    // struck: the shade flares ember-red from inside, and recoils
+    this.flash = Math.max(0, this.flash - dt * 6);
+    const fl = this.flash * this.flash;
+    this.mat.emissive.setRGB(2.4 * fl, 0.5 * fl, 0.15 * fl);
+    this.robeMat.emissive.setRGB(1.6 * fl, 0.3 * fl, 0.1 * fl);
+    this.body.scale.x = 1 + fl * 0.12;
     this.robe.material.opacity = opacity;
     this.body.visible = opacity > 0.01;
     this.pool.material.uniforms.uA.value = poolA;
@@ -212,6 +221,11 @@ export class ShadeViews {
       this.pool.push(v);
     }
     this.live.clear();
+  }
+
+  hit(id: number): void {
+    const v = this.live.get(id);
+    if (v) v.flash = 1;
   }
 
   get count(): number {

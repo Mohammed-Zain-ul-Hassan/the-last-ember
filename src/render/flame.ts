@@ -6,7 +6,7 @@ const VERT = /* glsl */ `
   void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 
 const FRAG = /* glsl */ `
-  uniform float uTime; uniform float uStrength; uniform float uSeed; uniform float uHeat; uniform vec3 uTint;
+  uniform float uTime; uniform float uStrength; uniform float uSeed; uniform float uHeat; uniform vec3 uTint; uniform float uCold;
   varying vec2 vUv;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) {
@@ -29,6 +29,10 @@ const FRAG = /* glsl */ `
     f *= smoothstep(0.25, 0.55, n + 0.35 * (1.0 - uv.y));
     vec3 col = mix(vec3(1.2, 0.12, 0.02), vec3(3.0, 0.95, 0.16), smoothstep(0.1, 0.5, f));
     col = mix(col, vec3(4.2, 3.0, 1.4) * uHeat, smoothstep(0.55, 0.95, f));
+    // shadow fire: violet-black flames (the knight's aura)
+    vec3 cold = mix(vec3(0.18, 0.02, 0.45), vec3(0.75, 0.3, 2.2), smoothstep(0.15, 0.6, f));
+    cold = mix(cold, vec3(1.6, 1.2, 3.4), smoothstep(0.75, 1.0, f));
+    col = mix(col, cold, uCold);
     col *= uTint;
     float a = smoothstep(0.03, 0.35, f) * uStrength;
     gl_FragColor = vec4(col * a, 1.0);
@@ -38,9 +42,10 @@ export class Flame {
   readonly group = new THREE.Group();
   private layers: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>[] = [];
   strength = 1;
+  opacity = 1;
 
   /** width/height in metres; the flame's base sits at the group origin. */
-  constructor(width: number, height: number, layers = 3, tint = new THREE.Color(1, 1, 1)) {
+  constructor(width: number, height: number, layers = 3, tint = new THREE.Color(1, 1, 1), cold = false) {
     for (let i = 0; i < layers; i++) {
       const k = layers === 1 ? 1 : 1 - i * 0.22;
       const geo = new THREE.PlaneGeometry(width * (1.1 - i * 0.18), height * k, 1, 1);
@@ -54,6 +59,7 @@ export class Flame {
           uSeed: { value: i * 7.31 + Math.random() * 3 },
           uHeat: { value: 0.8 + i * 0.25 },
           uTint: { value: tint },
+          uCold: { value: cold ? 1 : 0 },
         },
         transparent: true,
         depthWrite: false,
@@ -84,7 +90,7 @@ export class Flame {
     this.group.visible = s > 0.01;
     for (const l of this.layers) {
       l.material.uniforms.uTime.value = t;
-      l.material.uniforms.uStrength.value = Math.min(1, s * 1.4);
+      l.material.uniforms.uStrength.value = Math.min(1, s * 1.4) * this.opacity;
     }
   }
 }

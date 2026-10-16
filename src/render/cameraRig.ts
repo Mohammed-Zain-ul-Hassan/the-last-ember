@@ -31,6 +31,8 @@ export class CameraRig {
   shakeScale = 1;
   orbit = 0; // extra slow yaw drift for title/cards
   minSpan = 17.5;
+  zoom = 1; // <1 leans in (combat), eased
+  zoomTarget = 1;
   fitSpan = true; // close-ups turn this off
 
   private cam: THREE.PerspectiveCamera;
@@ -70,11 +72,12 @@ export class CameraRig {
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     this.punch = Math.max(0, this.punch - dt * 5);
 
+    this.zoom += (this.zoomTarget - this.zoom) * Math.min(1, dt * (this.zoomTarget < this.zoom ? 2.5 : 1.2));
     const s = this.cur;
     const yaw = s.yaw + this.orbit;
     // keep ~minSpan metres of lane visible whatever the aspect ratio
     const fit = this.minSpan / 2 / (Math.tan((s.fov * Math.PI) / 360) * this.cam.aspect);
-    const dist = (this.fitSpan ? Math.max(s.dist, fit * (s.dist / GAMEPLAY_SHOT.dist)) : s.dist) * (1 - this.punch * 0.05);
+    const dist = (this.fitSpan ? Math.max(s.dist, fit * (s.dist / GAMEPLAY_SHOT.dist)) : s.dist) * (1 - this.punch * 0.05) * this.zoom;
     const sh = this.trauma * this.trauma * 0.35 * this.shakeScale;
     const nx = (Math.sin(t * 47.1) + Math.sin(t * 23.3)) * 0.5 * sh;
     const ny = (Math.sin(t * 41.7 + 1) + Math.sin(t * 19.9)) * 0.5 * sh;

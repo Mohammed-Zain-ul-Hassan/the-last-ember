@@ -194,6 +194,7 @@ function stepSim(input: Input, dt: number): void {
     }
     world.step(input);
     playEvents(world.events, fx);
+    for (const e of world.events) if (e.type === 'hit') shadeViews.hit(e.id);
     input = { ...input, jump: false, attack: false, heavy: false, dash: false };
     if (world.status !== 'playing') break;
   }
@@ -349,8 +350,30 @@ world.knight.x = -1.7;
 fitParticles();
 
 function frame(now: number): void {
-  const rawDt = Math.min(0.1, (now - last) / 1000);
-  last = now;
+  update(now);
+  requestAnimationFrame(frame);
+}
+
+// adaptive quality: if real frames run slow for ~2 s, drop the internal resolution one step (never back up)
+const DPR_STEPS = [Math.min(window.devicePixelRatio, 1.5), 1, 0.8];
+let dprStep = 0;
+let slowFrames = 0;
+function adaptQuality(rawDt: number): void {
+  if (rawDt <= 0 || rawDt > 0.09) return; // throttled/background frames say nothing about the GPU
+  slowFrames = rawDt > 1 / 45 ? slowFrames + 1 : Math.max(0, slowFrames - 2);
+  if (slowFrames > 120 && dprStep < DPR_STEPS.length - 1) {
+    dprStep++;
+    slowFrames = 0;
+    stage.setPixelRatio(DPR_STEPS[dprStep]);
+    fitParticles();
+    console.info(`[quality] pixel ratio -> ${DPR_STEPS[dprStep]}`);
+  }
+}
+
+function update(now: number): void {
+  const rawDt = Math.max(0, Math.min(0.1, (now - last) / 1000));
+  last = Math.max(last, now);
+  adaptQuality(rawDt);
   if (slowT > 0) {
     slowT -= rawDt;
     if (slowT <= 0) timeScale = 1;
@@ -433,6 +456,11 @@ function frame(now: number): void {
   else if (mode === 'midnight') camTarget = -1.1;
   else if (world.torch) camTarget = Math.max(-11, Math.min(11, world.knight.x));
   else camTarget = Math.max(-7, Math.min(7, world.knight.x * 0.75));
+  // lean in when the knight is fighting at close quarters
+  const k = world.knight;
+  const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.abs(s.x - k.x) < 3.2);
+  rig.zoomTarget = close && (k.state === 'attack' || k.state === 'heavy' || k.state === 'dash') ? 0.78 : close ? 0.88 : 1;
+  if (mode === 'play' && close) camTarget = camTarget * 0.6 + k.x * 0.4;
   rig.update(rawDt, t, camTarget);
   stage.update(t, rig.x);
   hud.update(world, rawDt);
@@ -449,7 +477,6 @@ function frame(now: number): void {
       fpsT = 0;
     }
   }
-  requestAnimationFrame(frame);
 }
 
 /** Ash drifting down through every frame; ink mist seeping from every shadow the fire casts. */
@@ -498,10 +525,21 @@ if (DEBUG) {
     dawn: () => { hud.title(false); hud.hideCard(); chapterIndex = CHAPTERS.length - 1; applyPhase(chapterIndex); knightX = 0; setMode('dawn'); },
     endHour: () => { world.time = world.chapter.duration - 0.1; },
     set godMode(v: boolean) { godMode = v; },
+    set timeScale(v: number) { timeScale = v; slowT = v === 1 ? 0 : 1e9; },
     get godMode() { return godMode; },
     setSeed: (n: number) => { seed = n; },
     snapshot: () => JSON.stringify({ mode, chapter: world.chapter.id, t: world.time, knight: { x: world.knight.x, y: world.knight.y, hp: world.knight.hp, state: world.knight.state }, hearth: world.hearthHp, shades: world.shades.map((s) => ({ id: s.id, x: +s.x.toFixed(2), hp: +s.hp.toFixed(2), state: s.state, big: s.big })) }),
     renderer: stage.renderer,
+    kv: knight,
+    /** Advance the whole game by ms without waiting for animation frames (screenshots of exact moments). */
+    tick: (ms: number, steps = 1) => { for (let i = 0; i < steps; i++) update(last + ms); },
+    /** Render n frames synchronously and return GPU+CPU ms per frame. */
+    bench: (n = 60) => {
+      const gl = stage.renderer.getContext();
+      const t0 = performance.now();
+      for (let i = 0; i < n; i++) { update(last + 1000 / 60); gl.finish(); }
+      return +((performance.now() - t0) / n).toFixed(2);
+    },
     rig,
     THREE,
   };

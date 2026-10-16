@@ -145,6 +145,12 @@ export class Stage {
     window.addEventListener('resize', () => this.resize());
   }
 
+  /** Lower the internal resolution (adaptive quality on slow GPUs). */
+  setPixelRatio(r: number): void {
+    this.renderer.setPixelRatio(r);
+    this.resize();
+  }
+
   resize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
