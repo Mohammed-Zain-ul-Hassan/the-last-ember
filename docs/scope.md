@@ -40,8 +40,8 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
   mechanic cut to story-only (user). Engine Phaser to Three.js (research agent recommendation).
 
 ## NOW / NEXT / DONE
-- NOW: human playtest of the round-3 feel (springs, slashes, jump); trailer v0 edit from trailer/raw (jam-trailer).
-- NEXT: human-played 20 s climax take; balance pass; KayKit swap only if packs land.
-- DONE: Tiers 0-2, all six hours + midnight + dawn + both endings; round-3 shadow knight, spring animation, jump
-  cycle, slash variants, hit-flash, combat lean-in, adaptive resolution; 9 deterministic trailer clips (tags
-  playable-1..5); live on Vercel (https://the-last-ember-xi.vercel.app).
+- NOW: Level 2 phase 2 (places: reveal shots, more dressing per region) — see docs/level2.md.
+- NEXT: phase 3 enemies (Lantern-eater, Crawler, Marshal phases), phase 4 memory vignettes, phase 5 grades/settings;
+  re-capture trailer clips on the new places.
+- DONE: Level 2 phase 1 (playable-8): the journey across four places, platforms, embers, road, braziers, boss gate,
+  dawn on the wall. Combat moveset (playable-7). Live: https://the-last-ember-xi.vercel.app

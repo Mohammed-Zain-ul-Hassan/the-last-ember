@@ -32,8 +32,8 @@ approved as recommended. Dawn and the ending move to the city wall. Road stages 
 
 ## Phases (strictly in order; each ends tested, committed, pushed)
 1. **The journey.** Level data and sim (platforms, drifting shades, local spawns, embers, road goal, checkpoints,
-   boss gate), level builder and kit, follow camera, markers, the bot on roads, tests. ← building now
-2. **Places.** Dressing per region: house facades and roofs, the market, the cathedral nave and rose window, the
+   boss gate), level builder and kit, follow camera, markers, the bot on roads, tests. **DONE (playable-8)**
+2. **Places.** ← next. Dressing per region: house facades and roofs, the market, the cathedral nave and rose window, the
    wall and gatehouse with the sunrise beyond. Reveal camera shots at each entrance.
 3. **Enemies with ideas.** The *Lantern-eater* (keeps its distance, spits shadow bolts that dim the flame); the
    *Crawler* (fast, low, comes in pairs). The Hollow Marshal gets two phases and a cry.
