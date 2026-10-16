@@ -39,7 +39,7 @@ const hearth = new Hearth(CFG.hearth.x);
 stage.world.add(hearth.group);
 const knight = new KnightView();
 stage.world.add(knight.root);
-stage.outline.selection.set(knight.outlineTargets);
+stage.aura.source = knight.aura;
 const shadeViews = new ShadeViews();
 stage.world.add(shadeViews.group);
 const hud = new Hud();
@@ -186,7 +186,6 @@ function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   clearInput();
   applyPhase(i);
   setKnightFade(1);
-  stage.outline.edgeStrength = 3.2;
   setMood('night');
   stage.dawn = 0;
   rig.fitSpan = true;
@@ -423,6 +422,23 @@ function goTitle(): void {
 
 // ------------------------------------------------------------------ scripted scenes
 let simAcc = 0;
+// The sim steps at a fixed 60 Hz, the screen at whatever rate it likes. The knight is drawn between his last two
+// sim positions, so he glides at 144 Hz and never judders when a frame runs zero or two steps.
+const kPrev = { x: 0, y: 0 };
+const kAfter = { x: 0, y: 0 };
+const kDraw = { x: 0, y: 0 };
+function knightDrawPos(): { x: number; y: number } {
+  const k = world.knight;
+  // moved outside the sim (a new level, a cutscene placement, a respawn): no blending across the jump
+  if (k.x !== kAfter.x || k.y !== kAfter.y || Math.abs(k.x - kPrev.x) > 3 || Math.abs(k.y - kPrev.y) > 3) {
+    kPrev.x = kAfter.x = k.x;
+    kPrev.y = kAfter.y = k.y;
+  }
+  const a = Math.min(1, simAcc / CFG.dt);
+  kDraw.x = kPrev.x + (k.x - kPrev.x) * a;
+  kDraw.y = kPrev.y + (k.y - kPrev.y) * a;
+  return kDraw;
+}
 /**
  * Advance the sim in fixed 1/60 s steps. `source` is asked for input once per step that actually runs, so a key
  * pressed on a frame where no step runs (high-refresh displays) stays latched for the next step instead of being lost.
@@ -442,7 +458,11 @@ function stepSim(source: Input | (() => Input), dt: number): void {
       world.knight.iframes = Math.max(world.knight.iframes, 0.2);
       world.hearthHp = Math.max(world.hearthHp, 50);
     }
+    kPrev.x = world.knight.x;
+    kPrev.y = world.knight.y;
     world.step(input);
+    kAfter.x = world.knight.x;
+    kAfter.y = world.knight.y;
     for (const e of world.events) {
       if (e.type === 'knightHurt') levelStats.wounds += e.dmg;
       else if (e.type === 'feed') levelStats.embers++;
@@ -576,7 +596,6 @@ function endingScene(dt: number): void {
     at(0.4, 1, () => (knight.pose = 'kneel'));
     const p = Math.max(0, Math.min(1, (modeT - 1.6) / 5));
     setKnightFade(1 - p);
-    stage.outline.edgeStrength = 3.2 * (1 - p);
     if (p > 0 && p < 1) {
       const k = world.knight;
       for (let i = 0; i < 6; i++)
@@ -722,7 +741,7 @@ function update(now: number): void {
   hearth.update(dt, t, glow, smoke, stage.camera);
   levelView?.update(dt, t, stage.camera, world.shrines.map((s) => s.active), world.checkpointsLit);
   if (mode !== 'paused') {
-    knight.update(world.knight, dt, t, smoke, glow, stage.camera);
+    knight.update(world.knight, dt, t, smoke, glow, stage.camera, knightDrawPos());
     const live = mode === 'play' || mode === 'outro' || mode === 'lost';
     shadeViews.update(live ? world.shades : [], dt, t, smoke, glow);
     ambient(dt);

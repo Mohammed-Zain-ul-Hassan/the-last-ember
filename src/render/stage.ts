@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { BloomEffect, EffectComposer, EffectPass, KernelSize, NoiseEffect, OutlineEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
+import { BloomEffect, EffectComposer, EffectPass, NoiseEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
 import type { SkyKey } from '../data/chapters';
+import { AuraEffect } from './auraEffect';
 import { Rng } from '../sim/rng';
 import { RIM, rimify } from './rim';
 import { rock } from './shapes';
@@ -54,7 +55,7 @@ export class Stage {
   readonly bloom: BloomEffect;
   private readonly smaa: EffectPass;
   private readonly grade: EffectPass;
-  readonly outline: OutlineEffect;
+  readonly aura: AuraEffect;
   private far = new THREE.Group(); // follows the camera like the sky
   private fogCards: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private shafts: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
@@ -128,12 +129,9 @@ export class Stage {
 
     this.composer = new EffectComposer(this.renderer, { frameBufferType: THREE.HalfFloatType });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    // the knight's aura: one glowing outline around his whole silhouette (not every limb), bloomed below
-    this.outline = new OutlineEffect(this.scene, this.camera, {
-      edgeStrength: 3.2, pulseSpeed: 0.35, visibleEdgeColor: 0x9a6bff, hiddenEdgeColor: 0x2a1450,
-      blur: true, kernelSize: KernelSize.SMALL, xRay: false, resolutionScale: 0.75,
-    });
-    this.composer.addPass(new EffectPass(this.camera, this.outline));
+    // the knight's aura: living shadow-fire around his whole silhouette (not every limb), added before bloom so it glows
+    this.aura = new AuraEffect(this.scene, this.camera);
+    this.composer.addPass(new EffectPass(this.camera, this.aura));
     this.bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.85, luminanceSmoothing: 0.25, intensity: 1.15, radius: 0.7 });
     const grain = new NoiseEffect({ premultiply: true });
     grain.blendMode.opacity.value = 0.35;

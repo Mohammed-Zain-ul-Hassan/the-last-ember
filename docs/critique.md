@@ -63,3 +63,24 @@ same vertical swing"; "no jump animation"; "animations must be consistent"
   straighter with the sword planted.
 - **Bugs found:** a negative frame time from debug ticks exploded the springs (dt clamped, springs self-heal);
   adaptive resolution added for slow GPUs.
+
+## Round 4 (Day 1 night, branch AhnafEdits) — user: "aura instead of a mere outline; the sword needs its own aura
+and definition; fluid movement and a real idle"
+- **Aura, not outline:** the OutlineEffect is gone. A screen-space aura (src/render/auraEffect.ts) renders his
+  silhouette to a mask (body red, sword green) and feeds a persistent buffer that advects upward through swirling
+  noise and decays, so shadow-fire hugs him at rest, streams behind a run, hangs behind a dash and gutters below 30%
+  health. The hot rim is drawn only where he is this frame, so trails stay dark smoke. His body stays pure black.
+- **Sword:** a diamond-section blade (lit facet, raised spine), burning edges, a rune channel with energy pulsing
+  hilt to point, swept quillons, a pommel stone that breathes, and a violet light on the ground. Its own aura sheath
+  is motion-blurred between frames into a short comet tail, so swings never strobe into ghost blades. It turns ember
+  in the torch phase.
+- **Movement:** per-joint spring gains (core leads, head, arms and blade follow), acceleration lean, stride that
+  scales with speed, a streaming cape at a run, skid and brake poses, a pivot toward the camera instead of a flat
+  mirror flip, a double-jump somersault, a hit recoil. The knight is drawn between sim steps (60 Hz sim, any
+  refresh rate), which removes judder.
+- **Idle:** an asymmetric breath (chest, shoulders, head, eyes, cape), weight shifting between legs, a guard stance
+  after fighting that relaxes into rest, and fidgets: a glance back, a blade twirl, a shoulder roll, a flick.
+- **Bug found:** Low quality (or auto quality at its lowest step) rendered a black screen; fixed in Stage.setSmaa.
+- **Human checks Claude can't do:** whether the new idle and run *feel* right in the hand, and the aura's strength
+  on a projector.
+
