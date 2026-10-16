@@ -1,1 +1,7 @@
-{"version":1,"images":[],"audio":[]}
+{
+  "version": 1,
+  "note": "All art in this build is procedural (primitives + canvas textures) and all audio is procedural WebAudio. Add optional models here as name -> path; missing files fall back to the primitives.",
+  "models": {},
+  "audio": {},
+  "images": {}
+}
