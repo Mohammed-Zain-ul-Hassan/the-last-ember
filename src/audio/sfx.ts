@@ -5,6 +5,7 @@ let sfxBus: GainNode;
 let musicBus: GainNode;
 let noiseBuf: AudioBuffer;
 let muted = false;
+let volume = 1;
 let fireGain: GainNode | null = null;
 let drumGain: GainNode | null = null;
 let reverb: ConvolverNode;
@@ -23,7 +24,7 @@ export function initAudio(): void {
   const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = muted ? 0 : 0.8;
+  master.gain.value = muted ? 0 : 0.8 * volume;
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -14;
   comp.ratio.value = 4;
@@ -59,7 +60,12 @@ export function initAudio(): void {
 
 export function setMuted(m: boolean): void {
   muted = m;
-  if (ctx) master.gain.setTargetAtTime(m ? 0 : 0.8, ctx.currentTime, 0.05);
+  if (ctx) master.gain.setTargetAtTime(m ? 0 : 0.8 * volume, ctx.currentTime, 0.05);
+}
+/** Master volume 0..1 (mute is separate). */
+export function setVolume(v: number): void {
+  volume = Math.max(0, Math.min(1, v));
+  if (ctx) master.gain.setTargetAtTime(muted ? 0 : 0.8 * volume, ctx.currentTime, 0.05);
 }
 export function isMuted(): boolean {
   return muted;

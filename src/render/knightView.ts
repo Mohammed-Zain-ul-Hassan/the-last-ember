@@ -439,10 +439,10 @@ export class KnightView {
         p.th1 = -0.75;
         p.kn0 = 0.9 + lv * 0.3;
         p.kn1 = 0.5;
-        p.arm = 4.25 + lv * 0.25 + shake;
-        p.elbow = -0.25;
-        p.swordRel = 0.25;
-        p.armTilt = 0.2;
+        p.arm = 3.5 + lv * 0.35 + shake; // raised over his head, drawing further back as it fills
+        p.elbow = -0.12;
+        p.swordRel = 0.1;
+        p.armTilt = 0.1;
         p.offArm = 1.2;
         p.offElbow = 0.6;
         p.head = -0.12;
@@ -588,7 +588,7 @@ export class KnightView {
         return { ...HEAVY, tilt: HEAVY.tilt + j(0.15), a0: HEAVY.a0 + j(0.1) };
       case 'charged':
         // released from high behind: the whole body brings the blade over and down into the ground
-        return { a0: 4.55, a1: -0.25 + j(0.08), tilt: 0.1 + j(0.05), twist: 0.8, lean: 0.75 };
+        return { a0: 3.9, a1: -0.25 + j(0.08), tilt: 0.1 + j(0.05), twist: 0.8, lean: 0.75 };
       case 'plunge':
         return { a0: 4.4, a1: 0.05, tilt: 0.08, twist: 0.3, lean: 0.5 };
       case 'lunge':

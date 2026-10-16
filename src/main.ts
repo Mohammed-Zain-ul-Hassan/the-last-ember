@@ -1,6 +1,7 @@
 import './style.css';
 import * as THREE from 'three';
-import { initAudio, isMuted, setBeds, setMood, setMuted, sfx } from './audio/sfx';
+import { initAudio, isMuted, setBeds, setMood, setMuted, setVolume, sfx } from './audio/sfx';
+import { bestFor, gradeFor, recordBest, saveSettings, settings } from './settings';
 import { CFG } from './config';
 import { CHAPTERS, DAWN_SKY, MIDNIGHT_SKY } from './data/chapters';
 import { LEVELS } from './data/levels';
@@ -158,12 +159,19 @@ function levelComplete(): void {
     [world.road ? 'time' : 'hearth', world.road ? mmss(world.time) : `${Math.round(Math.max(0, world.hearthHp))}%`],
   ];
   if (!world.road) stats.splice(3, 0, ['embers fed', levelStats.embers]);
+  const grade = gradeFor(levelStats.wounds, world.road ? null : Math.max(0, world.hearthHp));
+  const prev = bestFor(c.id);
+  const isBest = recordBest(c.id, { grade, wounds: levelStats.wounds, time: world.time });
+  stats.unshift(['grade', `<em class="grade g${grade}">${grade}</em>`]);
+  stats.push([isBest ? (prev ? 'new best' : 'first clear') : 'best', isBest ? '✦' : prev!.grade]);
   const hint = next ? `Next  ·  Level ${i + 2}: ${next.title}${DEMO ? '' : '   ·   any key to continue'}` : '';
+  document.getElementById('card')!.classList.toggle('dim', memories.active >= 0);
   hud.card(c.roman, 'A memory returns', c.memory, hint, { eyebrow: `<b>Level ${i + 1} complete</b>  ·  ${c.clock}`, stats, level: i + 1, levels: CHAPTERS.length });
 }
 
 function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   chapterIndex = i;
+  document.getElementById('card')!.classList.remove('dim');
   levelStats.wounds = 0;
   levelStats.embers = 0;
   hud.bestCombo = 0;
@@ -179,7 +187,8 @@ function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   stage.dawn = 0;
   rig.fitSpan = true;
   const c = world.chapter;
-  hud.card(c.roman, c.title, c.line, '', { eyebrow: levelTitle(i), level: i, levels: CHAPTERS.length });
+  const best = bestFor(c.id);
+  hud.card(c.roman, c.title, c.line, best ? `best grade  ${best.grade}` : '', { eyebrow: levelTitle(i), level: i, levels: CHAPTERS.length });
   hud.show(false);
   hud.choice(false);
   knight.pose = 'kneel';
@@ -280,6 +289,7 @@ function journeyEvents(): void {
 }
 
 // ------------------------------------------------------------------ input
+applySettings();
 initInput(stage.renderer.domElement);
 onKey((code) => {
   initAudio();
@@ -315,6 +325,14 @@ onKey((code) => {
       if (code === 'Escape' || code === 'KeyP') {
         hud.hideCard();
         setMode(pausedFrom);
+      } else if (code === 'KeyR') startChapter(chapterIndex, true);
+      else if (code === 'KeyV' || code === 'KeyH') {
+        if (code === 'KeyV') settings.volume = settings.volume <= 0.01 ? 1 : Math.round((settings.volume - 0.25) * 100) / 100;
+        else settings.shake = settings.shake === 1 ? 0.5 : settings.shake === 0.5 ? 0 : 1;
+        applySettings();
+        saveSettings();
+        sfx('ui');
+        pauseCard();
       }
       return;
     case 'play':
@@ -327,9 +345,24 @@ window.addEventListener('blur', () => {
   if (mode === 'play' && !DEMO) pause();
 });
 
+const SHAKE_NAMES: Record<number, string> = { 1: 'full', 0.5: 'reduced', 0: 'off' };
+function pauseCard(): void {
+  hud.card('', 'Paused', 'The fire waits for no one, but it will wait for you.', 'Esc to return  ·  R to restart the level  ·  M mute', {
+    eyebrow: levelTitle(chapterIndex),
+    stats: [
+      ['V  ·  volume', `${Math.round(settings.volume * 100)}%`],
+      ['H  ·  screenshake', SHAKE_NAMES[settings.shake] ?? 'full'],
+    ],
+  });
+}
+function applySettings(): void {
+  setVolume(settings.volume);
+  rig.shakeScale = settings.shake;
+}
+
 function pause(): void {
   pausedFrom = mode;
-  hud.card('', 'Paused', 'The fire waits for no one, but it will wait for you.', 'Esc to return  ·  R to restart the hour  ·  M mute');
+  pauseCard();
   setMode('paused');
 }
 

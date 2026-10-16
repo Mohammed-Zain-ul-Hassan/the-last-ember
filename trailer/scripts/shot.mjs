@@ -143,7 +143,7 @@ const SCENES = {
   },
   level_complete: {
     q: 'seed=23&chapter=1',
-    js: `G.skipTo(1); G.tick(16, 30); G.play(); G.tick(16.67, 400); G.endHour(); G.tick(16.67, 150);`,
+    js: `G.skipTo(1); G.tick(16, 30); G.play(); G.tick(16.67, 400); G.endHour(); G.tick(16.67, 620);`,
   },
   level_intro: {
     q: 'seed=24&chapter=2',
@@ -174,6 +174,10 @@ const SCENES = {
     js: `G.skipTo(0); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.status = 'cleared'; G.tick(16.67, 120);
       key('Space'); G.tick(16.67, 90); key('Space'); G.tick(16.67, 200);`,
   },
+  paused: {
+    q: 'seed=41&chapter=1',
+    js: `G.skipTo(1); G.tick(16, 30); G.play(); G.tick(16.67, 100); key('Escape'); G.tick(16.67, 2); key('KeyV'); key('KeyH'); G.tick(16.67, 30);`,
+  },
 };
 
 const want = process.argv.slice(2);
@@ -195,6 +199,7 @@ for (const name of names) {
     new Function('G', 'key', js)(G, key);
     return { state: G.state, pops: [...document.querySelectorAll('.pop')].map((p) => p.textContent), bars: document.querySelectorAll('.ebar').length };
   }, sc.js);
+  await page.waitForTimeout(1200); // let CSS fades and stat animations (real time) finish
   await page.screenshot({ path: `docs/critique/${name}.png` });
   console.log(JSON.stringify({ name, ...info, errors }));
   await page.close();
