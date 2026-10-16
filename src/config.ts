@@ -82,6 +82,26 @@ export const CFG = {
   hitstop: { light: 3, heavy: 7, kill: 5 },
 } as const;
 
+// The hero's look and feel. Render-only: the sim never reads these, so tuning them cannot change gameplay.
+export const HERO = {
+  turnTime: 0.17, // seconds to turn around (he pivots toward the camera instead of flipping flat)
+  guardHold: 2.6, // seconds he holds his guard after fighting before he lowers the blade
+  fidgetAfter: 2.2, // seconds of standing still before idle fidgets start
+  fidgetGap: [4.5, 8.5], // seconds between fidgets
+  breathPeriod: 3.9, // one full breath (inhale is quicker than exhale)
+  flipTime: 0.46, // the double-jump somersault
+  // screen-space aura: life = seconds a wisp survives, rise = figure heights per second, spread = figure heights
+  aura: {
+    body: { life: 0.4, rise: 0.7, spread: 0.05, intensity: 1.0 },
+    sword: { life: 0.09, rise: 0.22, spread: 0.022, intensity: 1.0 },
+    smoke: { life: 0.6, rise: 0.9, spread: 0.09, intensity: 0.7 },
+    dashLife: 0.55, // trails hang in the air behind a dash
+    swingLife: 0.1, // the blade's sheath leaves a short crescent of afterglow behind a swing
+    lowHp: 0.3, // below this fraction of health the aura gutters
+  },
+  swordLight: 5, // violet light the blade casts on the ground around him
+} as const;
+
 export interface MoveSpec {
   windup: number;
   active: number;
