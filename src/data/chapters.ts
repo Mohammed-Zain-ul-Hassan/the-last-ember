@@ -128,7 +128,7 @@ export const CHAPTERS: Chapter[] = [
     shadeHp: 4,
     shadeSpeed: 2.4,
     bigAt: 0.4,
-    sky: { top: '#020205', horizon: '#0a0812', glow: '#3a2a4a', glowY: 0.2, fog: '#07060c', stars: 0.25 },
+    sky: { top: '#020205', horizon: '#161022', glow: '#4a2a3a', glowY: 0.2, fog: '#0b0912', stars: 0.25 },
   },
   {
     id: '5am',

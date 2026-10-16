@@ -46,8 +46,8 @@ export function playEvents(events: readonly GameEvent[], fx: FxTargets): void {
         for (let i = 0; i < 18; i++)
           fx.glow.emit({ x: e.x, y: e.y, spread: 2.5, vy: 1, life: 0.9, size: 0.09, sizeEnd: 0.02, r: 5, g: 1.4, b: 0.3, gravity: -0.8, drag: 1.5, wobble: 0.6 });
         // memory wisp: a pale light that drifts up and away
-        for (let i = 0; i < 6; i++)
-          fx.glow.emit({ x: e.x, y: e.y + 0.3, vy: 1.6 + i * 0.15, spread: 0.15, life: 2.2, size: 0.35 - i * 0.04, sizeEnd: 0.05, r: 2.2, g: 2.4, b: 3.6, gravity: -0.3, wobble: 1.2 });
+        for (let i = 0; i < 5; i++)
+          fx.glow.emit({ x: e.x, y: e.y + 0.3, vy: 1.4 + i * 0.2, spread: 0.12, life: 2.4, size: 0.16 - i * 0.02, sizeEnd: 0.03, r: 1.3, g: 1.6, b: 3.2, gravity: -0.3, wobble: 1.2 });
         break;
       case 'spawn':
         sfx('spawn');

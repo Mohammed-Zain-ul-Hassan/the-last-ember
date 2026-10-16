@@ -154,8 +154,11 @@ class ShadeMesh {
     pos.needsUpdate = true;
 
     // ember eyes brighten in the windup (the telegraph)
-    const tel = s.state === 'windup' ? 1 + 2.5 * (s.stateT / S.windup) : 1;
+    const tel = (s.state === 'windup' ? 1 + 2.5 * (s.stateT / S.windup) : 1) * (s.big ? 1.8 : 1);
     this.eyeMat.color.setRGB(4.5 * tel, 0.8 * tel, 0.3);
+    // the great shade smoulders with a red heart so it reads in the dark
+    if (s.big && s.state !== 'dead' && Math.random() < dt * 40)
+      embers.emit({ x: s.x + (Math.random() - 0.5) * 1.6, y: s.y + 0.5 + Math.random() * 2.6, z: -0.1, vy: 0.6, spread: 0.3, life: 1.2, size: 0.12, sizeEnd: 0.02, r: 4, g: 0.5, b: 0.2, gravity: -0.5, wobble: 0.5 });
     this.eyeMat.opacity = opacity;
 
     if (s.state === 'dead') return;
