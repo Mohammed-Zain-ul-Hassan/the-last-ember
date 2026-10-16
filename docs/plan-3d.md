@@ -35,9 +35,17 @@ safety net for the Day 3 09:30 submission.
    flame ray), soft aim, WASD relative to the camera, pointer-lock mouse look (Q/E turn), wall-aware follow camera
    that drifts back behind him when the mouse is idle, sky dome + skyline rings, plaza built from the sim's solids.
    Road levels are auto-extruded from their side-view data (playable, not yet re-authored). 46 tests.
-2. **The night (3d-2).** Roads (lower city, cathedral, city wall) widened; embers and shrines, checkpoints, boss
+2. **The night (3d-2). DONE (Day 2 night).** Roads (lower city, cathedral, city wall) widened; embers and shrines, checkpoints, boss
    gate, crawlers, lantern-eaters, the Marshal, dawn and the choice. Midnight and dawn cutscenes re-staged around
    the knight's 3D position. Demo bot walks the whole night.
+   Shipped: light rain all night (GPU streaks, splashes, eave drips, wet stone, rain audio bed), heaviest at 3 AM,
+   gone at dawn; a timber hut over the hearth keeps its fire dry (posts cast real shadows; roof is standable).
+   Lower City: 10 m street between solid house rows (alleys are shadow pockets), timber walks, the Ash Market square
+   with stalls and fountain, the city gate. Cathedral: two pillar rows, pews either side of the aisle, galleries
+   up stairs, altar step and dais, the Marshal before doors under the rose window, a broken vault the rain gets
+   through. City Wall: 6 m walk high above the land (ground drops 24 m), parapet, towers, stair to the gatehouse,
+   dawn in the east. Road card/reveal shots look down the road; midnight orbits; dawn sun follows him. Bot clears
+   every road level in tests (50 tests). Next for phase 3: a lighting pass (3 AM nave and streets read dark).
 3. **Feel (3d-3).** Soft aim and lock-on, camera shake and punches in 3D, hit-stop, damage numbers, reveal shots,
    off-screen markers (hearth, shades behind you), controls screen, sensitivity settings, performance on laptops.
 4. **Ship.** jam-playtest loop, re-capture trailer clips (third-person footage), deploy a preview to Vercel; the

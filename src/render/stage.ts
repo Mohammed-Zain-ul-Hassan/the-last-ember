@@ -14,7 +14,7 @@ const SKY_VERT = /* glsl */ `
   varying vec3 vDir;
   void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const SKY_FRAG = /* glsl */ `
-  uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uGlow; uniform float uGlowY; uniform float uTime; uniform float uDisc;
+  uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uGlow; uniform float uGlowY; uniform float uTime; uniform float uDisc; uniform float uGlowAz;
   varying vec3 vDir;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) {
@@ -25,9 +25,10 @@ const SKY_FRAG = /* glsl */ `
     vec3 dir = normalize(vDir);
     float y = clamp(dir.y * 1.25 + 0.22, 0.0, 1.0);
     vec3 c = mix(uHorizon, uTop, smoothstep(0.2, 0.8, y));
-    // the glow sits off to the east of north (-z), raised or sunk by uGlowY
+    // the glow sits at angle uGlowAz around the horizon (the moon over the arch; the dawn in the east, +x),
+    // raised or sunk by uGlowY
     float el = uGlowY * 0.55;
-    vec3 g = normalize(vec3(0.42 * cos(el), sin(el), -0.9 * cos(el)));
+    vec3 g = normalize(vec3(cos(uGlowAz) * cos(el), sin(el), sin(uGlowAz) * cos(el)));
     float d = acos(clamp(dot(dir, g), -1.0, 1.0));
     vec2 p = vec2(atan(dir.x, -dir.z), dir.y);
     vec2 gp = vec2(atan(g.x, -g.z), g.y);
@@ -64,11 +65,15 @@ export class Stage {
   private skyline = new THREE.Group(); // rings of distant silhouettes, drifting a little with the camera
   private haze = new THREE.Group(); // fog banks: always ahead of the camera, between it and the distance
   private v = new THREE.Vector3();
+  private ground!: THREE.Mesh;
+  private scatterGroup = new THREE.Group(); // rubble and grass
+  private skyAz = -1.134; // where the sun/moon glow sits around the horizon (angle on x/z)
   private fogCards: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private shafts: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private grassTime = { value: 0 };
   private cur: { top: THREE.Color; horizon: THREE.Color; glow: THREE.Color; fog: THREE.Color; glowY: number; stars: number; disc: number };
   dawn = 0; // 0..1 sunrise strength for the finale
+  rain = 0; // 0..1: cloud hides the stars, the air thickens
 
   constructor(canvasParent: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
@@ -97,7 +102,7 @@ export class Stage {
         vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, depthWrite: false, fog: false, side: THREE.BackSide,
         uniforms: {
           uTop: { value: this.cur.top }, uHorizon: { value: this.cur.horizon }, uGlow: { value: this.cur.glow },
-          uGlowY: { value: 0 }, uTime: { value: 0 }, uDisc: { value: 0.09 },
+          uGlowY: { value: 0 }, uTime: { value: 0 }, uDisc: { value: 0.09 }, uGlowAz: { value: -1.134 },
         },
       }),
     );
@@ -107,7 +112,7 @@ export class Stage {
     this.stars = this.makeStars();
     this.far.add(this.stars);
 
-    this.hemi = new THREE.HemisphereLight(0x6a5a9a, 0x0a0810, 0.18);
+    this.hemi = new THREE.HemisphereLight(0x6a5a9a, 0x0a0810, 0.3);
     this.scene.add(this.hemi);
     this.moon = new THREE.DirectionalLight(0x9fb0ff, 0.6);
     this.moon.position.set(-8, 14, -20);
@@ -174,6 +179,15 @@ export class Stage {
     return this.renderer.domElement.height;
   }
 
+  /**
+   * What lies around the level: open ground with rubble and grass, an indoor floor (no grass), or the high wall
+   * walk with the land far below.
+   */
+  setTerrain(kind: 'open' | 'indoor' | 'high'): void {
+    this.ground.position.y = kind === 'high' ? -24 : 0;
+    this.scatterGroup.visible = kind === 'open';
+  }
+
   /** Blend the sky/fog/rim towards a palette. k=1 snaps. */
   setSky(key: SkyKey, k: number): void {
     const c = this.cur;
@@ -184,11 +198,13 @@ export class Stage {
     c.glowY += (key.glowY - c.glowY) * k;
     c.stars += (key.stars - c.stars) * k;
     c.disc += ((key.disc ?? 0) - c.disc) * k;
+    this.skyAz += ((key.glowAz ?? -1.134) - this.skyAz) * k;
+    this.sky.material.uniforms.uGlowAz.value = this.skyAz;
     this.fog.color.copy(c.fog);
-    this.fog.density += ((key.fogDensity ?? 0.022) - this.fog.density) * k;
+    this.fog.density += ((key.fogDensity ?? 0.022) + this.rain * 0.008 - this.fog.density) * k;
     this.sky.material.uniforms.uGlowY.value = c.glowY;
     this.sky.material.uniforms.uDisc.value = c.disc;
-    this.stars.material.opacity = c.stars;
+    this.stars.material.opacity = c.stars * (1 - this.rain * 0.75);
     this.hemi.color.copy(c.horizon).multiplyScalar(0.6);
     // silhouettes are rimmed by the sky they stand against
     RIM.uRimColor.value.copy(c.glow).lerp(c.horizon, 0.5).multiplyScalar(0.9);
@@ -213,7 +229,7 @@ export class Stage {
     });
     this.grassTime.value = t;
     this.sun.intensity = this.dawn * 4.2;
-    this.hemi.intensity = 0.18 + this.dawn * 0.35;
+    this.hemi.intensity = 0.3 + this.dawn * 0.3;
     this.sun.castShadow = this.dawn > 0.05;
     this.moon.intensity = 0.6 * (1 - this.dawn);
   }
@@ -245,12 +261,14 @@ export class Stage {
   }
 
   private buildGround(): void {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x1a161e, roughness: 1, metalness: 0 });
+    // wet earth: rough enough to stay dark, smooth enough to catch the firelight
+    const mat = new THREE.MeshStandardMaterial({ color: 0x17141b, roughness: 0.62, metalness: 0.08 });
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), mat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(40, 0, 0);
     ground.receiveShadow = true;
-    this.scene.add(ground);
+    this.scene.add(ground, this.scatterGroup);
+    this.ground = ground;
     const rng = new Rng(8);
     const rockMat = rimify(new THREE.MeshStandardMaterial({ color: SILHOUETTE, roughness: 1 }), 0.5, 'rock');
     for (let i = 0; i < 260; i++) {
@@ -261,7 +279,7 @@ export class Stage {
       m.position.set(x, s * 0.1, z);
       m.rotation.set(rng.next() * 3, rng.next() * 3, rng.next() * 3);
       m.castShadow = true;
-      this.scene.add(m);
+      this.scatterGroup.add(m);
     }
   }
 
@@ -418,7 +436,7 @@ export class Stage {
     }
     inst.castShadow = false;
     inst.receiveShadow = true;
-    this.scene.add(inst);
+    this.scatterGroup.add(inst);
   }
 
   /** Fog banks drifting between depth layers, and shafts of light from the sky glow. */

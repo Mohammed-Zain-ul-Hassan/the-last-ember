@@ -820,7 +820,7 @@ export class World {
     const L = this.light;
     // 1. a pocket behind a ruin, away from the light
     if (this.rng.next() < 0.7) {
-      const near = this.solids.filter((s) => !s.noShadow && s.y0 < 0.5 && Math.hypot(s.x - cx, s.z - cz) < 22);
+      const near = this.solids.filter((s) => !s.noShadow && s.tag !== 'hut' && s.y0 < 0.5 && Math.hypot(s.x - cx, s.z - cz) < 22);
       for (let i = 0; i < 6 && near.length; i++) {
         const s = near[Math.floor(this.rng.next() * near.length)];
         const dx = s.x - L.x;

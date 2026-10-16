@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { initAudio, isMuted, setBeds, setMood, setMuted, setVolumes, sfx } from './audio/sfx';
+import { initAudio, isMuted, setBeds, setMood, setMuted, setRain, setVolumes, sfx } from './audio/sfx';
 import { bestFor, gradeFor, markReached, reached, recordBest, resetProgress, saveSettings, settings } from './settings';
 import { Menu } from './ui/menu';
 import { CFG } from './config';
@@ -9,11 +9,12 @@ import { LEVELS } from './data/levels';
 import { MEMORY_TIME, Memories } from './render/memory';
 import { playEvents, type FxTargets } from './fx';
 import { clearInput, initInput, isLocked, keyTurn, onKey, onLockChange, readInput, requestLock, takeLook } from './input';
-import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, TITLE_SHOT } from './render/cameraRig';
+import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, ROAD_CARD_SHOT, TITLE_SHOT } from './render/cameraRig';
 import { angleDiff } from './sim/geom';
 import { Hearth } from './render/hearth';
 import { KnightView, setKnightFade } from './render/knightView';
 import { Particles } from './render/particles';
+import { Rain } from './render/rain';
 import { ShadeViews } from './render/shadeView';
 import { LevelView } from './render/levelView';
 import { Stage } from './render/stage';
@@ -43,6 +44,8 @@ stage.world.add(knight.root);
 stage.outline.selection.set(knight.outlineTargets);
 const shadeViews = new ShadeViews();
 stage.world.add(shadeViews.group);
+const rain = new Rain();
+stage.scene.add(rain.mesh);
 const hud = new Hud();
 const worldUi = new WorldUi(stage.camera);
 let timeScale = 1;
@@ -114,7 +117,10 @@ function ensureLevel(): void {
   levelView?.dispose();
   levelView = new LevelView(world.level);
   stage.world.add(levelView.group);
+  const sh = world.level.shelter;
+  rain.setShelter(sh ? sh.rect : null, sh?.y ?? 0);
   hearth.group.visible = world.level.hearthX !== undefined;
+  stage.setTerrain(world.level.id === 'cityWall' ? 'high' : world.level.id === 'cathedral' ? 'indoor' : 'open');
 }
 
 // ------------------------------------------------------------------ levels: every hour is a level
@@ -196,10 +202,15 @@ function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   hud.show(false);
   hud.choice(false);
   knight.pose = 'kneel';
-  rig.go(CARD_SHOT, quick ? 0.6 : 1.6);
+  rig.go(cardShot(), quick ? 0.6 : 1.6);
   setMode('intro');
   if (quick) modeT = 2.4;
   sfx('bell');
+}
+
+/** The hour card's wide shot: around him on the open grounds, high behind him down a street or a nave. */
+function cardShot() {
+  return world.road ? ROAD_CARD_SHOT : CARD_SHOT;
 }
 
 /** Fallen: on the road, rise again at the last lit brazier; on the grounds, the hour begins again. */
@@ -690,7 +701,8 @@ function update(now: number): void {
       hud.title(false);
       startChapter(chapterIndex);
     }
-  } else rig.orbit *= 1 - Math.min(1, rawDt * 1.5);
+  } else if (mode === 'midnight') rig.orbit -= rawDt * 0.09; // the world goes black around one flame
+  else rig.orbit *= 1 - Math.min(1, rawDt * 1.5);
 
   if (mode === 'intro' && modeT > 3.8) beginPlay();
 
@@ -706,7 +718,7 @@ function update(now: number): void {
         setMode('outro');
         playMemory(chapterIndex);
         hud.show(false);
-        rig.go(CARD_SHOT, 2.5);
+        rig.go(cardShot(), 2.5);
         fx.slowmo(1, 0);
       }
     } else if (world.status === 'lost') {
@@ -763,6 +775,11 @@ function update(now: number): void {
   wm.opacity += ((washOn ? 0.14 : 0) - wm.opacity) * Math.min(1, rawDt * 2);
   sunWash.scale.x = 40;
   sunWash.position.x = sunEdge + 20 - 3; // the ramp's soft edge sits on sunEdge
+  sunWash.position.y = (washOn ? world.knight.y : 0) + 0.04;
+  // the dawn sun stands low in the east, behind him wherever he is
+  const kk = world.knight;
+  stage.sun.position.set(kk.x + 30, kk.y + 6, kk.z + 8);
+  stage.sun.target.position.set(kk.x, kk.y, kk.z);
 
   // the camera: authored shots frame the hearth on the title and at midnight, otherwise the knight
   const k = world.knight;
@@ -787,6 +804,14 @@ function update(now: number): void {
   const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.hypot(s.x - k.x, s.z - k.z) < 3.2);
   rig.zoomTarget = close && (k.state === 'attack' || k.state === 'heavy' || k.state === 'dash') ? 0.88 : close ? 0.94 : 1;
   rig.update(rawDt, t, world.solids);
+  // rain: steady through the night, heaviest at the darkest hour, gone at dawn
+  const dry = mode === 'dawn' || mode === 'choice' || mode === 'ending' || mode === 'credits';
+  rain.level += ((dry ? 0 : world.chapter.rain) - rain.level) * Math.min(1, rawDt * (dry ? 0.35 : 0.6));
+  stage.rain = rain.level;
+  const L0 = world.light;
+  rain.update(t, stage.camera.position, { x: L0.x, y: L0.y, z: L0.z, radius: L0.radius, on: hearth.lit || knight.torchOn });
+  rain.mesh.visible = rain.mesh.visible && memories.active < 0;
+  setRain(memories.active >= 0 || mode === 'paused' ? rain.level * 0.35 : rain.level);
   memories.update(rawDt, stage.camera, glow, smoke);
   stage.update(t, stage.camera.position);
   hud.update(world, rawDt);
@@ -863,6 +888,26 @@ function ambient(dt: number): void {
       });
       if (Math.random() < 0.08)
         glow.emit({ x, y: 0.1, z, vy: 0.35, spread: 0.05, life: 2.2, size: 0.05, sizeEnd: 0.01, r: 0.9, g: 0.4, b: 2.2, wobble: 0.3 });
+    }
+  }
+  // rain splashes on whatever is underfoot (the ground, a wall top, the hut's roof), and drips off the eaves
+  if (rain.level > 0.02 && memories.active < 0) {
+    const ns = dt * 150 * rain.level;
+    for (let i = 0; i < ns + (Math.random() < ns % 1 ? 1 : 0); i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 1 + Math.sqrt(Math.random()) * 13;
+      const x = rig.target.x + Math.cos(a) * r;
+      const z = rig.target.z + Math.sin(a) * r;
+      const y = world.floorAt(x, z, 0.02);
+      smoke.emit({ x, y: y + 0.03, z, vy: 0.9, spread: 0.25, life: 0.22, size: 0.05, sizeEnd: 0.13, r: 0.42, g: 0.45, b: 0.55, alpha: 0.45, drag: 3 });
+    }
+    const sh = world.level.shelter;
+    if (sh) {
+      const nd = dt * 26 * rain.level;
+      for (let i = 0; i < nd + (Math.random() < nd % 1 ? 1 : 0); i++) {
+        const side = Math.random() < 0.5 ? 0 : 2;
+        glow.emit({ x: sh.rect[0] + Math.random() * (sh.rect[2] - sh.rect[0]), y: sh.y - 0.05, z: sh.rect[1 + side] + (side ? 0.15 : -0.15), vy: -2, spread: 0.02, life: 0.5, size: 0.035, sizeEnd: 0.025, r: 1.1, g: 0.75, b: 0.5, gravity: 14 });
+      }
     }
   }
   const n = dt * (stage.dawn > 0.5 ? 6 : 12);

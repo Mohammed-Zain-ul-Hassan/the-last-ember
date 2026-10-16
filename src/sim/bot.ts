@@ -26,7 +26,10 @@ export function botInput(w: World): Input {
   const crowd = w.shades.filter((s) => s.state !== 'dead' && s.state !== 'rise' && dist(s.x, s.z) < 3).length;
 
   // where to go: fight what is close; otherwise carry an ember home, walk the road, or fetch a lit shrine
-  const danger = target !== null && dist(target.x, target.z) < 6;
+  // the Hollow Marshal holds the doors: while they are shut, he is the only goal worth having
+  const boss = !w.bossDone ? w.shades.find((s) => s.big && s.state !== 'dead' && s.state !== 'rise') : undefined;
+  if (boss) target = boss;
+  const danger = target !== null && (dist(target.x, target.z) < 6 || !!boss);
   const shrine = w.shrines.find((s) => s.active && s.y < 0.5);
   let gx: number;
   let gz: number;

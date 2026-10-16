@@ -10,6 +10,8 @@ let fireGain: GainNode | null = null;
 let drumGain: GainNode | null = null;
 let reverb: ConvolverNode;
 let melodyGain: GainNode | null = null;
+let rainGain: GainNode | null = null;
+let rainLevel = 0;
 let musicMood: 'night' | 'dawn' | 'silent' = 'night';
 
 export function audioReady(): boolean {
@@ -267,6 +269,36 @@ function startBeds(): void {
   };
   pop();
 
+  // rain: a soft hiss over a low wash, and now and then a drip off stone
+  const rsrc = ctx.createBufferSource();
+  rsrc.buffer = noiseBuf;
+  rsrc.loop = true;
+  rsrc.playbackRate.value = 0.93; // out of step with the fire's noise, so the two never phase
+  const hiss = ctx.createBiquadFilter();
+  hiss.type = 'bandpass';
+  hiss.frequency.value = 3800;
+  hiss.Q.value = 0.5;
+  const wash = ctx.createBiquadFilter();
+  wash.type = 'lowpass';
+  wash.frequency.value = 420;
+  const washGain = ctx.createGain();
+  washGain.gain.value = 1.6;
+  rainGain = ctx.createGain();
+  rainGain.gain.value = 0;
+  rsrc.connect(hiss).connect(rainGain);
+  rsrc.connect(wash).connect(washGain).connect(rainGain);
+  rainGain.connect(sfxBus);
+  rsrc.start();
+  const drip = () => {
+    if (!ctx) return;
+    if (rainLevel > 0.05) {
+      const f = 1400 + Math.random() * 1800;
+      tone(ctx.currentTime + 0.01, 'sine', f, f * 0.55, 0.06, 0.035 * rainLevel, 0.002, sfxBus);
+    }
+    setTimeout(drip, 90 + Math.random() * 500);
+  };
+  drip();
+
   // drone: two detuned saws through a slow lowpass + fifth
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
@@ -335,6 +367,13 @@ function startBeds(): void {
 
 export function setMood(m: 'night' | 'dawn' | 'silent'): void {
   musicMood = m;
+}
+
+/** 0..1 how hard it rains; smoothed. */
+export function setRain(level: number): void {
+  rainLevel = level;
+  if (!ctx) return;
+  rainGain?.gain.setTargetAtTime(level * 0.11, ctx.currentTime, 0.6);
 }
 
 /** level 0..1 for each bed; smoothed. */

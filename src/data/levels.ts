@@ -1,21 +1,13 @@
 // Level geometry as plain data. One level can host several hours. Space is 3D: x/z ground plane, y up.
 //   solids     boxes and cylinders: you collide with them, stand on them, and they cast the light's shadows
-//              (the spawn pockets)
+//              (the spawn pockets). Their `tag` tells the renderer how to dress them.
 //   area       the walkable ground: a disc (the hearth grounds) or a band (the road east, x is "forward")
 //   shrines    ember shrines (hearth grounds only)
 //   checkpoints  braziers the torch lights; you rise again at the last one lit (x along the road)
 //   end        road levels: the hour ends when the knight reaches it (and the boss, if any, has fallen)
-// The road levels still carry their side-view walls/platforms and are extruded into solids (phase 2 re-authors them).
-// Every wall a player must cross on the ground is <= 1.6 m (the jump clears 2.4 m); taller pieces are reached by steps.
+// Every obstacle on the road's centre line is <= 1.6 m (the jump clears 2.4 m); taller pieces are reached by steps.
 import { box, cyl, type Area, type Solid } from '../sim/geom';
-import type { Wall } from './chapters';
-
-export interface Platform {
-  x0: number;
-  x1: number;
-  y: number;
-  kind?: 'stone' | 'timber' | 'balcony' | 'rampart';
-}
+import { Rng } from '../sim/rng';
 
 export type RegionKind = 'grounds' | 'street' | 'market' | 'nave' | 'apse' | 'rampart' | 'gatehouse';
 
@@ -38,18 +30,20 @@ export interface Level {
   startYaw: number; // radians; forward is (cos yaw, sin yaw) on x/z
   hearthX?: number;
   hearthZ?: number;
+  shelter?: { rect: [number, number, number, number]; y: number }; // a dry patch under a roof: x0, z0, x1, z1
   end?: number;
   bossAt?: number; // the boss rises when the knight passes this x
-  walls: Wall[];
-  platforms: Platform[];
   shrines: { x: number; y: number; z: number }[];
   checkpoints: number[];
   regions: Region[];
 }
 
-const w = (x: number, width: number, h: number): Wall => ({ x, w: width, h });
 const D = Math.PI / 180;
 const polar = (deg: number, r: number): [number, number] => [Math.cos(deg * D) * r, Math.sin(deg * D) * r];
+
+/** The hut over the hearth: roof footprint w x d, eaves at `eave`, ridge at `ridge`. */
+export const HUT = { w: 5.8, d: 5.0, eave: 3.7, ridge: 5.9 };
+const HUT_POSTS: [number, number][] = [[-2.55, -2.15], [2.55, -2.15], [-2.55, 2.15], [2.55, 2.15]];
 
 /** A wall lying along the ring at angle deg (its long side follows the circle). */
 function ringWall(deg: number, r: number, len: number, h: number, thick: number, tag = 'masonry'): Solid {
@@ -67,6 +61,9 @@ function groundsSolids(): Solid[] {
   const hearth = box(0, 0, 2.4, 2.0, 1.15, 0, 0, 'hearth');
   hearth.noShadow = true;
   out.push(hearth);
+  // the hearth's hut: four posts and a pitched roof keep the rain off the last fire
+  for (const [x, z] of HUT_POSTS) out.push(cyl(x, z, 0.2, HUT.eave, 0, 'hut'));
+  out.push(box(0, 0, HUT.w, HUT.d, 0.6, 0, HUT.eave, 'roof'));
   // the great arch behind the hearth: two piers, the right one broken lower
   out.push(box(-3.6, -3.2, 1.15, 1.15, 6.4, 0, 0, 'pier'), box(3.6, -3.2, 1.15, 1.15, 4.5, 0, 0, 'pier'));
   // inner ring: low broken walls
@@ -98,17 +95,93 @@ function groundsSolids(): Solid[] {
   return out;
 }
 
-/** Side-view walls and platforms, extruded across the road. */
-function extrude(walls: Wall[], platforms: Platform[]): Solid[] {
-  return [
-    ...walls.map((v) => box(v.x, 0, v.w, 1.6, v.h, 0, 0, 'masonry')),
-    ...platforms.map((p) => box((p.x0 + p.x1) / 2, 0, p.x1 - p.x0, 1.8, 0.36, 0, p.y - 0.36, 'walk')),
-  ];
+// ------------------------------------------------------------------ the road east
+
+/** A row of houses along one side of the road, broken by alleys. side -1 is -z, 1 is +z; `front` is the street's half-width. */
+function houses(out: Solid[], rng: Rng, x0: number, x1: number, side: -1 | 1, front: number, hMin = 5, hMax = 8.5): void {
+  for (let x = x0; x < x1 - 3; ) {
+    const w = Math.min(rng.range(5, 8.5), x1 - x);
+    const d = rng.range(3.8, 5);
+    out.push(box(x + w / 2, side * (front + d / 2), w, d, rng.range(hMin, hMax), 0, 0, 'house'));
+    x += w + rng.range(1.3, 2.6); // an alley: a deep pocket of shadow
+  }
 }
 
-/** A road level: x is forward, the walkable band is the old lane widened. */
-function road(l: Omit<Level, 'area' | 'solids' | 'startZ' | 'startYaw'>): Level {
-  return { ...l, area: { kind: 'band', x0: l.bounds[0], x1: l.bounds[1], z0: -2.8, z1: 2.8 }, solids: extrude(l.walls, l.platforms), startZ: 0, startYaw: 0 };
+/** A raised walk: a slab at height `top`, open underneath, with a crate to climb on at its near end. */
+function walk(out: Solid[], x0: number, x1: number, z: number, d: number, top: number, tag = 'timber'): void {
+  out.push(box((x0 + x1) / 2, z, x1 - x0, d, 0.3, 0, top - 0.3, tag));
+  out.push(box(x0 - 0.2, z + Math.sign(z) * -(d / 2 + 0.75), 1.2, 1.2, 1.3, 0, 0, 'crate'));
+}
+
+/**
+ * The Lower City: Weavers' Row, a ten-metre street between rows of dead houses (their alleys are pockets of dark),
+ * opening into the Ash Market square, then the narrower Gate Road to the city gate.
+ */
+function lowerCitySolids(): Solid[] {
+  const out: Solid[] = [];
+  const rng = new Rng(101);
+  for (const side of [-1, 1] as const) {
+    houses(out, rng, -14, 47, side, 5);
+    houses(out, rng, 47, 67, side, 10.2, 6, 9); // the market's houses stand back around the square
+    houses(out, rng, 67, 114, side, 4.6);
+  }
+  // low broken walls and barricades in the street: jump them or go round
+  const rubble: [number, number, number][] = [[6, 1.3, 1.2], [14, 1.1, 1.5], [22, 1.6, 1.0], [31, 1.2, 1.4], [39, 1.4, 1.6], [71, 1.4, 1.4], [80, 1.2, 1.0], [88, 1.6, 1.5], [97, 1.2, 1.3]];
+  rubble.forEach(([x, w, h], i) => out.push(box(x, [-2.4, 2.4, 0][i % 3], w, 2.6, h, 0, 0, 'masonry')));
+  // timber walks along the house fronts (roofs with no house under them), climbed from a crate
+  walk(out, 10, 20, -3.8, 2.4, 2.9);
+  walk(out, 35, 45, 3.8, 2.4, 3.1);
+  walk(out, 76, 86, -3.3, 2.2, 3.0);
+  walk(out, 92, 100, 3.3, 2.2, 2.8, 'stone');
+  // street lamps, long dark
+  for (let x = -4, i = 0; x < 104; x += 13, i++) if (x < 47 || x > 67) out.push(cyl(x, i % 2 ? 4.3 : -4.3, 0.12, 3.6, 0, 'lamp'));
+  // the Ash Market: stalls around a dry fountain
+  for (const [x, z] of [[50.5, -6], [55, -6.4], [60, -5.8], [64, -6.2], [51.5, 6.1], [57, 6.4], [62.5, 5.9]] as const) out.push(box(x, z, 2.6, 1.4, 1.1, 0, 0, 'stall'));
+  out.push(cyl(57, 0, 1.9, 0.65, 0, 'fountain'));
+  for (const [x, z] of [[18, 2.8], [26, -3.2], [53, 3.2], [74, 2.6], [95, -2.5]] as const) out.push(box(x, z, 1, 1, 1, 0.4, 0, 'crate'));
+  // the city gate: two piers across the Gate Road
+  for (const side of [-1, 1]) out.push(box(106, side * 3.9, 1.2, 1.2, 6, 0, 0, 'gatepier'));
+  return out;
+}
+
+/**
+ * The Cathedral of the Hearth: a nave between two rows of great pillars, pews either side of the central aisle,
+ * galleries in the side aisles reached by stairs, then up the altar step into the apse, where the Hollow Marshal
+ * waits before the doors under the rose window.
+ */
+function cathedralSolids(): Solid[] {
+  const out: Solid[] = [];
+  const L = 120;
+  for (const side of [-1, 1]) out.push(box(47, side * 9.6, L, 1.2, 16, 0, 0, 'navewall'));
+  out.push(box(-12.6, 0, 1.2, 20.4, 16, 0, 0, 'navewall'));
+  for (let x = -9; x <= 63; x += 6) for (const side of [-1, 1]) out.push(cyl(x, side * 4.6, 0.62, 12, 0, 'pillar'));
+  for (let x = 72; x <= 96; x += 6) for (const side of [-1, 1]) out.push(cyl(x, side * 6.4, 0.62, 12.5, 0, 'pillar'));
+  // pews: low, many, every one throws a pocket of shadow; the centre aisle stays clear
+  for (let x = 4; x <= 58; x += 2.4) {
+    if (x > 27 && x < 37) continue; // the crossing
+    for (const side of [-1, 1]) out.push(box(x, side * 2.4, 0.55, 3.1, 0.9, 0, 0, 'pew'));
+  }
+  // galleries over the side aisles, each with a stair
+  out.push(box(36, -6.9, 9.2, 3.6, 0.36, 0, 3.04, 'gallery'), box(29.6, -6.9, 1.2, 3.0, 1.2, 0, 0, 'step'), box(30.8, -6.9, 1.2, 3.0, 2.3, 0, 0, 'step'));
+  out.push(box(67, 6.9, 8.2, 3.6, 0.36, 0, 3.04, 'gallery'), box(60.6, 6.9, 1.2, 3.0, 1.2, 0, 0, 'step'), box(61.8, 6.9, 1.2, 3.0, 2.3, 0, 0, 'step'));
+  // the altar step, the raised apse, the altar
+  out.push(box(68, 0, 2, 18, 0.3, 0, 0, 'step'), box(84.5, 0, 31, 18, 0.35, 0, 0, 'dais'));
+  out.push(box(91, 0, 1.6, 3.4, 1.0, 0, 0.35, 'altar'));
+  // the doors' wall: the gate between its two halves is shut until the Marshal falls
+  for (const side of [-1, 1]) out.push(box(100.5, side * 5.6, 1.2, 7.2, 16, 0, 0, 'doorwall'));
+  return out;
+}
+
+/**
+ * The City Wall: the wall walk, narrow, the drop on one side and the sleeping city on the other, broken merlons
+ * fallen across it; then the stair up the gatehouse to the rampart where dawn comes.
+ */
+function cityWallSolids(): Solid[] {
+  const out: Solid[] = [];
+  for (let x = 8; x <= 56; x += 8) out.push(box(x, x % 16 ? 0.4 : -0.4, 0.9, 2.2, 0.8, 0, 0, 'merlon'));
+  out.push(box(66, 0, 1.4, 6, 1.2, 0, 0, 'step'), box(67.4, 0, 1.4, 6, 2.4, 0, 0, 'step'), box(68.8, 0, 1.4, 6, 3.5, 0, 0, 'step'));
+  out.push(box(82.25, 0, 25.5, 6, 3.5, 0, 0, 'rampart'));
+  return out;
 }
 
 const GROUND_SHRINES = ([[55, 17], [128, 15.5], [236, 16], [300, 19.5]] as const).map(([a, r]) => {
@@ -128,30 +201,22 @@ export const LEVELS: Record<string, Level> = {
     startYaw: -Math.PI / 2, // facing the hearth and the arch beyond it
     hearthX: 0,
     hearthZ: 0,
-    walls: [],
-    platforms: [],
+    shelter: { rect: [-HUT.w / 2, -HUT.d / 2, HUT.w / 2, HUT.d / 2], y: HUT.eave },
     shrines: [{ x: -21, y: 2.7, z: -2.5 }, { x: 21, y: 2.8, z: 2.5 }, ...GROUND_SHRINES],
     checkpoints: [],
     regions: [{ x0: -46, x1: 46, kind: 'grounds' }],
   },
 
-  lowerCity: road({
+  lowerCity: {
     id: 'lowerCity',
     name: 'The Lower City',
     bounds: [-12, 112],
+    area: { kind: 'band', x0: -12, x1: 112, z0: -9.5, z1: 9.5 },
+    solids: lowerCitySolids(),
     start: -6,
+    startZ: 0,
+    startYaw: 0,
     end: 106,
-    walls: [
-      w(6, 1.3, 1.2), w(14, 1.1, 1.5), w(22, 1.6, 1.0), w(31, 1.2, 1.4), w(39, 1.4, 1.6), w(47, 1.2, 1.1),
-      w(55, 1.6, 1.5), w(63, 1.1, 1.2), w(71, 1.4, 1.4), w(80, 1.2, 1.0), w(88, 1.6, 1.5), w(97, 1.2, 1.3),
-    ],
-    platforms: [
-      { x0: 10, x1: 20, y: 2.9, kind: 'timber' }, // a roof with no house under it
-      { x0: 35, x1: 45, y: 3.1, kind: 'timber' },
-      { x0: 51, x1: 60, y: 2.8, kind: 'timber' }, // the market's broken awning frame
-      { x0: 76, x1: 86, y: 3.0, kind: 'timber' },
-      { x0: 92, x1: 100, y: 2.8, kind: 'stone' },
-    ],
     shrines: [],
     checkpoints: [34, 68],
     regions: [
@@ -159,54 +224,42 @@ export const LEVELS: Record<string, Level> = {
       { x0: 48, x1: 66, kind: 'market', name: 'The Ash Market', sub: 'nothing has been sold here in a hundred years' },
       { x0: 66, x1: 112, kind: 'street', name: 'The Gate Road', sub: 'the cathedral waits beyond' },
     ],
-  }),
+  },
 
-  cathedral: road({
+  cathedral: {
     id: 'cathedral',
     name: 'The Cathedral of the Hearth',
-    bounds: [-12, 104],
+    bounds: [-12, 106],
+    area: { kind: 'band', x0: -12, x1: 106, z0: -9, z1: 9 },
+    solids: cathedralSolids(),
     start: -6,
-    end: 99,
-    bossAt: 74,
-    walls: [
-      // pews: low, many, every one throws a pocket of shadow
-      w(6, 1.6, 0.9), w(11, 1.6, 0.9), w(16, 1.6, 0.9), w(21, 1.6, 0.9), w(26, 1.6, 0.9),
-      w(36, 1.6, 0.9), w(41, 1.6, 0.9), w(46, 1.6, 0.9), w(51, 1.6, 0.9), w(56, 1.6, 0.9),
-      // stair steps up to the balconies
-      w(30, 1.2, 1.2), w(31.2, 1.2, 2.3), w(61, 1.2, 1.2), w(62.2, 1.2, 2.3),
-      // the altar step before the apse
-      w(68, 2.0, 0.7),
-    ],
-    platforms: [
-      { x0: 31.8, x1: 40, y: 3.4, kind: 'balcony' },
-      { x0: 62.8, x1: 71, y: 3.4, kind: 'balcony' },
-    ],
+    startZ: 0,
+    startYaw: 0,
+    end: 103,
+    bossAt: 76,
     shrines: [],
     checkpoints: [33, 64],
     regions: [
       { x0: -12, x1: 66, kind: 'nave', name: 'The Nave', sub: 'they prayed here for the fire to last' },
-      { x0: 66, x1: 104, kind: 'apse', name: 'The Apse of the First Flame', sub: 'where the hearth was kindled' },
+      { x0: 66, x1: 106, kind: 'apse', name: 'The Apse of the First Flame', sub: 'where the hearth was kindled' },
     ],
-  }),
+  },
 
-  cityWall: road({
+  cityWall: {
     id: 'cityWall',
     name: 'The City Wall',
-    bounds: [-12, 96],
+    bounds: [-12, 95],
+    area: { kind: 'band', x0: -12, x1: 95, z0: -3, z1: 3 }, // ends where the gatehouse does: no stepping off
+    solids: cityWallSolids(),
     start: -6,
+    startZ: 0,
+    startYaw: 0,
     end: 88,
-    walls: [
-      // merlons along the wall walk
-      w(8, 0.9, 0.8), w(16, 0.9, 0.8), w(24, 0.9, 0.8), w(32, 0.9, 0.8), w(40, 0.9, 0.8), w(48, 0.9, 0.8), w(56, 0.9, 0.8),
-      // stairs up the gatehouse
-      w(66, 1.4, 1.2), w(67.4, 1.4, 2.4), w(68.8, 1.4, 3.5),
-    ],
-    platforms: [{ x0: 69.5, x1: 95, y: 3.5, kind: 'rampart' }],
     shrines: [],
     checkpoints: [36],
     regions: [
       { x0: -12, x1: 64, kind: 'rampart', name: 'The Wall Walk', sub: 'the city sleeps below' },
       { x0: 64, x1: 96, kind: 'gatehouse', name: 'The Dawn Gate', sub: 'climb, the sky is turning' },
     ],
-  }),
+  },
 };

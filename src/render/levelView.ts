@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import type { Wall } from '../data/chapters';
-import type { Level, Platform, RegionKind } from '../data/levels';
+import { HUT, type Level, type RegionKind } from '../data/levels';
 import type { Solid } from '../sim/geom';
 import { Rng } from '../sim/rng';
 import { Flame } from './flame';
@@ -8,9 +7,10 @@ import { rimify } from './rim';
 import { column, stoneBox } from './shapes';
 import { glowTexture, tatterTexture } from './textures';
 
-// Builds a level's 3D set from its data: the walls the sim collides with (masonry, pews, merlons, stairs), the
-// platforms (stone walks, timber floors, balconies, rampart), the place itself (houses, market, nave, apse, wall,
-// gatehouse), and the interactive props (ember shrines, checkpoint braziers, the far gate).
+// Builds a level's 3D set from its data. Every sim solid is dressed by its tag (masonry, columns, houses, pews,
+// pillars, walks, galleries, steps...), so what you see is what you hit. Around them each region adds what you
+// cannot touch (arcades, vaults, the rose window, towers, the city far below the wall), then the interactive props
+// (ember shrines, checkpoint braziers, the far gate).
 
 interface Banner {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
@@ -32,13 +32,15 @@ interface Brazier {
   lit: number;
 }
 
-const STONE = rimify(new THREE.MeshStandardMaterial({ color: 0x17141b, roughness: 0.9, metalness: 0.05 }), 0.5, 'lvstone');
+// rain-wet: stone and paving are smoother than dry, so the fire glints off them
+const STONE = rimify(new THREE.MeshStandardMaterial({ color: 0x17141b, roughness: 0.68, metalness: 0.08 }), 0.5, 'lvstone');
 const DARK_STONE = rimify(new THREE.MeshStandardMaterial({ color: 0x0e0c12, roughness: 0.95 }), 0.4, 'lvdark');
 const TIMBER = rimify(new THREE.MeshStandardMaterial({ color: 0x1a120e, roughness: 0.85 }), 0.45, 'lvtimber');
-const FLAG = new THREE.MeshStandardMaterial({ color: 0x241f28, roughness: 0.9 });
+const FLAG = new THREE.MeshStandardMaterial({ color: 0x1f1b23, roughness: 0.42, metalness: 0.12 });
 const IRON = rimify(new THREE.MeshStandardMaterial({ color: 0x15121a, roughness: 0.5, metalness: 0.6 }), 0.9, 'lviron');
-const FACADE = new THREE.MeshStandardMaterial({ color: 0x0b0a0f, roughness: 1 });
-const FG = new THREE.MeshBasicMaterial({ color: 0x020203 }); // foreground silhouettes: pure black
+// house walls: dark wet plaster that still catches a passing torch
+const FACADE = rimify(new THREE.MeshStandardMaterial({ color: 0x241e27, roughness: 0.78, metalness: 0.04 }), 0.45, 'lvfacade');
+const ROOF = rimify(new THREE.MeshStandardMaterial({ color: 0x15100e, roughness: 0.55, metalness: 0.05 }), 0.55, 'lvroof');
 const STATUE = rimify(new THREE.MeshStandardMaterial({ color: 0x1b1820, roughness: 0.95 }), 0.6, 'statue');
 const WARM_WINDOW = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.42, 0.12), fog: false });
 
@@ -54,29 +56,41 @@ export class LevelView {
   private level: Level;
   private rng: Rng;
   readonly id: string;
+  private target: THREE.Group; // where builders add meshes (the level group, or a rotated sub-group)
 
   constructor(level: Level) {
     this.level = level;
     this.id = level.id;
     this.rng = new Rng(level.id.length * 131 + 7);
+    this.target = this.group;
     if (level.area.kind === 'disc') {
-      // the hearth grounds: everything is built from the sim's solids, so what you see is what you hit
       this.plazaFloor(level.area.r);
       for (const s of level.solids) this.buildSolid(s);
       this.groundsArch();
       this.groundsBanners();
     } else {
-      this.buildFloor();
-      for (const w of level.walls) this.buildWall(w);
-      for (const p of level.platforms) this.buildPlatform(p);
-    }
-    for (const r of level.regions) {
-      this.dressRegion(r.kind, r.x0, r.x1);
-      if (r.kind !== 'grounds') this.foreground(r.kind, r.x0, r.x1);
+      this.roadFloor(level.area);
+      for (const s of level.solids) this.buildSolid(s);
+      for (const r of level.regions) this.dressRegion(r.kind, r.x0, r.x1);
     }
     for (const s of level.shrines) this.buildShrine(s.x, s.y, s.z);
-    for (const x of level.checkpoints) this.buildBrazier(x);
-    if (level.end !== undefined) this.buildGate(level.end, level.bossAt !== undefined);
+    const side = level.area.kind === 'band' ? level.area.z0 + (level.id === 'cityWall' ? 0.6 : level.id === 'cathedral' ? 5.6 : 5.2) : 0;
+    for (const x of level.checkpoints) this.buildBrazier(x, side);
+    if (level.id === 'lowerCity' && level.end !== undefined) this.cityGate(level.end, 3.9);
+    if (level.bossAt !== undefined && level.end !== undefined) this.cathedralDoors(level.end - 2.5, 2.0);
+  }
+
+  /** Build into a sub-group placed at (x, y, z) and turned by ry, then return to the level group. */
+  private within(x: number, y: number, z: number, ry: number, fn: () => void): THREE.Group {
+    const g = new THREE.Group();
+    g.position.set(x, y, z);
+    g.rotation.y = ry;
+    const prev = this.target;
+    this.target = g;
+    fn();
+    this.target = prev;
+    prev.add(g);
+    return g;
   }
 
   private add(geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, ry = 0, rz = 0): THREE.Mesh {
@@ -85,7 +99,7 @@ export class LevelView {
     m.rotation.set(0, ry, rz);
     m.castShadow = true;
     m.receiveShadow = true;
-    this.group.add(m);
+    this.target.add(m);
     return m;
   }
 
@@ -93,173 +107,28 @@ export class LevelView {
     return this.level.regions.find((r) => x >= r.x0 && x < r.x1)?.kind ?? 'grounds';
   }
 
-  // ------------------------------------------------------------- floor
-  private buildFloor(): void {
-    const [x0, x1] = this.level.bounds;
-    const rng = this.rng;
-    for (let x = x0 - 4; x < x1 + 4; ) {
-      const kind = this.regionAt(x);
-      const big = kind === 'nave' || kind === 'apse';
-      const w = big ? rng.range(1.6, 2.2) : rng.range(0.9, 1.7);
-      for (const z of big ? [-1.0, 1.0] : [-1.2, 0, 1.2]) {
-        if (rng.next() < (kind === 'rampart' || kind === 'gatehouse' ? 0.04 : 0.12)) continue;
-        const s = new THREE.Mesh(stoneBox(w - 0.06, 0.12, big ? 1.94 : 1.14, x * 7 + z, 0.012), FLAG);
-        s.position.set(x + w / 2, -0.05 + rng.range(-0.02, 0.02), z + rng.range(-0.05, 0.05));
-        s.rotation.y = rng.range(-0.03, 0.03);
-        s.receiveShadow = true;
-        this.group.add(s);
-      }
-      x += w;
+  /** A house front facing +z at z (dark windows, a candle in one or two), with a body `depth` deep behind it. */
+  private house(cx: number, w: number, h: number, z: number, broken: boolean, depth = 0): void {
+    const outline = () => {
+      const o = new THREE.Shape();
+      o.moveTo(-w / 2, 0);
+      o.lineTo(w / 2, 0);
+      o.lineTo(w / 2, h);
+      if (broken) {
+        o.lineTo(w * 0.15, h + 1.2);
+        o.lineTo(w * 0.05, h + 0.4);
+        o.lineTo(-w * 0.2, h + 1.9);
+      } else o.lineTo(0, h + w * 0.45);
+      o.lineTo(-w / 2, h);
+      o.closePath();
+      return o;
+    };
+    const s = outline();
+    if (depth > 0.8) {
+      // the house itself: the gable outline carried back, its roof line and all
+      const body = new THREE.ExtrudeGeometry(outline(), { depth: depth - 0.6, bevelEnabled: false });
+      this.add(body, FACADE, cx, 0, z - 0.3 - (depth - 0.6)).receiveShadow = true;
     }
-  }
-
-  // ------------------------------------------------------------- walls (sim collision boxes)
-  private buildWall(w: Wall): void {
-    const kind = this.regionAt(w.x);
-    const rng = this.rng;
-    if ((kind === 'nave' || kind === 'apse') && w.h < 1) {
-      // a pew: seat, back, and carved ends
-      this.add(stoneBox(w.w, 0.12, 0.7, w.x, 0.01), TIMBER, w.x, 0.48, 0.1);
-      this.add(stoneBox(w.w, w.h, 0.1, w.x + 1, 0.01), TIMBER, w.x, w.h / 2, -0.35);
-      for (const s of [-1, 1]) this.add(stoneBox(0.1, w.h + 0.12, 0.8, w.x + s, 0.01), TIMBER, w.x + (s * w.w) / 2, (w.h + 0.12) / 2, 0);
-      return;
-    }
-    if (kind === 'rampart' || kind === 'gatehouse' || w.h >= 2) {
-      // a single dressed block: merlon or stair
-      this.add(stoneBox(w.w, w.h, 1.7, w.x * 3 + w.h, 0.04), STONE, w.x, w.h / 2, 0);
-      return;
-    }
-    // coursed masonry, broken along the top
-    const courses = Math.max(2, Math.round(w.h / 0.34));
-    const ch = w.h / courses;
-    let seed = Math.round(w.x * 13);
-    for (let c = 0; c < courses; c++) {
-      let x = w.x - w.w / 2;
-      const end = w.x + w.w / 2;
-      let first = c % 2 ? rng.range(0.2, 0.35) : 0;
-      while (x < end - 0.05) {
-        const len = Math.min(end - x, first || rng.range(0.42, 0.7));
-        first = 0;
-        if (c === courses - 1 && rng.next() < 0.3) {
-          x += len;
-          continue;
-        }
-        const askew = c === courses - 1 ? rng.range(-0.08, 0.08) : rng.range(-0.015, 0.015);
-        this.add(stoneBox(len - 0.03, ch - 0.025, 1.55 + rng.range(-0.08, 0.04), seed++, 0.03), STONE, x + len / 2, ch * c + ch / 2, rng.range(-0.03, 0.03), rng.range(-0.04, 0.04), askew);
-        x += len;
-      }
-    }
-  }
-
-  // ------------------------------------------------------------- platforms (one-way)
-  private buildPlatform(p: Platform): void {
-    const len = p.x1 - p.x0;
-    const cx = (p.x0 + p.x1) / 2;
-    const rng = this.rng;
-    switch (p.kind ?? 'stone') {
-      case 'timber': {
-        // a floor of planks on beams, a broken roof slope behind it
-        for (let x = p.x0; x < p.x1 - 0.1; ) {
-          const pw = rng.range(0.22, 0.32);
-          if (rng.next() > 0.08) this.add(stoneBox(pw - 0.02, 0.08, 1.7, x * 9, 0.006), TIMBER, x + pw / 2, p.y - 0.04 + rng.range(-0.015, 0.015), 0, 0, rng.range(-0.02, 0.02));
-          x += pw;
-        }
-        this.add(stoneBox(len, 0.16, 0.16, cx, 0.01), TIMBER, cx, p.y - 0.16, 0.7);
-        this.add(stoneBox(len, 0.16, 0.16, cx + 1, 0.01), TIMBER, cx, p.y - 0.16, -0.7);
-        for (const x of [p.x0 + 0.3, p.x1 - 0.3]) this.add(new THREE.CylinderGeometry(0.1, 0.12, p.y, 10), TIMBER, x, p.y / 2, -0.75);
-        const roof = this.add(stoneBox(len + 1.5, 0.12, 3.2, cx + 2, 0.02), TIMBER, cx, p.y + 2.2, -2.2);
-        roof.rotation.x = 0.75;
-        break;
-      }
-      case 'balcony':
-      case 'stone':
-      case 'rampart': {
-        this.add(stoneBox(len, 0.36, 1.8, cx * 3, 0.03), STONE, cx, p.y - 0.18, 0);
-        if (p.kind === 'balcony') {
-          // a balustrade along the back edge
-          for (let x = p.x0 + 0.3; x < p.x1; x += 0.42) this.add(new THREE.CylinderGeometry(0.06, 0.08, 0.75, 12), STONE, x, p.y + 0.37, -0.78);
-          this.add(stoneBox(len, 0.1, 0.24, cx + 3, 0.01), STONE, cx, p.y + 0.8, -0.78);
-          // corbels underneath
-          for (let x = p.x0 + 0.8; x < p.x1; x += 2.4) this.add(stoneBox(0.35, 0.6, 1.4, x, 0.03), STONE, x, p.y - 0.6, -0.1);
-        } else if (p.kind === 'rampart') {
-          for (let x = p.x0 + 0.6; x < p.x1; x += 1.6) this.add(stoneBox(0.8, 0.9, 0.5, x * 5, 0.04), STONE, x, p.y + 0.45, -0.75);
-          // the wall below the walk
-          this.add(stoneBox(len, p.y, 1.6, cx * 5 + 1, 0.06), DARK_STONE, cx, p.y / 2 - 0.2, -1.4);
-        } else {
-          // piers carry the walk down to the ground
-          for (const x of [p.x0 + 0.5, p.x1 - 0.5]) this.add(column(0.32, 0.38, p.y, x * 7), STONE, x, p.y / 2 - 0.2, -0.3);
-        }
-        break;
-      }
-    }
-  }
-
-  // ------------------------------------------------------------- places
-  private dressRegion(kind: RegionKind, x0: number, x1: number): void {
-    const rng = this.rng;
-    switch (kind) {
-      case 'street':
-        for (let x = x0 + 2; x < x1 - 2; ) {
-          const w = rng.range(5, 8.5);
-          this.house(x + w / 2, w, rng.range(5, 8.5), rng.range(-6.2, -3.6), rng.next() < 0.35);
-          x += w + rng.range(0.4, 2.5);
-        }
-        for (let x = x0 + 6; x < x1; x += rng.range(11, 16)) this.lamp(x, -1.7);
-        break;
-      case 'market':
-        for (let x = x0 + 2; x < x1 - 2; x += rng.range(4.5, 6.5)) this.stall(x, rng.range(-3.2, -2.4));
-        this.fountain((x0 + x1) / 2, -5.5);
-        for (let x = x0; x < x1; x += 9) this.house(x + 4, 8, rng.range(6, 9), -8, false);
-        break;
-      case 'nave':
-        for (let x = x0 + 3; x < x1; x += 6) this.pillar(x, -3.6, 11.5);
-        for (let x = x0 + 3; x < x1 - 6; x += 6) this.pointedArch(x + 3, -3.6, 6, 8.2);
-        this.naveWall(x0, x1, -9);
-        for (let x = x0 + 6; x < x1 - 3; x += 12) this.chandelier(x, 7.6, -1.2);
-        for (let x = x0 + 6; x < x1 - 3; x += 6) this.saint(x, -8.2);
-        for (let x = x0 + 9; x < x1; x += 18) this.hangingBanner(x, -3.0, 10.8, 4.2);
-        break;
-      case 'apse':
-        for (let x = x0 + 3; x < x1; x += 7) this.pillar(x, -3.8, 12.5);
-        this.roseWindow((x0 + x1) / 2 + 4, 10.5, -11);
-        this.naveWall(x0, x1, -11.6);
-        this.add(stoneBox(3.2, 1.0, 1.6, 77, 0.03), STONE, (x0 + x1) / 2 - 2, 0.5, -2.6); // the altar
-        this.organ((x0 + x1) / 2 + 4 - 8, -10.4);
-        this.organ((x0 + x1) / 2 + 4 + 8, -10.4);
-        for (let i = 0; i < 5; i++) this.candle((x0 + x1) / 2 - 3.2 + i * 0.6, 1.0, -2.4 - (i % 2) * 0.3);
-        break;
-      case 'rampart':
-        // the wall walk: a low parapet in front, towers behind, the sheer drop beyond
-        for (let x = x0; x < x1; x += 1.4) this.add(stoneBox(0.9, 0.55, 0.45, x * 3, 0.04), STONE, x, 0.27, 2.1);
-        for (let x = x0 + 8; x < x1; x += 28) {
-          this.tower(x, -4.5, 10);
-          this.hangingBanner(x, -4.5, 15.5, 3.2, true);
-        }
-        break;
-      case 'gatehouse':
-        this.tower(x0 + 4, -4.2, 13);
-        this.tower(x1 - 4, -4.2, 14);
-        this.add(stoneBox(x1 - x0, 7, 1.6, x0, 0.05), DARK_STONE, (x0 + x1) / 2, 3.5, -3.6);
-        this.bell((x0 + x1) / 2 + 2, 10.5, -4.2);
-        this.portcullis((x0 + x1) / 2 - 6, -2.7);
-        break;
-      case 'grounds':
-        break;
-    }
-  }
-
-  private house(cx: number, w: number, h: number, z: number, broken: boolean): void {
-    const s = new THREE.Shape();
-    s.moveTo(-w / 2, 0);
-    s.lineTo(w / 2, 0);
-    s.lineTo(w / 2, h);
-    if (broken) {
-      s.lineTo(w * 0.15, h + 1.2);
-      s.lineTo(w * 0.05, h + 0.4);
-      s.lineTo(-w * 0.2, h + 1.9);
-    } else s.lineTo(0, h + w * 0.45);
-    s.lineTo(-w / 2, h);
-    s.closePath();
     // dark windows: holes that show the fog behind
     const rng = this.rng;
     for (let fy = 1.6; fy < h - 1; fy += 2.3) {
@@ -279,13 +148,13 @@ export class LevelView {
     m.receiveShadow = true;
     // a candle someone left: one or two windows still glow
     for (const hole of s.holes.slice(0, 6)) {
-      if (rng.next() > 0.18) continue;
+      if (rng.next() > 0.26) continue;
       const pts = hole.getPoints();
       const xs = pts.map((p) => p.x);
       const ys = pts.map((p) => p.y);
       const pane = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)), WARM_WINDOW);
       pane.position.set(cx + (Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2, z - 0.35);
-      this.group.add(pane);
+      this.target.add(pane);
     }
     if (!broken && rng.next() < 0.7) this.add(stoneBox(0.6, 1.6, 0.6, cx, 0.02), FACADE, cx + w * rng.range(-0.3, 0.3), h + w * 0.25, z);
     if (rng.next() < 0.4) {
@@ -297,39 +166,6 @@ export class LevelView {
   }
 
   /** Dark shapes between the camera and the lane: depth, parallax, a sense of being somewhere. */
-  private foreground(kind: RegionKind, x0: number, x1: number): void {
-    const rng = this.rng;
-    const fg = (geo: THREE.BufferGeometry, x: number, y: number, z: number, rz = 0) => {
-      const m = new THREE.Mesh(geo, FG);
-      m.position.set(x, y, z);
-      m.rotation.z = rz;
-      this.group.add(m);
-    };
-    for (let x = x0 + rng.range(4, 12); x < x1; x += rng.range(16, 26)) {
-      const z = rng.range(5.2, 6.5);
-      switch (kind) {
-        case 'nave':
-        case 'apse':
-          fg(new THREE.CylinderGeometry(0.85, 0.95, 26, 24), x, 9, z); // a great pillar right in front of the lens
-          break;
-        case 'rampart':
-        case 'gatehouse':
-          fg(stoneBox(1.0, 1.3, 0.8, x, 0.03), x, 0.4, z - 1.2);
-          fg(stoneBox(1.0, 1.3, 0.8, x + 1, 0.03), x + 1.7, 0.4, z - 1.2);
-          break;
-        default:
-          if (rng.next() < 0.5) {
-            // a hanging chain with a broken lantern
-            fg(new THREE.CylinderGeometry(0.03, 0.03, 6, 6), x, 9.5, z);
-            fg(new THREE.CylinderGeometry(0.2, 0.26, 0.5, 8), x, 6.3, z);
-          } else {
-            // a leaning broken post
-            fg(new THREE.CylinderGeometry(0.16, 0.22, 4.6, 10), x, 1.6, z, rng.range(-0.3, 0.3));
-          }
-      }
-    }
-  }
-
   private chandelier(x: number, y: number, z: number): void {
     this.add(new THREE.CylinderGeometry(0.03, 0.03, 16 - y, 6), IRON, x, y + (16 - y) / 2, z).castShadow = false;
     const ring = this.add(new THREE.TorusGeometry(1.0, 0.05, 8, 40), IRON, x, y, z);
@@ -358,7 +194,7 @@ export class LevelView {
     m.position.set(x + (onPole ? 0.05 : 0), onPole ? top - 0.1 : top, z + 0.5);
     m.castShadow = true;
     m.customDistanceMaterial = new THREE.MeshDistanceMaterial({ alphaMap: tat, alphaTest: 0.5 });
-    this.group.add(m);
+    this.target.add(m);
     this.banners.push({ mesh: m, base: Float32Array.from(geo.attributes.position.array as Float32Array), seed: x });
   }
 
@@ -374,7 +210,7 @@ export class LevelView {
     this.add(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 10), STONE, x, y + 0.2, z).castShadow = false;
     const f = new Flame(0.1, 0.18, 1);
     f.group.position.set(x, y + 0.42, z);
-    this.group.add(f.group);
+    this.target.add(f.group);
     this.smallFlames.push(f);
   }
 
@@ -410,7 +246,7 @@ export class LevelView {
     cloth.position.set(x, 2.45, z + 0.3);
     cloth.rotation.x = -1.15;
     cloth.castShadow = true;
-    this.group.add(cloth);
+    this.target.add(cloth);
     for (let i = 0; i < 3; i++) {
       const r = this.rng.range(0.25, 0.4);
       this.add(new THREE.CylinderGeometry(r, r * 0.9, r * 2, 14), TIMBER, x + this.rng.range(-1.5, 1.5), r, z + this.rng.range(0.4, 1.0));
@@ -458,34 +294,35 @@ export class LevelView {
     this.add(g, STONE, cx, 0, z - 0.45);
   }
 
-  private naveWall(x0: number, x1: number, z: number): void {
-    const s = new THREE.Shape();
-    s.moveTo(x0, 0);
-    s.lineTo(x1, 0);
-    s.lineTo(x1, 16);
-    s.lineTo(x0, 16);
-    s.closePath();
-    // tall lancet windows
-    for (let x = x0 + 3; x < x1 - 2; x += 6) {
-      const w = new THREE.Path();
-      w.moveTo(x - 0.8, 4);
-      w.lineTo(x + 0.8, 4);
-      w.lineTo(x + 0.8, 11);
-      w.quadraticCurveTo(x + 0.8, 12.6, x, 13.4);
-      w.quadraticCurveTo(x - 0.8, 12.6, x - 0.8, 11);
-      w.lineTo(x - 0.8, 4);
-      s.holes.push(w);
-    }
-    const g = new THREE.ExtrudeGeometry(s, { depth: 0.8, bevelEnabled: false, curveSegments: 12 });
-    const m = this.add(g, DARK_STONE, 0, 0, z);
-    m.castShadow = false;
-    // cold moonlight behind the glass: the lancets glow and the pillars stand out against them
-    const glow = new THREE.Mesh(
-      new THREE.PlaneGeometry(x1 - x0, 16),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(0.13, 0.15, 0.34), fog: false }),
-    );
-    glow.position.set((x0 + x1) / 2, 8, z - 0.4);
-    this.group.add(glow);
+  /**
+   * A tall cathedral wall with lancet windows and cold moonlight behind the glass. Built along local x from x0 to x1
+   * with its inner face toward local +z at z = 0, then placed at (px, pz) and turned by ry.
+   */
+  private naveWall(x0: number, x1: number, px: number, pz: number, ry: number): void {
+    this.within(px, 0, pz, ry, () => {
+      const s = new THREE.Shape();
+      s.moveTo(x0, 0);
+      s.lineTo(x1, 0);
+      s.lineTo(x1, 16);
+      s.lineTo(x0, 16);
+      s.closePath();
+      for (let x = x0 + 3; x < x1 - 2; x += 6) {
+        const w = new THREE.Path();
+        w.moveTo(x - 0.8, 4);
+        w.lineTo(x + 0.8, 4);
+        w.lineTo(x + 0.8, 11);
+        w.quadraticCurveTo(x + 0.8, 12.6, x, 13.4);
+        w.quadraticCurveTo(x - 0.8, 12.6, x - 0.8, 11);
+        w.lineTo(x - 0.8, 4);
+        s.holes.push(w);
+      }
+      const g = new THREE.ExtrudeGeometry(s, { depth: 0.8, bevelEnabled: false, curveSegments: 12 });
+      const m = this.add(g, DARK_STONE, 0, 0, -0.8);
+      m.castShadow = false;
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 0.34, 0.75), fog: false }));
+      glow.position.set((x0 + x1) / 2, 8, -1.2);
+      this.target.add(glow);
+    });
   }
 
   /** The rose window: radial stone tracery over faint stained light. */
@@ -496,7 +333,7 @@ export class LevelView {
       new THREE.MeshBasicMaterial({ map: roseTexture(), color: new THREE.Color(1.6, 1.1, 1.5), transparent: true, opacity: 0.85, depthWrite: false }),
     );
     glass.position.set(x, y, z + 0.2);
-    this.group.add(glass);
+    this.target.add(glass);
     const ring = this.add(new THREE.TorusGeometry(R, 0.28, 12, 72), STONE, x, y, z + 0.5);
     ring.castShadow = false;
     for (let i = 0; i < 12; i++) {
@@ -508,8 +345,9 @@ export class LevelView {
     this.add(new THREE.TorusGeometry(R * 0.38, 0.16, 10, 48), STONE, x, y, z + 0.5).castShadow = false;
   }
 
-  private tower(x: number, z: number, h: number): void {
-    this.add(column(1.8, 2.0, h, x * 2, 6), DARK_STONE, x, h / 2, z);
+  /** A round tower from y0 up to h, crenellated. */
+  private tower(x: number, z: number, h: number, y0 = 0): void {
+    this.add(column(1.8, 2.0, h - y0, x * 2, 6), DARK_STONE, x, (h + y0) / 2, z);
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
       if (i % 2) continue;
@@ -532,52 +370,53 @@ export class LevelView {
     const flame = new Flame(0.4, 0.6, 2);
     flame.group.position.y = 0.9;
     root.add(plinth, cup, ember, flame.group);
-    this.group.add(root);
+    this.target.add(root);
     this.shrines.push({ root, ember, flame, on: 0 });
   }
 
-  private buildBrazier(x: number): void {
+  private buildBrazier(x: number, z: number): void {
     const pts = [[0, 0], [0.25, 0], [0.12, 0.7], [0.45, 0.95], [0.5, 1.05], [0, 0.98]].map(([a, b]) => new THREE.Vector2(a, b));
-    this.add(new THREE.LatheGeometry(pts, 28), IRON, x, 0, -1.1);
+    this.add(new THREE.LatheGeometry(pts, 28), IRON, x, 0, z);
     const flame = new Flame(0.7, 1.1, 2);
-    flame.group.position.set(x, 1.0, -1.1);
+    flame.group.position.set(x, 1.0, z);
     flame.strength = 0;
-    this.group.add(flame.group);
+    this.target.add(flame.group);
     const light = new THREE.PointLight(0xff8a3d, 0, 14, 2);
-    light.position.set(x, 1.7, -0.6);
-    this.group.add(light);
+    light.position.set(x, 1.7, z + 0.4);
+    this.target.add(light);
     this.braziers.push({ x, flame, light, lit: 0 });
   }
 
-  private buildGate(x: number, doors: boolean): void {
+  /** The city gate: a lintel and a broken crest over the two piers (the piers are sim solids). */
+  private cityGate(x: number, half: number): void {
+    this.add(stoneBox(1.4, 1.1, half * 2 + 1.4, x + 3, 0.05), STONE, x, 6.5, 0);
+    for (let i = 0; i < 5; i++) this.add(stoneBox(0.8, 0.7, 0.7, x + i, 0.05), STONE, x + this.rng.range(-0.1, 0.1), 7.4, -half + 0.4 + i * (half * 0.45));
+  }
+
+  /** The cathedral doors under the rose window: two leaves on hinges, shut until the Marshal falls. */
+  private cathedralDoors(x: number, half: number): void {
     const g = new THREE.Group();
-    g.position.set(x, 0, -0.2);
-    const ph = 5.5;
+    g.position.set(x, 0, 0);
+    const ph = 5.6;
     for (const s of [-1, 1]) {
-      const pier = new THREE.Mesh(stoneBox(1.1, ph, 1.6, x + s, 0.05), STONE);
-      pier.position.set(s * 2.0, ph / 2, -0.2);
-      pier.castShadow = true;
-      g.add(pier);
-    }
-    const lintel = new THREE.Mesh(stoneBox(5.2, 1.0, 1.7, x + 3, 0.05), STONE);
-    lintel.position.set(0, ph + 0.5, -0.2);
-    g.add(lintel);
-    if (doors) {
-      for (const s of [-1, 1]) {
-        const hinge = new THREE.Group();
-        hinge.position.set(s * 1.45, 0, -0.6);
-        const door = new THREE.Mesh(stoneBox(1.45, ph - 0.1, 0.18, x + s * 7, 0.01), TIMBER);
-        door.position.set(-s * 0.72, (ph - 0.1) / 2, 0);
-        door.castShadow = true;
-        hinge.add(door);
-        hinge.userData.side = s;
-        g.add(hinge);
+      const hinge = new THREE.Group();
+      hinge.position.set(0, 0, s * half);
+      const door = new THREE.Mesh(stoneBox(0.18, ph, half, x + s * 7, 0.01), TIMBER);
+      door.position.set(0, ph / 2, -s * half / 2);
+      door.castShadow = true;
+      hinge.add(door);
+      for (let y = 1; y < ph; y += 1.6) {
+        const band = new THREE.Mesh(stoneBox(0.22, 0.12, half * 0.96, y + s, 0.004), IRON);
+        band.position.set(0, y, -s * half / 2);
+        hinge.add(band);
       }
+      hinge.userData.side = s;
+      g.add(hinge);
     }
     this.gate = g;
-    this.gateOpen = doors ? 0 : 1;
-    this.gateTarget = doors ? 0 : 1; // cathedral doors stay shut until the Marshal falls
-    this.group.add(g);
+    this.gateOpen = 0;
+    this.gateTarget = 0;
+    this.target.add(g);
   }
 
   /** Per frame: banners, shrine embers, braziers, the gate. */
@@ -611,7 +450,7 @@ export class LevelView {
     });
     if (this.gate) {
       this.gateOpen += (this.gateTarget - this.gateOpen) * Math.min(1, dt * 1.2);
-      for (const c of this.gate.children) if (c.userData.side) c.rotation.y = c.userData.side * this.gateOpen * 1.5;
+      for (const c of this.gate.children) if (c.userData.side) c.rotation.y = -c.userData.side * this.gateOpen * 1.5;
     }
   }
 
@@ -621,6 +460,147 @@ export class LevelView {
       if (m.isMesh) m.geometry.dispose();
     });
     this.group.removeFromParent();
+  }
+
+  // ------------------------------------------------------------- the road east
+  /** Paving across the road, instanced: cobbles in the streets, great slabs in the cathedral, blocks on the wall. */
+  private roadFloor(a: { x0: number; x1: number; z0: number; z1: number }): void {
+    const rng = new Rng(77);
+    const variants = [0, 1, 2, 3].map((v) => stoneBox(1, 0.12, 1, 400 + v, 0.012));
+    const mats: THREE.Matrix4[][] = variants.map(() => []);
+    const q = new THREE.Quaternion();
+    const e = new THREE.Euler();
+    for (let x = a.x0 - 2; x < a.x1 + 2; ) {
+      const kind = this.regionAt(x);
+      const big = kind === 'nave' || kind === 'apse';
+      const wall = kind === 'rampart' || kind === 'gatehouse';
+      const sx = big ? 1.95 : wall ? 1.3 : rng.range(0.85, 1.35);
+      const sz = big ? 1.95 : 1.1;
+      const skip = big || wall ? 0.03 : 0.1;
+      for (let z = a.z0 - (wall ? 0.6 : 0); z < a.z1 + (wall ? 0.6 : 0); z += sz) {
+        if (rng.next() < skip) continue;
+        e.set(0, rng.range(-0.03, 0.03), 0);
+        q.setFromEuler(e);
+        mats[Math.floor(rng.next() * variants.length)].push(
+          new THREE.Matrix4().compose(new THREE.Vector3(x + sx / 2, -0.05 + rng.range(-0.02, 0.02), z + sz / 2), q, new THREE.Vector3(sx - 0.06, 1, sz - 0.06)),
+        );
+      }
+      x += sx;
+    }
+    variants.forEach((g, v) => {
+      const inst = new THREE.InstancedMesh(g, FLAG, mats[v].length);
+      mats[v].forEach((m, i) => inst.setMatrixAt(i, m));
+      inst.receiveShadow = true;
+      this.target.add(inst);
+    });
+  }
+
+  /** A house solid: its front faces the street (z = 0), its body fills the solid. */
+  private houseSolid(s: Solid): void {
+    const side = Math.sign(s.z) || 1;
+    const front = s.z - side * s.hd;
+    const h = s.y1 - s.y0;
+    const broken = this.rng.next() < 0.35;
+    // a house on the +z side is the same house turned to face -z
+    this.within(s.x, 0, front, side > 0 ? Math.PI : 0, () => this.house(0, s.hw * 2 - 0.1, h, 0.3, broken, s.hd * 2));
+  }
+
+  /** A timber floor of planks on beams, on posts at its street edge. */
+  private timberWalk(s: Solid): void {
+    const rng = this.rng;
+    const x0 = s.x - s.hw;
+    const x1 = s.x + s.hw;
+    const top = s.y1;
+    for (let x = x0; x < x1 - 0.1; ) {
+      const pw = rng.range(0.22, 0.32);
+      if (rng.next() > 0.08) this.add(stoneBox(pw - 0.02, 0.08, s.hd * 2, x * 9, 0.006), TIMBER, x + pw / 2, top - 0.04 + rng.range(-0.015, 0.015), s.z, 0, rng.range(-0.02, 0.02));
+      x += pw;
+    }
+    for (const dz of [-1, 1]) this.add(stoneBox(x1 - x0, 0.16, 0.16, s.x + dz, 0.01), TIMBER, s.x, top - 0.16, s.z + dz * (s.hd - 0.1));
+    const street = s.z - Math.sign(s.z) * (s.hd - 0.12);
+    for (let x = x0 + 0.3; x <= x1 - 0.2; x += 3.2) this.add(new THREE.CylinderGeometry(0.1, 0.12, top - 0.2, 10), TIMBER, x, (top - 0.2) / 2, street);
+  }
+
+  /** A pew facing the altar (+x): seat, back, carved ends. */
+  private pew(s: Solid): void {
+    const h = s.y1 - s.y0;
+    const len = s.hd * 2;
+    this.add(stoneBox(0.6, 0.12, len, s.x + s.z, 0.01), TIMBER, s.x + 0.05, 0.48, s.z);
+    this.add(stoneBox(0.1, h, len, s.x + s.z + 1, 0.01), TIMBER, s.x - 0.22, h / 2, s.z);
+    for (const e of [-1, 1]) this.add(stoneBox(0.7, h + 0.12, 0.1, s.x + e, 0.01), TIMBER, s.x, (h + 0.12) / 2, s.z + (e * len) / 2);
+  }
+
+  /** Everything a region has that you cannot walk into: arcades, vaults, windows, towers, the city below. */
+  private dressRegion(kind: RegionKind, x0: number, x1: number): void {
+    const rng = this.rng;
+    switch (kind) {
+      case 'street':
+      case 'market':
+        // washing lines and chains strung between the house fronts, dripping in the rain
+        for (let x = x0 + 5; x < x1 - 3; x += rng.range(9, 15)) {
+          const z = kind === 'market' ? 10 : 5;
+          const line = this.add(new THREE.CylinderGeometry(0.015, 0.015, z * 2, 5), IRON, x, rng.range(4.6, 6.2), 0, 0, 0);
+          line.rotation.x = Math.PI / 2;
+          line.castShadow = false;
+          if (rng.next() < 0.6) this.hangingBanner(x - 0.6, rng.range(-z * 0.5, z * 0.5) - 0.5, line.position.y, rng.range(1.2, 2.2));
+        }
+        break;
+      case 'nave':
+      case 'apse': {
+        const apse = kind === 'apse';
+        const pz = apse ? 6.4 : 4.6;
+        const px0 = apse ? 72 : -9;
+        const px1 = apse ? 96 : 63;
+        // arcades between the pillars, and transverse ribs across the vault
+        for (let x = px0; x < px1; x += 6) for (const side of [-1, 1]) this.pointedArch(x + 3, side * pz, 6, apse ? 8.7 : 8.2);
+        for (let x = px0; x <= px1; x += 6) this.within(x, 0, 0, Math.PI / 2, () => this.pointedArch(0, 0, pz * 2, 12.4));
+        // the vault: broken, so the rain finds its way in
+        for (let x = x0; x < x1; x += 6) if (rng.next() > 0.3) this.add(stoneBox(6, 0.6, 19.6, x * 3, 0.05), DARK_STONE, x + 3, 16.6, 0).castShadow = false;
+        for (let x = x0 + 6; x < x1 - 3; x += 12) this.chandelier(x, 7.6, 0);
+        for (let x = x0 + 6; x < x1 - 3; x += 6) for (const side of [-1, 1]) this.saint(x, side * 8.4);
+        for (let x = px0 + 6; x < px1; x += 18) for (const side of [-1, 1]) this.hangingBanner(x, side * pz - 0.5, 10.8, 4.2);
+        if (apse) {
+          // the door wall: the rose window above the doors, organ pipes either side, all facing down the nave
+          this.add(stoneBox(1.2, 10.4, 4.4, 101, 0.04), DARK_STONE, 100.5, 10.8, 0).castShadow = false;
+          this.within(99.85, 0, 0, -Math.PI / 2, () => {
+            this.roseWindow(0, 10.6, 0);
+            for (const side of [-1, 1]) this.organ(side * 5.6, 0.1);
+          });
+        }
+        break;
+      }
+      case 'rampart':
+      case 'gatehouse': {
+        const gate = kind === 'gatehouse';
+        // the wall itself, falling away into the dark below the walk; the city sleeps far beneath
+        this.add(stoneBox(x1 - x0, 24, 7.4, x0 * 3, 0.05), DARK_STONE, (x0 + x1) / 2, -12.06, 0).castShadow = false;
+        if (!gate) {
+          for (let x = x0 + 0.5; x < x1; x += 1.6) this.add(stoneBox(0.9, 0.9, 0.5, x * 3, 0.04), STONE, x, 0.6, 3.35);
+          this.add(stoneBox(x1 - x0, 0.6, 0.5, x0 + 1, 0.03), STONE, (x0 + x1) / 2, 0.3, 3.35);
+          this.add(stoneBox(x1 - x0, 0.7, 0.5, x0 + 2, 0.03), STONE, (x0 + x1) / 2, 0.35, -3.35);
+          for (let x = x0 + 8; x < x1; x += 26) {
+            this.tower(x, -7.6, 12, -24);
+            this.hangingBanner(x, -7.6 + 2.1, 11.5, 3.4, true);
+          }
+          for (let x = x0; x < x1; ) {
+            const w = rng.range(5, 8);
+            this.within(x + w / 2, -24, -rng.range(14, 30), 0, () => this.house(0, w, rng.range(5, 9), 0, rng.next() < 0.3, 4));
+            x += w + rng.range(0.5, 4);
+          }
+        } else {
+          for (const [tx, tz] of [[65, -6.6], [65, 6.6], [95, -6.6], [95, 6.6]] as const) this.tower(tx, tz, 16, -24);
+          // the Dawn Gate: an arch over the rampart's end, its portcullis raised, the great bell hanging in it
+          for (const side of [-1, 1]) this.add(stoneBox(1.2, 7.5, 1.2, side + 9, 0.05), STONE, 94.4, 3.5 + 3.75, side * 3.7);
+          this.add(stoneBox(1.4, 1.3, 8.6, 93, 0.05), STONE, 94.4, 11.6, 0);
+          this.bell(94.4, 11, 0);
+          this.within(94.4, 6.2, 0, Math.PI / 2, () => this.portcullis(0, 0)); // raised into the arch
+          for (const side of [-1, 1]) this.hangingBanner(65 + 0.6, side * 6.6 + 2, 15, 3.4, true);
+        }
+        break;
+      }
+      case 'grounds':
+        break;
+    }
   }
 
   // ------------------------------------------------------------- the hearth grounds: a round ruined plaza
@@ -651,7 +631,7 @@ export class LevelView {
       const inst = new THREE.InstancedMesh(g, FLAG, mats[v].length);
       mats[v].forEach((m, i) => inst.setMatrixAt(i, m));
       inst.receiveShadow = true;
-      this.group.add(inst);
+      this.target.add(inst);
     });
   }
 
@@ -669,8 +649,63 @@ export class LevelView {
         return this.plazaColumn(s);
       case 'statue':
         return this.statue(s.x, s.z);
+      case 'hut':
+        // a timber post on a stone footing
+        this.add(stoneBox(0.6, 0.35, 0.6, s.x * 9 + s.z, 0.03), STONE, s.x, 0.175, s.z);
+        this.add(new THREE.CylinderGeometry(s.hw * 0.85, s.hw, h - 0.35, 10), TIMBER, s.x, 0.35 + (h - 0.35) / 2, s.z);
+        return;
+      case 'roof':
+        return this.hutRoof(s);
+      case 'house':
+        return this.houseSolid(s);
+      case 'timber':
+        return this.timberWalk(s);
+      case 'stone':
+      case 'gallery':
+        return this.raisedWalk(s, s.tag === 'gallery' ? -(Math.sign(s.z) || 1) : Math.sign(s.z) || 1);
+      case 'crate': {
+        const m = this.add(stoneBox(s.hw * 2, h, s.hd * 2, s.x * 3 + s.z, 0.02), TIMBER, s.x, s.y0 + h / 2, s.z);
+        m.rotation.y = s.ry;
+        return;
+      }
+      case 'lamp':
+        return this.lamp(s.x, s.z);
+      case 'stall':
+        this.within(s.x, 0, s.z, s.z > 0 ? Math.PI : 0, () => this.stall(0, 0));
+        return;
+      case 'fountain':
+        return this.fountain(s.x, s.z);
+      case 'gatepier':
+      case 'doorwall':
+        this.add(stoneBox(s.hw * 2, h, s.hd * 2, s.x + s.z, 0.04), s.tag === 'doorwall' ? DARK_STONE : STONE, s.x, s.y0 + h / 2, s.z);
+        return;
+      case 'navewall':
+        if (s.hw > s.hd) this.naveWall(s.x - s.hw, s.x + s.hw, s.z > 0 ? 2 * s.x : 0, s.z - Math.sign(s.z) * s.hd + (s.z > 0 ? 0 : 0), s.z > 0 ? Math.PI : 0);
+        else this.naveWall(-s.hd, s.hd, s.x + s.hw, 0, Math.PI / 2);
+        return;
+      case 'pillar':
+        return this.pillar(s.x, s.z, s.y1 - 0.9);
+      case 'pew':
+        return this.pew(s);
+      case 'dais':
+        this.add(stoneBox(s.hw * 2, h, s.hd * 2, 91, 0.02), STONE, s.x, s.y0 + h / 2, s.z);
+        return;
+      case 'altar':
+        this.add(stoneBox(s.hw * 2, h, s.hd * 2, 77, 0.03), STONE, s.x, s.y0 + h / 2, s.z);
+        for (let i = 0; i < 5; i++) this.candle(s.x - 0.3 + (i % 2) * 0.5, s.y1, s.z - 1.2 + i * 0.6);
+        return;
+      case 'merlon': {
+        const m = this.add(stoneBox(s.hw * 2, h, s.hd * 2, s.x * 5, 0.05), STONE, s.x, s.y0 + h / 2, s.z);
+        m.rotation.set(this.rng.range(-0.04, 0.04), this.rng.range(-0.15, 0.15), this.rng.range(-0.05, 0.05));
+        return;
+      }
+      case 'rampart':
+        // the gatehouse block: its face runs down the whole height of the wall
+        this.add(stoneBox(s.hw * 2, h + 24, s.hd * 2 + 0.4, 55, 0.05), DARK_STONE, s.x, s.y1 - (h + 24) / 2, s.z);
+        for (let x = s.x - s.hw + 0.5; x < s.x + s.hw; x += 1.6) for (const side of [-1, 1]) this.add(stoneBox(0.9, 0.9, 0.5, x * 5 + side, 0.04), STONE, x, s.y1 + 0.45, side * (s.hd + 0.3));
+        return;
       case 'walk':
-        return this.raisedWalk(s);
+        return this.raisedWalk(s, Math.sign(s.x) || 1); // the outer edge faces away from the hearth
       case 'step': {
         const m = this.add(stoneBox(s.hw * 2, h, s.hd * 2, s.x * 5 + s.z, 0.05), STONE, s.x, s.y0 + h / 2, s.z);
         m.rotation.y = s.ry;
@@ -680,6 +715,66 @@ export class LevelView {
         if (s.kind === 'box') this.masonry(s);
         else this.add(column(s.hw * 0.95, s.hw, h, s.x * 3), STONE, s.x, s.y0 + h / 2, s.z);
     }
+  }
+
+  /**
+   * The hearth's hut roof: tie beams on the posts, two shingled slopes up to a ridge, gable ends, and a louvre on
+   * the ridge so the fire's smoke can get out while the rain cannot get in.
+   */
+  private hutRoof(s: Solid): void {
+    const g = new THREE.Group();
+    g.position.set(s.x, 0, s.z);
+    g.rotation.y = s.ry;
+    const W = HUT.w;
+    const D = HUT.d;
+    const eave = HUT.eave;
+    const rise = HUT.ridge - eave;
+    const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, rx = 0) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      m.rotation.x = rx;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      g.add(m);
+      return m;
+    };
+    // tie beams around the top of the posts
+    for (const z of [-D / 2 + 0.35, D / 2 - 0.35]) add(stoneBox(W - 0.3, 0.22, 0.24, z * 5, 0.01), TIMBER, 0, eave - 0.1, z);
+    for (const x of [-2.55, 2.55]) add(stoneBox(0.24, 0.22, D - 0.6, x * 5, 0.01), TIMBER, x, eave - 0.1, 0);
+    // two slopes of overlapping shingle rows (eaves overhang the posts)
+    const half = D / 2 + 0.25;
+    const slope = Math.hypot(half, rise);
+    const ang = Math.atan2(rise, half);
+    const rows = 8;
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < rows; i++) {
+        const f = (i + 0.5) / rows;
+        const z = side * half * (1 - f);
+        const y = eave + rise * f + 0.05;
+        const m = add(stoneBox(W + 0.5, 0.07, slope / rows + 0.18, i * 13 + side, 0.008), ROOF, this.rng.range(-0.04, 0.04), y, z, side * ang);
+        m.rotation.z = this.rng.range(-0.012, 0.012);
+      }
+      // rafters under each slope, lit by the fire from below
+      for (let x = -W / 2 + 0.3; x <= W / 2 - 0.2; x += 0.95) {
+        add(stoneBox(0.12, 0.14, slope, x * 3 + side, 0.004), TIMBER, x, eave + rise / 2 - 0.12, (side * half) / 2, side * ang);
+      }
+    }
+    add(stoneBox(W + 0.6, 0.2, 0.22, 7, 0.01), TIMBER, 0, HUT.ridge + 0.05, 0); // ridge beam
+    // gable ends: timber triangles, open below the beam
+    const tri = new THREE.Shape();
+    tri.moveTo(-half, 0);
+    tri.lineTo(half, 0);
+    tri.lineTo(0, rise);
+    tri.closePath();
+    for (const x of [-W / 2 + 0.05, W / 2 - 0.05]) {
+      const m = add(new THREE.ExtrudeGeometry(tri, { depth: 0.08, bevelEnabled: false }), TIMBER, x, eave, 0);
+      m.rotation.y = Math.PI / 2;
+      m.position.x = x - 0.04;
+    }
+    // the smoke louvre: a little roof over a gap in the ridge
+    for (const side of [-1, 1]) add(stoneBox(1.4, 0.06, 0.55, side * 3, 0.006), ROOF, 0, HUT.ridge + 0.42, side * 0.22, side * 0.5);
+    for (const x of [-0.6, 0.6]) add(stoneBox(0.08, 0.38, 0.08, x * 9, 0.004), TIMBER, x, HUT.ridge + 0.22, 0);
+    this.target.add(g);
   }
 
   /** Coursed masonry, broken along the top, laid along a (rotated) wall. */
@@ -721,7 +816,7 @@ export class LevelView {
       m.castShadow = true;
       g.add(m);
     }
-    this.group.add(g);
+    this.target.add(g);
   }
 
   /** A fluted column: tall ones keep a capital, short ones are broken with a fallen drum beside them. */
@@ -739,11 +834,16 @@ export class LevelView {
     }
   }
 
-  /** A raised stone walk on piers: slab, a balustrade along its outer edge, corbels beneath. */
-  private raisedWalk(s: Solid): void {
+  /**
+   * A raised stone walk: slab, a balustrade along its long open edge, corbels beneath. `out` (+1/-1) says which side
+   * of its short axis the balustrade runs on.
+   */
+  private raisedWalk(s: Solid, out: number): void {
     const g = new THREE.Group();
     g.position.set(s.x, 0, s.z);
-    g.rotation.y = s.ry;
+    // build with the long side along local z; turn it when the walk runs along x
+    const alongX = s.hw > s.hd;
+    g.rotation.y = s.ry + (alongX ? Math.PI / 2 : 0);
     const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number) => {
       const m = new THREE.Mesh(geo, STONE);
       m.position.set(x, y, z);
@@ -751,14 +851,14 @@ export class LevelView {
       m.receiveShadow = true;
       g.add(m);
     };
-    const W = s.hw * 2;
-    const D = s.hd * 2;
+    const W = (alongX ? s.hd : s.hw) * 2;
+    const D = (alongX ? s.hw : s.hd) * 2;
     add(stoneBox(W, s.y1 - s.y0, D, s.x * 3, 0.03), 0, s.y0 + (s.y1 - s.y0) / 2, 0);
-    const out = Math.sign(s.x) || 1; // the outer edge faces away from the hearth
+    if (alongX) out = -out; // local x is world -z after the quarter turn
     for (let z = -D / 2 + 0.3; z < D / 2; z += 0.42) add(new THREE.CylinderGeometry(0.06, 0.08, 0.75, 12), out * (W / 2 - 0.15), s.y1 + 0.37, z);
     add(stoneBox(0.24, 0.1, D, s.x + 3, 0.01), out * (W / 2 - 0.15), s.y1 + 0.8, 0);
     for (let z = -D / 2 + 1.2; z < D / 2; z += 2.4) add(stoneBox(1.4, 0.6, 0.35, z + s.x, 0.03), 0, s.y0 - 0.3, z);
-    this.group.add(g);
+    this.target.add(g);
   }
 
   /** The hearth's great broken arch (its piers are sim solids), and fallen voussoirs. */
@@ -815,7 +915,7 @@ export class LevelView {
     g.scale.setScalar(1.25);
     g.position.set(x, 0, z);
     g.rotation.y = -Math.atan2(-z, -x); // local +x (its face) toward the hearth
-    this.group.add(g);
+    this.target.add(g);
   }
 
   private groundsBanners(): void {
@@ -831,11 +931,11 @@ export class LevelView {
       const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, s.h, 14), pole);
       p.position.set(s.x, s.h / 2, s.z);
       p.castShadow = true;
-      this.group.add(p);
+      this.target.add(p);
       const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.3, 10), pole);
       bar.rotation.z = Math.PI / 2;
       bar.position.set(s.x + 0.55, s.h - 0.15, s.z);
-      this.group.add(bar);
+      this.target.add(bar);
       const geo = new THREE.PlaneGeometry(1.1, 3, 4, 12);
       geo.translate(0.55, -1.5, 0);
       const mat = rimify(
@@ -847,7 +947,7 @@ export class LevelView {
       m.position.set(s.x + 0.05, s.h - 0.2, s.z);
       m.castShadow = true;
       m.customDistanceMaterial = new THREE.MeshDistanceMaterial({ alphaMap: tat, alphaTest: 0.5 });
-      this.group.add(m);
+      this.target.add(m);
       this.banners.push({ mesh: m, base: Float32Array.from(geo.attributes.position.array as Float32Array), seed: i * 2.3 });
     }
   }

@@ -8,20 +8,26 @@ export interface Shot {
   dist: number;
   lookY: number;
   fov: number;
+  lead?: number; // look this far ahead of the target along +x (the road): reveals look into the place he enters
 }
 
 export const CARD_SHOT: Shot = { yaw: 0.85, height: 7.5, dist: 21, lookY: 2.6, fov: 34 };
 export const TITLE_SHOT: Shot = { yaw: -0.32, height: 1.25, dist: 7.6, lookY: 2.1, fov: 38 };
 export const MIDNIGHT_SHOT: Shot = { yaw: -0.5, height: 1.5, dist: 7.5, lookY: 1.7, fov: 34 };
 export const DAWN_SHOT: Shot = { yaw: 0.28, height: 3.4, dist: 19, lookY: 3.2, fov: 36 };
-/** First sight of each place: wide, high or looking up, while play continues. */
+/** The hour card on the road: high behind him, looking down the street (or the nave, or along the wall). */
+export const ROAD_CARD_SHOT: Shot = { yaw: -1.25, height: 9, dist: 16, lookY: 2.6, fov: 44, lead: 6 };
+/**
+ * First sight of each place, while play continues: a crane over the street, a high look across the market, low and
+ * looking up the nave, out over the drop beside the wall. yaw -PI/2 is straight behind him on the road.
+ */
 export const REVEAL_SHOTS: Record<string, Shot> = {
-  street: { yaw: 0.5, height: 5.2, dist: 21, lookY: 3.4, fov: 40 },
-  market: { yaw: 0.62, height: 6.5, dist: 23, lookY: 3.2, fov: 40 },
-  nave: { yaw: 0.12, height: 1.6, dist: 19, lookY: 7.2, fov: 46 },
-  apse: { yaw: -0.38, height: 2.6, dist: 21, lookY: 8.5, fov: 44 },
-  rampart: { yaw: 0.72, height: 7.5, dist: 24, lookY: 2.8, fov: 40 },
-  gatehouse: { yaw: 0.55, height: 4.5, dist: 25, lookY: 7, fov: 42 },
+  street: { yaw: -1.35, height: 7, dist: 11, lookY: 2.5, fov: 52, lead: 9 },
+  market: { yaw: -1.0, height: 9.5, dist: 13, lookY: 1, fov: 55, lead: 9 },
+  nave: { yaw: -1.5708, height: 1.2, dist: 5, lookY: 9, fov: 62, lead: 12 },
+  apse: { yaw: -1.75, height: 2.5, dist: 7, lookY: 10, fov: 58, lead: 14 },
+  rampart: { yaw: -0.6, height: 6, dist: 12, lookY: 0, fov: 50, lead: 6 },
+  gatehouse: { yaw: -1.3, height: 3, dist: 9, lookY: 9, fov: 55, lead: 12 },
 };
 export const ENDING_SHOT: Shot = { yaw: -0.35, height: 1.8, dist: 8, lookY: 2.0, fov: 36 };
 
@@ -48,6 +54,7 @@ export class CameraRig {
   private trauma = 0;
   private punch = 0;
   private boom = FOLLOW.dist; // current follow distance after wall pull-in (eased)
+  private shoulder = FOLLOW.shoulder; // current shoulder offset after wall pull-in (eased)
   shakeScale = 1;
   orbit = 0; // extra slow yaw drift for title/cards
   zoom = 1; // <1 leans in (combat), eased
@@ -125,7 +132,7 @@ export class CameraRig {
     const yaw = s.yaw + this.orbit;
     const t = this.target;
     out.pos.set(t.x + Math.sin(yaw) * s.dist, s.height + t.y * 0.8, t.z + Math.cos(yaw) * s.dist);
-    out.look.set(t.x, s.lookY + t.y * 0.8, t.z);
+    out.look.set(t.x + (s.lead ?? 0), s.lookY + t.y * 0.8, t.z);
     out.fov = s.fov;
   }
 
@@ -133,17 +140,20 @@ export class CameraRig {
     const t = this.target;
     const fx = Math.cos(this.yaw);
     const fz = Math.sin(this.yaw);
-    // pivot: his head height, nudged over the right shoulder
-    const px = t.x - fz * FOLLOW.shoulder;
+    // pivot: his head height, nudged over the right shoulder (less of it when a wall stands at that shoulder)
     const py = t.y + FOLLOW.height;
-    const pz = t.z + fx * FOLLOW.shoulder;
+    const sh = firstHit(solids, t.x, py, t.z, t.x - fz * (FOLLOW.shoulder + 0.4), py, t.z + fx * (FOLLOW.shoulder + 0.4));
+    const shoulderWant = sh < 1 ? Math.max(0, sh * (FOLLOW.shoulder + 0.4) - 0.4) : FOLLOW.shoulder;
+    this.shoulder += (shoulderWant - this.shoulder) * Math.min(1, dt * (shoulderWant < this.shoulder ? 14 : 3));
+    const px = t.x - fz * this.shoulder;
+    const pz = t.z + fx * this.shoulder;
     const cp = Math.cos(this.pitch);
     const want = (this.torch ? FOLLOW.torchDist : FOLLOW.dist) * this.zoom;
     const bx = -fx * cp;
     const by = Math.sin(this.pitch);
     const bz = -fz * cp;
     // a wall between him and the camera pulls it in (fast), and it eases back out (slowly)
-    const hit = firstHit(solids, t.x, py, t.z, px + bx * (want + 0.3), py + by * (want + 0.3), pz + bz * (want + 0.3));
+    const hit = firstHit(solids, px, py, pz, px + bx * (want + 0.3), py + by * (want + 0.3), pz + bz * (want + 0.3));
     const room = hit < 1 ? Math.max(0.9, hit * (want + 0.3) - 0.35) : want;
     this.boom += (room - this.boom) * Math.min(1, dt * (room < this.boom ? 18 : 3));
     const d = Math.min(this.boom, want);

@@ -15,6 +15,7 @@ export interface SkyKey {
   stars: number; // 0..1
   disc?: number; // sun/moon disc radius on the sky (0 = none)
   fogDensity?: number; // default 0.022
+  glowAz?: number; // where the glow sits around the horizon, angle on x/z (default: over the arch, north-east of -z)
 }
 
 export interface Chapter {
@@ -29,6 +30,7 @@ export interface Chapter {
   mix: { shade: number; crawler: number; lantern: number }; // spawn weights
   memory: string; // revealed on the card after the hour is survived
   bigAt?: number; // progress (0..1) at which a great shade rises
+  rain: number; // 0..1 how hard it rains this hour (the hearth's hut keeps its fire dry)
   lightHeight: number; // flame height in metres; lower = longer shadows
   lightRadius: number;
   spawnEvery: [number, number]; // seconds between spawns at start and end of the hour
@@ -48,6 +50,7 @@ export const WALLS: Wall[] = [
 export const CHAPTERS: Chapter[] = [
   {
     id: '7pm',
+    rain: 0.3,
     mix: { shade: 1, crawler: 0, lantern: 0 },
     level: 'grounds',
     clock: '7 PM',
@@ -67,6 +70,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '9pm',
+    rain: 0.45,
     mix: { shade: 0.75, crawler: 0.25, lantern: 0 },
     level: 'grounds',
     clock: '9 PM',
@@ -86,6 +90,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '11pm',
+    rain: 0.55,
     mix: { shade: 0.6, crawler: 0.25, lantern: 0.15 },
     level: 'grounds',
     clock: '11 PM',
@@ -105,6 +110,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '1am',
+    rain: 0.5,
     mix: { shade: 0.5, crawler: 0.3, lantern: 0.2 },
     level: 'lowerCity',
     clock: '1 AM',
@@ -124,6 +130,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '3am',
+    rain: 0.7,
     mix: { shade: 0.45, crawler: 0.3, lantern: 0.25 },
     level: 'cathedral',
     clock: '3 AM',
@@ -143,6 +150,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '5am',
+    rain: 0.22,
     mix: { shade: 0.4, crawler: 0.35, lantern: 0.25 },
     level: 'cityWall',
     clock: '5 AM',
@@ -158,11 +166,11 @@ export const CHAPTERS: Chapter[] = [
     maxShades: 9,
     shadeHp: 4,
     shadeSpeed: 2.5,
-    sky: { top: '#141a3a', horizon: '#7a5a78', glow: '#ffc9a8', glowY: -0.75, fog: '#2a2236', stars: 0.4 },
+    sky: { top: '#141a3a', horizon: '#7a5a78', glow: '#ffc9a8', glowY: -0.75, fog: '#2a2236', stars: 0.4, glowAz: 0 },
   },
 ];
 
 /** Sky for the dawn finale / ending. */
-export const DAWN_SKY: SkyKey = { top: '#33507f', horizon: '#f2a070', glow: '#ffe6b8', glowY: -0.08, fog: '#4a3848', stars: 0, disc: 0.075, fogDensity: 0.014 };
+export const DAWN_SKY: SkyKey = { top: '#33507f', horizon: '#f2a070', glow: '#ffe6b8', glowY: -0.08, fog: '#4a3848', stars: 0, disc: 0.075, fogDensity: 0.014, glowAz: 0 };
 /** Sky for the midnight cutscene: almost nothing left. */
 export const MIDNIGHT_SKY: SkyKey = { top: '#030308', horizon: '#0d0b18', glow: '#6a6f9a', glowY: 0.95, fog: '#08070f', stars: 0.8, disc: 0.04 };

@@ -3,6 +3,7 @@ import { CFG } from '../config';
 import { CHAPTERS } from '../data/chapters';
 import { LEVELS } from '../data/levels';
 import { inArea, overlaps } from './geom';
+import { botInput } from './bot';
 import { NO_INPUT, World, type Input } from './world';
 
 const press = (p: Partial<Input>): Input => ({ ...NO_INPUT, ...p });
@@ -46,6 +47,29 @@ describe('levels', () => {
     for (let i = 0; i < 60; i++) w.step(press({ jumpHeld: true, mx: -0.35 }));
     expect(w.knight.y).toBeCloseTo(2.7);
   });
+});
+
+describe('the road is passable', () => {
+  it('every checkpoint is open ground on the centre line', () => {
+    for (const lv of Object.values(LEVELS)) {
+      for (const x of lv.checkpoints) expect(lv.solids.some((s) => s.y0 < CFG.knight.h && overlaps(s, x, 0, CFG.knight.r)), `${lv.id} @ ${x}`).toBe(false);
+    }
+  });
+
+  for (const level of ['lowerCity', 'cathedral', 'cityWall']) {
+    it(`the bot walks ${level} from start to end`, () => {
+      const w = quiet(new World(chapter(level), 4));
+      if (w.level.bossAt !== undefined) {
+        w.spawning = true; // the Marshal must rise and fall
+        w.spawnT = 1e9;
+      }
+      for (let i = 0; i < 60 * 150 && w.status === 'playing'; i++) {
+        w.knight.iframes = 1e9;
+        w.step(botInput(w));
+      }
+      expect(w.status, `${level}: stuck at x=${w.knight.x.toFixed(1)} z=${w.knight.z.toFixed(1)} y=${w.knight.y.toFixed(1)}`).toBe('cleared');
+    });
+  }
 });
 
 describe('embers', () => {
