@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BloomEffect, EffectComposer, EffectPass, NoiseEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
 import type { SkyKey } from '../data/chapters';
 import { AuraEffect } from './auraEffect';
+import { batchStatic } from './batch';
 import { Rng } from '../sim/rng';
 import { RIM, rimify } from './rim';
 import { rock } from './shapes';
@@ -130,7 +131,7 @@ export class Stage {
     this.composer = new EffectComposer(this.renderer, { frameBufferType: THREE.HalfFloatType });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     // the knight's aura: living shadow-fire around his whole silhouette (not every limb), added before bloom so it glows
-    this.aura = new AuraEffect(this.scene, this.camera);
+    this.aura = new AuraEffect(this.camera);
     this.composer.addPass(new EffectPass(this.camera, this.aura));
     this.bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.85, luminanceSmoothing: 0.25, intensity: 1.15, radius: 0.7 });
     const grain = new NoiseEffect({ premultiply: true });
@@ -245,14 +246,17 @@ export class Stage {
     this.scene.add(ground);
     const rng = new Rng(8);
     const rockMat = rimify(new THREE.MeshStandardMaterial({ color: SILHOUETTE, roughness: 1 }), 0.5, 'rock');
+    const rocks = new THREE.Group();
     for (let i = 0; i < 120; i++) {
       const s = rng.range(0.15, 0.5);
       const m = new THREE.Mesh(rock(s, i * 3.7), rockMat);
       m.position.set(rng.range(-60, 130), s * 0.1, rng.range(1.9, 3.2));
       m.rotation.set(rng.next() * 3, rng.next() * 3, rng.next() * 3);
       m.castShadow = true;
-      this.scene.add(m);
+      rocks.add(m);
     }
+    batchStatic(rocks); // 120 pebbles, a handful of draws
+    this.scene.add(rocks);
   }
 
   /** Flat silhouette skylines at several depths; fog does the layering. A dead kingdom's cathedral and towers. */

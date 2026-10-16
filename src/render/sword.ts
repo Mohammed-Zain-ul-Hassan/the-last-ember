@@ -122,9 +122,9 @@ export interface SwordParts {
 export function buildSword(steel: THREE.Material, grip: THREE.Material): SwordParts {
   const group = new THREE.Group();
   const meshes: THREE.Mesh[] = [];
-  const add = <T extends THREE.Mesh>(m: T, x = 0, y = 0, z = 0): T => {
+  const add = <T extends THREE.Mesh>(m: T, x = 0, y = 0, z = 0, shadow = false): T => {
     m.position.set(x, y, z);
-    m.castShadow = true;
+    m.castShadow = shadow; // only the blade and guard are big enough to read in a shadow
     group.add(m);
     meshes.push(m);
     return m;
@@ -148,14 +148,14 @@ export function buildSword(steel: THREE.Material, grip: THREE.Material): SwordPa
   add(new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.075), steel), 0, -0.115, 0);
   for (const s of [1, -1]) {
     const pts = [[0.04, 0], [0.12, 0.012], [0.2, -0.01], [0.25, -0.06], [0.262, -0.125]].map(([x, y]) => new THREE.Vector3(x * s, y, 0));
-    add(new THREE.Mesh(taperTube(pts, 0.026, 0.38, 20, 10), steel), 0, -0.115, 0);
+    add(new THREE.Mesh(taperTube(pts, 0.026, 0.38, 20, 10), steel), 0, -0.115, 0, true);
   }
   // langet: a steel point that runs a little way down the blade over the ricasso
   const langet = add(new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.15, 4), steel), 0, -0.2, 0);
   langet.rotation.set(Math.PI, Math.PI / 4, 0);
   langet.scale.z = 0.45;
 
-  const blade = add(new THREE.Mesh(bladeGeometry(), bladeMaterial()), 0, BLADE_ROOT, 0);
+  const blade = add(new THREE.Mesh(bladeGeometry(), bladeMaterial()), 0, BLADE_ROOT, 0, true);
 
   // the blade lights the ground around him in its own colour
   const light = new THREE.PointLight(0x8a5cff, 0, 4.5, 2);

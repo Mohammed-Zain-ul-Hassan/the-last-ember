@@ -828,14 +828,15 @@ function ambient(dt: number): void {
       const lo = Math.max(a, rig.x - 16);
       const hi = Math.min(b, rig.x + 16);
       if (hi - lo < 0.3) continue;
-      const rate = dt * (hi - lo) * 3.2;
+      // fewer, denser puffs: the same mist for ~40% of the overdraw (this was most of the frame on integrated GPUs)
+      const rate = dt * (hi - lo) * 1.3;
       for (let i = 0; i < rate + (Math.random() < rate % 1 ? 1 : 0); i++) {
         smoke.emit({
           x: lo + Math.random() * (hi - lo), y: 0.05, z: (Math.random() - 0.5) * 2.4,
           vx: (Math.random() - 0.5) * 0.2, vy: 0.22, spread: 0.08, life: 2.6, size: 1.0, sizeEnd: 1.9,
-          r: 0.035, g: 0.015, b: 0.07, alpha: 0.3, drag: 0.3,
+          r: 0.035, g: 0.015, b: 0.07, alpha: 0.55, drag: 0.3,
         });
-        if (Math.random() < 0.08)
+        if (Math.random() < 0.2)
           glow.emit({ x: lo + Math.random() * (hi - lo), y: 0.1, z: (Math.random() - 0.5) * 2, vy: 0.35, spread: 0.05, life: 2.2, size: 0.05, sizeEnd: 0.01, r: 0.9, g: 0.4, b: 2.2, wobble: 0.3 });
       }
     }

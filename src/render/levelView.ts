@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Wall } from '../data/chapters';
 import type { Level, Platform, RegionKind } from '../data/levels';
 import { Rng } from '../sim/rng';
+import { batchStatic } from './batch';
 import { Flame } from './flame';
 import { rimify } from './rim';
 import { column, stoneBox } from './shapes';
@@ -72,6 +73,8 @@ export class LevelView {
     for (const s of level.shrines) this.buildShrine(s.x, s.y);
     for (const x of level.checkpoints) this.buildBrazier(x);
     if (level.end !== undefined) this.buildGate(level.end, level.bossAt !== undefined);
+    // hundreds of fixed stones become a few dozen draws (main pass and every face of the hearth's shadow cube)
+    batchStatic(this.group, [...(this.gate ? [this.gate] : []), ...this.shrines.map((s) => s.root), ...this.banners.map((b) => b.mesh)]);
   }
 
   private add(geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, ry = 0, rz = 0): THREE.Mesh {

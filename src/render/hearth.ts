@@ -65,7 +65,7 @@ export class Hearth {
     this.light.castShadow = true;
     this.light.shadow.mapSize.set(1024, 1024);
     this.light.shadow.camera.near = 0.3;
-    this.light.shadow.camera.far = 40;
+    this.light.shadow.camera.far = 24; // past this its light is faint: no need to draw far stones into the shadow cube
     this.light.shadow.bias = -0.004;
     this.light.shadow.radius = 3;
     this.group.add(this.light);

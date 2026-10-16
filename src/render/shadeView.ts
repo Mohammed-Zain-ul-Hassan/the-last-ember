@@ -61,10 +61,10 @@ class ShadeMesh {
     this.robeBase = Float32Array.from(robeGeo.attributes.position.array as Float32Array);
     this.body.add(this.robe);
 
-    const m = (g: THREE.BufferGeometry, parent: THREE.Object3D, x: number, y: number, z: number) => {
+    const m = (g: THREE.BufferGeometry, parent: THREE.Object3D, x: number, y: number, z: number, shadow = true) => {
       const o = new THREE.Mesh(g, this.mat);
       o.position.set(x, y, z);
-      o.castShadow = true;
+      o.castShadow = shadow; // claws and forearms are too thin to read in a shadow: not worth six cube-face redraws
       parent.add(o);
       return o;
     };
@@ -95,11 +95,11 @@ class ShadeMesh {
       const arm = new THREE.Group();
       arm.position.set(0.12, 1.42, z);
       m(new THREE.CylinderGeometry(0.06, 0.15, 0.55, 18, 1, true), arm, 0, -0.27, 0); // sleeve
-      m(new THREE.CylinderGeometry(0.028, 0.045, 0.55, 12), arm, 0, -0.75, 0); // forearm
+      m(new THREE.CylinderGeometry(0.028, 0.045, 0.55, 12), arm, 0, -0.75, 0, false); // forearm
       for (let i = 0; i < 3; i++) {
         const claw = new THREE.ConeGeometry(0.022, 0.42, 10);
         claw.translate(0, -0.21, 0);
-        const c = m(claw, arm, 0.02, -1.0, (i - 1) * 0.045);
+        const c = m(claw, arm, 0.02, -1.0, (i - 1) * 0.045, false);
         c.rotation.z = (i - 1) * 0.28 + 0.35;
       }
       this.body.add(arm);

@@ -23,6 +23,7 @@ export interface AuraLayer {
 
 /** What the aura wraps and how it burns this frame. The knight's view owns one and updates it every frame. */
 export interface AuraSource {
+  root: THREE.Object3D; // his whole rig: the mask passes draw only this subtree, never the rest of the scene
   bodyMeshes: THREE.Mesh[];
   swordMeshes: THREE.Mesh[];
   swordRoot: THREE.Object3D; // the sword's frame: a fast swing is motion-blurred between its last two transforms
@@ -137,7 +138,6 @@ const FRAG = /* glsl */ `
 
 export class AuraEffect extends Effect {
   source: AuraSource | null = null;
-  private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private mask: THREE.WebGLRenderTarget;
   private feed: [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget];
@@ -160,7 +160,7 @@ export class AuraEffect extends Effect {
   private warmed = false;
   private aspect = 16 / 9;
 
-  constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+  constructor(camera: THREE.PerspectiveCamera) {
     const u = (v: unknown) => new THREE.Uniform(v);
     super('AuraEffect', FRAG, {
       attributes: EffectAttribute.DEPTH,
@@ -172,7 +172,6 @@ export class AuraEffect extends Effect {
         ['uCenter', u(new THREE.Vector2(0.5, 0.5))], ['uScale', u(0.2)], ['uAspect', u(16 / 9)], ['uClock', u(0)],
       ]),
     });
-    this.scene = scene;
     this.camera = camera;
     this.mask = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true });
     this.mask.texture.generateMipmaps = false;
@@ -261,7 +260,7 @@ export class AuraEffect extends Effect {
       }
       cam.layers.set(LAYER);
       renderer.setRenderTarget(this.mask);
-      renderer.render(this.scene, cam);
+      renderer.render(src.root, cam);
       cam.layers.mask = prevLayers;
       src.smearMeshes.forEach((m, i) => (m.material = saved[i]));
     }
@@ -276,7 +275,7 @@ export class AuraEffect extends Effect {
     cam.layers.set(LAYER);
     renderer.setRenderTarget(this.mask);
     renderer.clear(true, true, false);
-    renderer.render(this.scene, cam);
+    renderer.render(src.root, cam);
     if (dt > 0) this.smearSword(renderer, src);
     if (keep) keep.visible = wasVisible;
     cam.layers.mask = prevLayers;
@@ -351,21 +350,21 @@ export class AuraEffect extends Effect {
     for (const m of src.swordMeshes) if (!meshes.includes(m)) m.layers.disable(LAYER);
     for (const m of meshes) m.material = this.smearMat; // the caller restores the real materials
     const autoClear = renderer.autoClear;
-    const autoWorld = this.scene.matrixWorldAutoUpdate;
+    const autoWorld = src.root.matrixWorldAutoUpdate;
     renderer.autoClear = false;
-    this.scene.matrixWorldAutoUpdate = false;
+    src.root.matrixWorldAutoUpdate = false;
     for (let i = 0; i < n; i++) {
       const w = i / n; // 0 = oldest, fading toward the blade's tail
       const f = 1 - span + span * w;
       this.smearMat.color.setRGB(0, w * 0.9, 0);
       _m.compose(_pm.lerpVectors(_p1, _p0, f), _qm.slerpQuaternions(_q1, _q0, f), _sm.lerpVectors(_s1, _s0, f));
       meshes.forEach((m, j) => m.matrixWorld.multiplyMatrices(_m, this.rel[j]));
-      renderer.render(this.scene, this.camera);
+      renderer.render(src.root, this.camera);
     }
     // put every smeared mesh back where it really is
     meshes.forEach((m, j) => m.matrixWorld.multiplyMatrices(cur, this.rel[j]));
     renderer.autoClear = autoClear;
-    this.scene.matrixWorldAutoUpdate = autoWorld;
+    src.root.matrixWorldAutoUpdate = autoWorld;
     for (const m of src.bodyMeshes) m.layers.enable(LAYER);
     for (const m of src.swordMeshes) m.layers.enable(LAYER);
   }

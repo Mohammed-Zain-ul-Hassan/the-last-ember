@@ -22,17 +22,18 @@ const STEEL = rimify(new THREE.MeshStandardMaterial({ color: 0x1d1c26, roughness
 const EYE = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 2.2, 4.8), toneMapped: false, transparent: true });
 const FADERS: THREE.Material[] = [STEEL, EYE]; // materials the dawn dissolve fades (the sword adds its own)
 
-function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
+function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, shadow = true): THREE.Mesh {
   const m = new THREE.Mesh(geo, mat);
   m.position.set(x, y, z);
-  m.castShadow = true;
+  m.castShadow = shadow;
   return m;
 }
 
 function limb(len: number, r0: number, r1 = r0 * 0.8, mat: THREE.Material = BODY): { pivot: THREE.Group; end: THREE.Group } {
   const pivot = new THREE.Group();
   pivot.add(mesh(new THREE.CylinderGeometry(r1, r0, len, 18, 1), mat, 0, -len / 2, 0));
-  pivot.add(mesh(new THREE.SphereGeometry(r0 * 1.05, 18, 12), mat));
+  // joint balls hide inside the limb's own shadow: not worth six cube-face redraws each
+  pivot.add(mesh(new THREE.SphereGeometry(r0 * 1.05, 18, 12), mat, 0, 0, 0, false));
   const end = new THREE.Group();
   end.position.y = -len;
   pivot.add(end);
@@ -227,7 +228,7 @@ export class KnightView {
       const shin = limb(0.54, 0.1, 0.13);
       thigh.pivot.position.set(0, 1.1, z);
       thigh.end.add(shin.pivot);
-      shin.end.add(mesh(new RoundedBoxGeometry(0.34, 0.1, 0.17, 2, 0.035), BODY, 0.08, 0.03, 0));
+      shin.end.add(mesh(new RoundedBoxGeometry(0.34, 0.1, 0.17, 2, 0.035), BODY, 0.08, 0.03, 0, false));
       this.body.add(thigh.pivot);
       this.legs.push({ thigh: thigh.pivot, knee: shin.pivot });
     }
@@ -240,9 +241,9 @@ export class KnightView {
     for (const z of [0.33, -0.33]) {
       const p1 = mesh(new THREE.SphereGeometry(0.24, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.6), BODY, -0.03, 0.78, z);
       p1.scale.set(1.3, 1.0, 1.05);
-      const p2 = mesh(new THREE.SphereGeometry(0.2, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), BODY, -0.05, 0.68, z * 1.08);
+      const p2 = mesh(new THREE.SphereGeometry(0.2, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), BODY, -0.05, 0.68, z * 1.08, false);
       p2.scale.set(1.25, 0.9, 1);
-      const spike = mesh(new THREE.ConeGeometry(0.05, 0.3, 12), BODY, -0.08, 0.99, z);
+      const spike = mesh(new THREE.ConeGeometry(0.05, 0.3, 12), BODY, -0.08, 0.99, z, false);
       spike.rotation.z = 0.5;
       this.chest.add(p1, p2, spike);
     }
@@ -335,6 +336,7 @@ export class KnightView {
 
     const A = HERO.aura;
     this.aura = {
+      root: this.root,
       bodyMeshes: [...this.parts, this.cape],
       swordMeshes: this.sword.meshes,
       swordRoot: this.sword.group,
