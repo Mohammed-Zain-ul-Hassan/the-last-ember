@@ -1,9 +1,16 @@
 // Player settings and per-level bests, kept in localStorage (it can be missing or throw: then nothing persists).
 
+export type Quality = 'auto' | 'high' | 'medium' | 'low';
 export interface Settings {
-  volume: number; // 0..1
-  shake: number; // 1 full, 0.5 reduced, 0 off
+  volume: number; // master, 0..1
+  music: number; // 0..1
+  sfx: number; // 0..1
+  shake: number; // 0..1 screenshake strength
+  flashes: number; // 0..1 screen flash strength
+  numbers: boolean; // damage numbers over enemies
+  quality: Quality;
 }
+const DEFAULTS: Settings = { volume: 1, music: 0.8, sfx: 1, shake: 1, flashes: 1, numbers: true, quality: 'auto' };
 export interface Best {
   grade: string; // S A B C
   wounds: number;
@@ -14,6 +21,7 @@ const KEY = 'last-ember.v1';
 interface Saved {
   settings: Settings;
   best: Record<string, Best>;
+  reached: number; // furthest level index reached (levels up to it can be chosen)
 }
 
 function load(): Saved {
@@ -21,12 +29,12 @@ function load(): Saved {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const s = JSON.parse(raw) as Partial<Saved>;
-      return { settings: { volume: 1, shake: 1, ...s.settings }, best: s.best ?? {} };
+      return { settings: { ...DEFAULTS, ...s.settings }, best: s.best ?? {}, reached: s.reached ?? 0 };
     }
   } catch {
     // private window or blocked storage: play without saving
   }
-  return { settings: { volume: 1, shake: 1 }, best: {} };
+  return { settings: { ...DEFAULTS }, best: {}, reached: 0 };
 }
 
 const saved = load();
@@ -64,4 +72,20 @@ export function recordBest(level: string, r: Best): boolean {
     save();
   }
   return better;
+}
+
+/** Furthest level reached; every level up to it can be chosen from the menu. */
+export function reached(): number {
+  return saved.reached;
+}
+export function markReached(i: number): void {
+  if (i <= saved.reached) return;
+  saved.reached = i;
+  save();
+}
+/** Erase grades and progress (settings stay). */
+export function resetProgress(): void {
+  saved.best = {};
+  saved.reached = 0;
+  save();
 }

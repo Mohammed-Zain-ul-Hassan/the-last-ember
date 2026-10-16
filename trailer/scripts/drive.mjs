@@ -16,10 +16,17 @@ const CLIPS = {
   '03_9pm_shades_rise': { q: 'demo=1&seed=5&chapter=1', secs: 32, setup: 'T.skip(1.4); G.godMode = true', note: '9 PM: shades rising from cast shadows, ink mist, moonlit skyline' },
   '04_11pm_hearth_falters': { q: 'demo=1&seed=6&chapter=2', secs: 28, setup: 'T.skip(1.4); G.godMode = true; T.skip(6); G.world.time = 30', note: '11 PM: low hearth, long shadows, heavy pressure' },
   '05_midnight_torch': { q: 'seed=7', secs: 11, setup: 'T.skip(0.5); G.midnight()', note: 'Midnight cutscene: hearth dies, torch lit from its last flame' },
-  '06_1am_carrying_flame': { q: 'demo=1&seed=8&chapter=3', secs: 32, setup: 'T.skip(1.4); G.godMode = true', note: '1 AM: torch light moves with the knight, shadows swing, fire burst' },
-  '07_3am_great_shade': { q: 'demo=1&seed=9&chapter=4', secs: 38, setup: 'T.skip(1.4); G.godMode = true; T.skip(5); G.world.time = G.world.chapter.duration * 0.4 - 2', note: '3 AM: darkest hour, the great shade rises and falls (slow-mo kill)' },
+  '06_1am_carrying_flame': { q: 'demo=1&seed=8&chapter=3', secs: 32, setup: 'T.skip(4.5); G.godMode = true', note: '1 AM: the lower city road: torch light swings every shadow, rooftops, crawlers, braziers' },
+  '07_3am_great_shade': { q: 'demo=1&seed=9&chapter=4', secs: 38, setup: 'T.skip(4.5); G.godMode = true; G.world.knight.x = 62; T.skip(0.5)', note: '3 AM: the apse, the Hollow Marshal rises, his cry and second phase, slow-mo kill' },
   '08_dawn_light_ending': { q: 'demo=1&seed=10', secs: 34, setup: 'T.skip(0.5); G.dawn()', note: 'Dawn sweep, the choice, stepping into the light, dissolve ending' },
   '09_dawn_shadow_ending': { q: 'seed=11', secs: 26, setup: 'T.skip(0.5); G.dawn(); T.skip(6.2); T.key("KeyA", true)', note: 'Dawn choice: remaining in the shadow of the arch' },
+  '10_memory_oath': { q: 'demo=1&seed=50&chapter=0', secs: 8, setup: 'T.skip(4.5); G.godMode = true; G.world.status = "cleared"; T.skip(0.05)', note: 'Memory: the oath, shadow theatre in the hall' },
+  '11_memory_faces': { q: 'demo=1&seed=51&chapter=1', secs: 8, setup: 'T.skip(4.5); G.godMode = true; G.world.status = "cleared"; T.skip(0.05)', note: 'Memory: their faces at the hearth' },
+  '12_memory_fire_out': { q: 'demo=1&seed=52&chapter=2', secs: 8, setup: 'T.skip(4.5); G.godMode = true; G.world.status = "cleared"; T.skip(0.05)', note: 'Memory: he sleeps, the fire goes out, the light goes cold' },
+  '13_memory_doors': { q: 'demo=1&seed=53&chapter=3', secs: 8, setup: 'T.skip(4.5); G.godMode = true; G.world.status = "cleared"; T.skip(0.05)', note: 'Memory: the doors give, the people run, too late' },
+  '14_memory_shadow': { q: 'demo=1&seed=54&chapter=4', secs: 8, setup: 'T.skip(4.5); G.godMode = true; G.world.status = "cleared"; T.skip(0.05)', note: 'Memory: he becomes the shadow, his eye opens' },
+  '15_5am_city_wall': { q: 'demo=1&seed=55&chapter=5', secs: 30, setup: 'T.skip(4.5); G.godMode = true', note: '5 AM: the wall walk, lantern-eaters and bolts, the climb to the dawn gate' },
+  '16_11pm_embers_charge': { q: 'demo=1&seed=56&chapter=2', secs: 30, setup: 'T.skip(4.5); G.godMode = true; T.skip(8)', note: '11 PM grounds: embers, crawlers, double jumps, charged rends, the hearth marker' },
 };
 
 const args = process.argv.slice(2);

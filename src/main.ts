@@ -1,7 +1,8 @@
 import './style.css';
 import * as THREE from 'three';
-import { initAudio, isMuted, setBeds, setMood, setMuted, setVolume, sfx } from './audio/sfx';
-import { bestFor, gradeFor, recordBest, saveSettings, settings } from './settings';
+import { initAudio, isMuted, setBeds, setMood, setMuted, setVolumes, sfx } from './audio/sfx';
+import { bestFor, gradeFor, markReached, reached, recordBest, resetProgress, saveSettings, settings } from './settings';
+import { Menu } from './ui/menu';
 import { CFG } from './config';
 import { CHAPTERS, DAWN_SKY, MIDNIGHT_SKY } from './data/chapters';
 import { LEVELS } from './data/levels';
@@ -47,7 +48,7 @@ let timeScale = 1;
 let slowT = 0;
 const fx: FxTargets = {
   rig, glow, smoke,
-  flash: (s, c) => hud.flash(s, c),
+  flash: (s, c) => hud.flash(s * settings.flashes, c),
   slowmo: (scale, seconds) => {
     timeScale = scale;
     slowT = seconds;
@@ -70,6 +71,8 @@ const fitParticles = () => {
 window.addEventListener('resize', fitParticles);
 
 type Mode = 'title' | 'intro' | 'play' | 'outro' | 'lost' | 'paused' | 'midnight' | 'dawn' | 'choice' | 'ending' | 'credits';
+const DPR_STEPS = [Math.min(window.devicePixelRatio, 1.5), 1, 0.8]; // auto quality: internal resolution steps
+let dprStep = 0;
 let mode: Mode = 'title';
 let modeT = 0;
 let chapterIndex = Math.max(0, Math.min(CHAPTERS.length - 1, Number(params.get('chapter') ?? 0) || 0));
@@ -171,6 +174,7 @@ function levelComplete(): void {
 
 function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   chapterIndex = i;
+  markReached(i);
   document.getElementById('card')!.classList.remove('dim');
   levelStats.wounds = 0;
   levelStats.embers = 0;
@@ -289,16 +293,15 @@ function journeyEvents(): void {
 }
 
 // ------------------------------------------------------------------ input
-applySettings();
 initInput(stage.renderer.domElement);
 onKey((code) => {
   initAudio();
   if (code === 'KeyM') return setMuted(!isMuted());
+  // Esc opens the menu from anywhere in the game (the title has its own menu; credits go back to it)
+  if ((code === 'Escape' || code === 'KeyP') && mode !== 'title' && mode !== 'paused' && mode !== 'credits') return pause();
   switch (mode) {
     case 'title':
-      sfx('ui');
-      hud.title(false);
-      startChapter(chapterIndex);
+      menu.key(code);
       return;
     case 'intro':
       if (modeT > 0.8) modeT = Math.max(modeT, 3.8);
@@ -319,21 +322,10 @@ onKey((code) => {
       if (modeT > 0.8 && (code === 'KeyR' || code === 'Enter' || code === 'Space')) retry();
       return;
     case 'credits':
-      if (modeT > 1.5 && (code === 'Enter' || code === 'KeyR')) restartAll();
+      if (modeT > 1.5 && (code === 'Enter' || code === 'KeyR' || code === 'Escape')) goTitle();
       return;
     case 'paused':
-      if (code === 'Escape' || code === 'KeyP') {
-        hud.hideCard();
-        setMode(pausedFrom);
-      } else if (code === 'KeyR') startChapter(chapterIndex, true);
-      else if (code === 'KeyV' || code === 'KeyH') {
-        if (code === 'KeyV') settings.volume = settings.volume <= 0.01 ? 1 : Math.round((settings.volume - 0.25) * 100) / 100;
-        else settings.shake = settings.shake === 1 ? 0.5 : settings.shake === 0.5 ? 0 : 1;
-        applySettings();
-        saveSettings();
-        sfx('ui');
-        pauseCard();
-      }
+      menu.key(code);
       return;
     case 'play':
       if (code === 'Escape' || code === 'KeyP') pause();
@@ -345,25 +337,88 @@ window.addEventListener('blur', () => {
   if (mode === 'play' && !DEMO) pause();
 });
 
-const SHAKE_NAMES: Record<number, string> = { 1: 'full', 0.5: 'reduced', 0: 'off' };
-function pauseCard(): void {
-  hud.card('', 'Paused', 'The fire waits for no one, but it will wait for you.', 'Esc to return  ·  R to restart the level  ·  M mute', {
-    eyebrow: levelTitle(chapterIndex),
-    stats: [
-      ['V  ·  volume', `${Math.round(settings.volume * 100)}%`],
-      ['H  ·  screenshake', SHAKE_NAMES[settings.shake] ?? 'full'],
-    ],
-  });
-}
 function applySettings(): void {
-  setVolume(settings.volume);
+  setVolumes(settings.volume, settings.music, settings.sfx);
   rig.shakeScale = settings.shake;
+  worldUi.numbers = settings.numbers;
+  applyQuality();
 }
 
 function pause(): void {
   pausedFrom = mode;
-  pauseCard();
+  hud.hideCard();
+  hud.show(false);
   setMode('paused');
+  menu.open('pause');
+}
+
+// ------------------------------------------------------------------ menus: title, pause, settings, levels
+const menu = new Menu({
+  settings,
+  levels: () =>
+    CHAPTERS.map((c, i) => ({ roman: c.roman, clock: c.clock, title: c.title, place: LEVELS[c.level].name, best: bestFor(c.id)?.grade, locked: i > reached() })),
+  canContinue: () => (reached() > 0 ? `Level ${reached() + 1}  ·  ${CHAPTERS[reached()].title}` : null),
+  context: () => levelTitle(chapterIndex),
+  begin: () => goLevel(0),
+  continue: () => goLevel(reached()),
+  level: (i) => goLevel(i),
+  resume: () => {
+    menu.close();
+    clearInput();
+    if (pausedFrom === 'play') hud.show(true);
+    setMode(pausedFrom);
+  },
+  restart: () => goLevel(chapterIndex),
+  quit: () => goTitle(),
+  changed: () => {
+    applySettings();
+    saveSettings();
+  },
+  resetProgress: () => resetProgress(),
+  sound: () => {
+    initAudio();
+    sfx('ui');
+  },
+});
+
+/** Start a level from a menu: clear any ending, memory or dawn state first. */
+function goLevel(i: number): void {
+  initAudio();
+  menu.close();
+  endMemory();
+  ending = null;
+  stage.dawn = 0;
+  sunEdge = 30;
+  hud.title(false);
+  startChapter(i);
+}
+
+/** Back to the title: the knight kneels at the hearth again. */
+function goTitle(): void {
+  menu.close();
+  endMemory();
+  ending = null;
+  stage.dawn = 0;
+  sunEdge = 30;
+  chapterIndex = 0;
+  world = new World(0, seed);
+  ensureLevel();
+  shadeViews.clear();
+  worldUi.clear();
+  applyPhase(0);
+  setKnightFade(1);
+  hud.hideCard();
+  hud.show(false);
+  hud.choice(false);
+  hud.title(true);
+  stage.setSky(CHAPTERS[0].sky, 1);
+  setMood('night');
+  knight.pose = 'kneel';
+  world.knight.x = -1.7;
+  rig.fitSpan = false;
+  rig.go(TITLE_SHOT, 1.4);
+  setMode('title');
+  menu.open('title');
 }
 
 // ------------------------------------------------------------------ scripted scenes
@@ -557,6 +612,8 @@ stage.setSky(CHAPTERS[0].sky, 1);
 knight.pose = 'kneel';
 world.knight.x = -1.7;
 fitParticles();
+applySettings();
+if (!DEMO) menu.open('title');
 
 let manualClock = false; // trailer capture drives the game with exact steps (tick) instead of rAF
 function frame(now: number): void {
@@ -565,10 +622,17 @@ function frame(now: number): void {
 }
 
 // adaptive quality: if real frames run slow for ~2 s, drop the internal resolution one step (never back up)
-const DPR_STEPS = [Math.min(window.devicePixelRatio, 1.5), 1, 0.8];
-let dprStep = 0;
 let slowFrames = 0;
+/** Fixed quality from settings, or auto (start high, step down if frames run slow). */
+function applyQuality(): void {
+  const q = settings.quality;
+  const r = q === 'high' ? DPR_STEPS[0] : q === 'medium' ? 1 : q === 'low' ? 0.75 : DPR_STEPS[q === 'auto' ? dprStep : 0];
+  stage.setPixelRatio(r);
+  stage.smaa.enabled = q !== 'low' && !(q === 'auto' && dprStep === DPR_STEPS.length - 1);
+  fitParticles();
+}
 function adaptQuality(rawDt: number): void {
+  if (settings.quality !== 'auto') return;
   if (rawDt <= 0 || rawDt > 0.09) return; // throttled/background frames say nothing about the GPU
   slowFrames = rawDt > 1 / 45 ? slowFrames + 1 : Math.max(0, slowFrames - 2);
   if (slowFrames > 120 && dprStep < DPR_STEPS.length - 1) {
@@ -596,6 +660,7 @@ function update(now: number): void {
   if (mode === 'title') {
     rig.orbit = Math.sin(t * 0.12) * 0.22;
     if (DEMO && modeT > 1.5) {
+      menu.close();
       hud.title(false);
       startChapter(chapterIndex);
     }

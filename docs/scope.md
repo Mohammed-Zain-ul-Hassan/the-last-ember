@@ -40,9 +40,13 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
   mechanic cut to story-only (user). Engine Phaser to Three.js (research agent recommendation).
 
 ## NOW / NEXT / DONE
-- NOW: phase 5 polish (settings: volume, screenshake; best grade per level saved), then re-capture trailer clips:
-  the five memories, the charged rend, levels and cards, enemies, the journey.
-- NEXT: feature freeze Day 2 evening; then balance, bug fixes, trailer edit.
+- NOW: feature complete for the jam. Humans playtest (numbers), balance pass, then the trailer edit from
+  trailer/raw (16 clips) + one human-played take.
+- NEXT: feature freeze Day 2 evening; after it only fixes, balance, capture, ship.
+- DONE (playable-12): menus. Title: Continue / Begin / Choose a level (locked until reached, best grade shown) /
+  Settings / Controls. Esc anywhere: Resume / Restart / Choose a level / Settings / Controls / Quit to title.
+  Settings: master, music, effects volume sliders; screenshake and flash sliders; damage numbers; graphics quality
+  (auto/high/medium/low); fullscreen; erase progress. Saved locally. Grades S-C per level. Trailer clips re-recorded.
 - DONE (playable-11): phase 4 memories, shadow-puppet theatre between levels (src/render/memory.ts).
 - DONE (playable-10): every hour is a numbered level (Level n of 6 on the intro card and HUD, a Level complete card
   with stats and a level strip, any key continues). Heavy hold-to-charge (feet planted, 3-8 dmg). Lives + health:

@@ -34,6 +34,7 @@ export class WorldUi {
   private bossOn = false;
   private camera: THREE.Camera;
   hidden = false;
+  numbers = true; // damage numbers (a setting)
   private stack = 0;
   private stackT = -9;
 
@@ -85,7 +86,7 @@ export class WorldUi {
         if (bar) bar.lastHit = this.t;
         if (big) this.bossLastHit = this.t;
         const kind = w.torch && e.heavy ? 'fire' : e.heavy ? 'heavy' : e.move === 'light' ? 'light' : 'skill';
-        this.pop(e.heavy ? `${e.dmg}!` : `${e.dmg}`, e.x, (s ? s.y : 0) + this.headY(big, s?.kind) + 0.1, kind, -0.2, TAGS[e.move]);
+        if (this.numbers) this.pop(e.heavy ? `${e.dmg}!` : `${e.dmg}`, e.x, (s ? s.y : 0) + this.headY(big, s?.kind) + 0.1, kind, -0.2, TAGS[e.move]);
       } else if (e.type === 'kill') {
         const name = NAMES[this.nameIdx++ % NAMES.length];
         this.pop(e.big ? 'the Hollow Marshal is free' : name, e.x, e.y + 1.9, e.big ? 'soul big' : 'soul', -0.2);
@@ -96,7 +97,7 @@ export class WorldUi {
       } else if (e.type === 'marshalCry') {
         this.pop('the Marshal remembers his oath, and hates you for keeping yours', e.x, e.y + 0.6, 'soul big', 0);
       } else if (e.type === 'knightHurt') {
-        this.pop(`-${e.dmg}`, e.x, e.y + 2.9, 'hurt', 0);
+        if (this.numbers) this.pop(`-${e.dmg}`, e.x, e.y + 2.9, 'hurt', 0);
       } else if (e.type === 'lifeLost') {
         this.pop(e.lives === 1 ? 'the last shard' : 'a shard breaks', e.x, e.y + 3.3, 'soul big', 0);
       }

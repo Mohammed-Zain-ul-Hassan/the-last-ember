@@ -30,9 +30,10 @@ export function initAudio(): void {
   comp.ratio.value = 4;
   master.connect(comp).connect(ctx.destination);
   sfxBus = ctx.createGain();
+  sfxBus.gain.value = sfxVol;
   sfxBus.connect(master);
   musicBus = ctx.createGain();
-  musicBus.gain.value = 0.55;
+  musicBus.gain.value = 0.55 * musicVol * 1.25;
   musicBus.connect(master);
   // a large stone hall: generated impulse response, shared by music and a send from sfx
   reverb = ctx.createConvolver();
@@ -62,10 +63,17 @@ export function setMuted(m: boolean): void {
   muted = m;
   if (ctx) master.gain.setTargetAtTime(m ? 0 : 0.8 * volume, ctx.currentTime, 0.05);
 }
-/** Master volume 0..1 (mute is separate). */
-export function setVolume(v: number): void {
-  volume = Math.max(0, Math.min(1, v));
-  if (ctx) master.gain.setTargetAtTime(muted ? 0 : 0.8 * volume, ctx.currentTime, 0.05);
+let musicVol = 0.8;
+let sfxVol = 1;
+/** Master, music and effects volumes, 0..1 each (mute is separate). */
+export function setVolumes(m: number, music: number, fx: number): void {
+  volume = Math.max(0, Math.min(1, m));
+  musicVol = Math.max(0, Math.min(1, music));
+  sfxVol = Math.max(0, Math.min(1, fx));
+  if (!ctx) return;
+  master.gain.setTargetAtTime(muted ? 0 : 0.8 * volume, ctx.currentTime, 0.05);
+  musicBus.gain.setTargetAtTime(0.55 * musicVol * 1.25, ctx.currentTime, 0.05);
+  sfxBus.gain.setTargetAtTime(sfxVol, ctx.currentTime, 0.05);
 }
 export function isMuted(): boolean {
   return muted;

@@ -174,10 +174,11 @@ const SCENES = {
     js: `G.skipTo(0); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.status = 'cleared'; G.tick(16.67, 120);
       key('Space'); G.tick(16.67, 90); key('Space'); G.tick(16.67, 200);`,
   },
-  paused: {
-    q: 'seed=41&chapter=1',
-    js: `G.skipTo(1); G.tick(16, 30); G.play(); G.tick(16.67, 100); key('Escape'); G.tick(16.67, 2); key('KeyV'); key('KeyH'); G.tick(16.67, 30);`,
-  },
+  menu_title: { keepTitle: true, q: 'seed=60', js: `G.tick(16.67, 60);` },
+  menu_levels: { keepTitle: true, q: 'seed=60', js: `G.tick(16.67, 30); key('ArrowDown'); key('Enter'); G.tick(16.67, 20);` },
+  menu_settings: { q: 'seed=61&chapter=3', js: `G.skipTo(3); G.tick(16, 30); G.play(); G.tick(16.67, 120); key('Escape'); key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); key('Enter'); key('ArrowDown'); key('ArrowLeft'); key('ArrowLeft'); G.tick(16.67, 20);` },
+  menu_pause: { q: 'seed=62&chapter=4', js: `G.skipTo(4); G.tick(16, 30); G.play(); G.tick(16.67, 120); key('Escape'); G.tick(16.67, 10);` },
+  menu_controls: { q: 'seed=62&chapter=1', js: `G.skipTo(1); G.tick(16, 30); G.play(); G.tick(16.67, 60); key('Escape'); for (let i = 0; i < 4; i++) key('ArrowDown'); key('Enter'); G.tick(16.67, 10);` },
 };
 
 const want = process.argv.slice(2);
@@ -191,7 +192,7 @@ for (const name of names) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${BASE}?debug=1&${sc.q}`);
   await page.waitForFunction(() => window.__game, null, { timeout: 60000 });
-  await page.addStyleTag({ content: '#hud, #card, #title, #choice, #worldui .pop, #combo, #bossbar { transition: none !important; } #title { display: none !important; }' });
+  await page.addStyleTag({ content: '#hud, #card, #title, #choice, #worldui .pop, #combo, #bossbar { transition: none !important; }' + (sc.keepTitle ? '' : ' #title { display: none !important; }') });
   const info = await page.evaluate((js) => {
     const G = window.__game;
     G.manual = true;
