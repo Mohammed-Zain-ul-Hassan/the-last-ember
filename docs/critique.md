@@ -25,3 +25,23 @@ scrolling?" List the biggest gaps, fix the top ones, repeat.
 5. World: a sun/moon disc in the sky, light shafts, drifting fog banks, falling ash, kneeling statues of his fallen
    order, tattered banners, grass tufts.
 6. Camera closer, plus slow-motion and zoom on the last kill of the hour; film grain.
+
+## Round 1 result (Day 1 ~12:10)
+Done: shader flame, knight v2 (horns, torn cape, greatsword with glowing edge, shadow-smoke aura, kneel pose),
+fresnel rim tinted by the sky, wraith shades with tattered robes, claws and ink pools, kneeling statues, banners,
+grass, fog banks, sun/moon disc, cathedral landmark, film grain, reverb + melody.
+Critique: the first pass washed everything to mid-brown (fog cards, rim and stone too bright). Fixed by restoring
+deep blacks. The title text was over the fire; moved it to the top third with the knight kneeling close beside the
+flame. Ash read as snow; the skyline formed "hanging teeth" at the frame top; midnight hid the knight behind the
+brazier; dawn was flat sepia. All fixed.
+
+## Round 2 result (Day 1 ~12:20)
+- The theme mechanic is now visible: violet ink-mist seeps from every cast-shadow zone (where shades rise).
+- The great shade smoulders red so it reads in the dark. 3 AM sky lifted slightly. Wisps are smaller and colder.
+- The shadow ending was unreachable (a wall blocked the walk left); the threshold moved to the arch's shadow.
+
+## Round 3 candidates (next loop)
+- The knight is ~1/5 of the frame in arena play; add dynamic zoom-in on combos and a kill-cam for the great shade.
+- Shade hit-flash (ember rim pulse) and a stagger silhouette pop.
+- The kneel pose reads hunched on the title; straighten the back, plant the sword more visibly.
+- Human checks Claude can't do: does combat feel good? Is the audio mix right?

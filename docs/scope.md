@@ -11,19 +11,19 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
 
 ## TIER 1: theme proof + story spine (target Day 1 evening)
 - [x] Chapter data 7/9/11 PM: sky, hearth strength, waves, hour-card text; the clock HUD (2u)
-- [ ] Midnight cutscene: hearth dies, torch lit, camera orbit (2u)
-- [ ] Torch phase 1/3/5 AM: torch light follows the knight; a scrolling road east (2u)
-- [ ] Dawn and the choice: two endings with text cards (2u)
+- [x] Midnight cutscene: hearth dies, torch lit, camera orbit (2u)
+- [x] Torch phase 1/3/5 AM: torch light follows the knight; a scrolling road east (2u)
+- [x] Dawn and the choice: two endings with text cards (2u)
 - [x] `?debug=1`, `?seed=n`, `?demo=1` bot, `?capture=1` (2u)
 
 ## TIER 2: feel (target Day 2 midday)
-- [ ] Juice: hit-stop, shake, sparks, shade death smoke, memory wisps, camera punch, low-hearth heartbeat (3u)
-- [ ] Procedural audio + adaptive drums, mute (3u)
-- [ ] Title screen (camera orbit around the hearth), pause, settings, end screens (2u)
+- [x] Juice: hit-stop, shake, sparks, shade death smoke, memory wisps, camera punch, low-hearth heartbeat (3u)
+- [x] Procedural audio + adaptive drums, mute (3u)
+- [x] Title screen (camera orbit around the hearth), pause, settings, end screens (2u)
 - [ ] CC0 KayKit models and animations swapped in (knight, shades, ruins) (3u)
 
 ## TIER 3: content
-- [ ] 3 AM boss (2u) · flying shade (1u) · memory-fragment vignettes between chapters (2u) · more ruin set dressing (1u)
+- [x] 3 AM boss (2u) · flying shade (1u) · memory-fragment vignettes between chapters (2u) · more ruin set dressing (1u)
 
 ## TIER 4: stretch
 - Voice-over, a photo mode, extra endings.
@@ -40,6 +40,7 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
   mechanic cut to story-only (user). Engine Phaser to Three.js (research agent recommendation).
 
 ## NOW / NEXT / DONE
-- NOW: Tier 1: midnight cutscene, torch phase (1/3/5 AM), dawn choice.
-- NEXT: Vercel deploy; juice pass; KayKit models once downloaded.
-- DONE: Tier 0 slice (7/9/11 PM hearth chapters play end to end, demo bot, debug hooks), tagged playable-1. Preflight, themes Q&A (4 rounds), orientation deck read, engine research, spec/story/scope.
+- NOW: critique round 3 (combat close-ups, shade hit-flash, title pose); human playtest for feel and audio.
+- NEXT: trailer capture (`?demo=1&capture=1`), clips into trailer/raw; KayKit swap only if packs land.
+- DONE: Tier 0 + Tier 1 (all 6 hours, midnight cutscene, torch phase, great shade, dawn, both endings), Tier 2
+  look/feel/audio pass, live on Vercel (https://the-last-ember-xi.vercel.app), tags playable-1..3.

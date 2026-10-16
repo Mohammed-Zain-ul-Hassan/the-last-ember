@@ -291,7 +291,7 @@ function choice(dt: number): void {
   stepSim({ ...input, attack: false, heavy: false }, dt);
   const k = world.knight;
   const inLight = k.x > sunEdge + 0.4;
-  const inShadow = k.x < -9;
+  const inShadow = k.x < -4.4; // past the arch's pillar, before the low wall
   choiceHold = inLight || inShadow ? choiceHold + dt : 0;
   if (choiceHold > 1.1) {
     ending = inLight ? 'light' : 'shadow';
@@ -323,7 +323,7 @@ function endingScene(dt: number): void {
     at(10, 4, () => hud.card('', '', 'The ember lives. The knight does not.'));
   } else {
     sunEdge += (-4.5 - sunEdge) * Math.min(1, dt * 0.5);
-    const arrived = walkTo(-11.5, dt);
+    const arrived = walkTo(-5.2, dt);
     at(0.2, 1, () => hud.card('', '', 'He turned from the light.'));
     if (arrived) knight.pose = 'kneel';
     at(5.0, 2, () => hud.card('', '', 'In the shadow of the arch, he keeps the cold hearth still.'));
