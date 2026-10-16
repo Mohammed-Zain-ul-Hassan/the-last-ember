@@ -7,6 +7,9 @@ let noiseBuf: AudioBuffer;
 let muted = false;
 let fireGain: GainNode | null = null;
 let drumGain: GainNode | null = null;
+let reverb: ConvolverNode;
+let melodyGain: GainNode | null = null;
+let musicMood: 'night' | 'dawn' | 'silent' = 'night';
 
 export function audioReady(): boolean {
   return !!ctx && ctx.state === 'running';
@@ -30,6 +33,24 @@ export function initAudio(): void {
   musicBus = ctx.createGain();
   musicBus.gain.value = 0.55;
   musicBus.connect(master);
+  // a large stone hall: generated impulse response, shared by music and a send from sfx
+  reverb = ctx.createConvolver();
+  const len = ctx.sampleRate * 3.2;
+  const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
+  }
+  reverb.buffer = ir;
+  const wet = ctx.createGain();
+  wet.gain.value = 0.38;
+  reverb.connect(wet).connect(master);
+  const send = ctx.createGain();
+  send.gain.value = 0.25;
+  sfxBus.connect(send).connect(reverb);
+  const mSend = ctx.createGain();
+  mSend.gain.value = 0.7;
+  musicBus.connect(mSend).connect(reverb);
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -82,7 +103,9 @@ function tone(t: number, type: OscillatorType, f0: number, f1: number, dur: numb
   o.stop(t + attack + dur + 0.05);
 }
 
-export type SfxName = 'swing' | 'swingHeavy' | 'hit' | 'hitHeavy' | 'kill' | 'burn' | 'dash' | 'jump' | 'land' | 'hurt' | 'hearthHurt' | 'spawn' | 'bell' | 'lose' | 'ui';
+export type SfxName =
+  | 'swing' | 'swingHeavy' | 'hit' | 'hitHeavy' | 'kill' | 'burn' | 'dash' | 'jump' | 'land' | 'hurt' | 'hearthHurt'
+  | 'spawn' | 'bell' | 'lose' | 'ui' | 'fireburst' | 'ignite' | 'bigSpawn' | 'dawn' | 'gutter' | 'dissolve';
 
 export function sfx(name: SfxName, combo = 0): void {
   if (!ctx || ctx.state !== 'running') return;
@@ -143,6 +166,30 @@ export function sfx(name: SfxName, combo = 0): void {
     case 'ui':
       tone(t, 'sine', 660, 640, 0.15, 0.12);
       break;
+    case 'fireburst':
+      noise(t, 0.7, 'lowpass', 400, 4200, 0.8, 0.8, 0.04); // roar opening up
+      noise(t + 0.05, 0.9, 'bandpass', 1600, 500, 1, 0.4, 0.02);
+      tone(t, 'sine', 90, 45, 0.5, 0.5);
+      break;
+    case 'ignite':
+      noise(t, 1.4, 'lowpass', 300, 5000, 0.7, 0.7, 0.25);
+      tone(t, 'sine', 147, 147, 2.5, 0.25, 0.3, musicBus);
+      tone(t, 'sine', 220, 220, 2.5, 0.18, 0.4, musicBus);
+      break;
+    case 'gutter':
+      noise(t, 2.2, 'lowpass', 2400, 120, 0.9, 0.5, 0.05);
+      break;
+    case 'bigSpawn':
+      tone(t, 'sawtooth', 48, 32, 2.4, 0.5, 0.6);
+      noise(t, 2.4, 'lowpass', 90, 600, 6, 0.5, 0.8);
+      break;
+    case 'dawn':
+      // a slow major chord swelling out of the dark: D major, wide voicing
+      for (const [f, a] of [[73.4, 0.3], [146.8, 0.22], [220, 0.18], [293.7, 0.15], [370, 0.12], [440, 0.1]] as const) tone(t, 'sine', f, f * 1.001, 7, a, 2.5, musicBus);
+      break;
+    case 'dissolve':
+      for (let i = 0; i < 6; i++) tone(t + i * 0.35, 'sine', 587 * Math.pow(1.122, i), 587 * Math.pow(1.122, i), 2.5, 0.06, 0.05, musicBus);
+      break;
   }
 }
 
@@ -190,6 +237,28 @@ function startBeds(): void {
   lfo.connect(lg).connect(lp.frequency);
   lfo.start();
 
+  // melody: sparse plucked notes in D minor, like a lute played in an empty hall
+  melodyGain = ctx.createGain();
+  melodyGain.gain.value = 0.8;
+  melodyGain.connect(musicBus);
+  const minor = [146.8, 174.6, 196, 220, 261.6, 293.7, 349.2];
+  const major = [146.8, 185, 220, 246.9, 293.7, 370, 440];
+  let mi = 3;
+  const pluck = () => {
+    if (!ctx || !melodyGain) return;
+    if (musicMood !== 'silent') {
+      const scale = musicMood === 'dawn' ? major : minor;
+      mi = Math.max(0, Math.min(scale.length - 1, mi + Math.round((Math.random() - 0.5) * 3)));
+      const f = scale[mi];
+      const t = ctx.currentTime + 0.02;
+      tone(t, 'triangle', f, f * 0.999, 2.2, 0.09, 0.004, melodyGain);
+      tone(t, 'sine', f * 2, f * 2, 1.2, 0.03, 0.004, melodyGain);
+      if (Math.random() < 0.3) tone(t + 0.36, 'triangle', scale[Math.max(0, mi - 2)], scale[Math.max(0, mi - 2)], 2.0, 0.06, 0.004, melodyGain);
+    }
+    setTimeout(pluck, 1400 + Math.random() * 2600);
+  };
+  setTimeout(pluck, 1500);
+
   // drums: a slow war-drum pattern whose level follows danger
   drumGain = ctx.createGain();
   drumGain.gain.value = 0;
@@ -210,6 +279,10 @@ function startBeds(): void {
     setTimeout(tick, 50);
   };
   tick();
+}
+
+export function setMood(m: 'night' | 'dawn' | 'silent'): void {
+  musicMood = m;
 }
 
 /** level 0..1 for each bed; smoothed. */

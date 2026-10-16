@@ -10,7 +10,11 @@ export interface Shot {
 
 export const GAMEPLAY_SHOT: Shot = { yaw: 0.21, height: 3.1, dist: 17, lookY: 2.75, fov: 36 };
 export const CARD_SHOT: Shot = { yaw: 0.85, height: 7.5, dist: 21, lookY: 2.6, fov: 34 };
-export const TITLE_SHOT: Shot = { yaw: -0.55, height: 2.2, dist: 13, lookY: 3.2, fov: 40 };
+export const TITLE_SHOT: Shot = { yaw: -0.32, height: 1.25, dist: 7.6, lookY: 2.1, fov: 38 };
+export const MIDNIGHT_SHOT: Shot = { yaw: -0.5, height: 1.5, dist: 7.5, lookY: 1.7, fov: 34 };
+export const TORCH_SHOT: Shot = { yaw: 0.24, height: 2.7, dist: 13, lookY: 2.3, fov: 36 };
+export const DAWN_SHOT: Shot = { yaw: 0.28, height: 3.4, dist: 19, lookY: 3.2, fov: 36 };
+export const ENDING_SHOT: Shot = { yaw: -0.35, height: 1.8, dist: 8, lookY: 2.0, fov: 36 };
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
@@ -26,7 +30,8 @@ export class CameraRig {
   private punch = 0;
   shakeScale = 1;
   orbit = 0; // extra slow yaw drift for title/cards
-  minSpan = 22;
+  minSpan = 17.5;
+  fitSpan = true; // close-ups turn this off
 
   private cam: THREE.PerspectiveCamera;
 
@@ -69,7 +74,7 @@ export class CameraRig {
     const yaw = s.yaw + this.orbit;
     // keep ~minSpan metres of lane visible whatever the aspect ratio
     const fit = this.minSpan / 2 / (Math.tan((s.fov * Math.PI) / 360) * this.cam.aspect);
-    const dist = Math.max(s.dist, fit * (s.dist / GAMEPLAY_SHOT.dist)) * (1 - this.punch * 0.05);
+    const dist = (this.fitSpan ? Math.max(s.dist, fit * (s.dist / GAMEPLAY_SHOT.dist)) : s.dist) * (1 - this.punch * 0.05);
     const sh = this.trauma * this.trauma * 0.35 * this.shakeScale;
     const nx = (Math.sin(t * 47.1) + Math.sin(t * 23.3)) * 0.5 * sh;
     const ny = (Math.sin(t * 41.7 + 1) + Math.sin(t * 19.9)) * 0.5 * sh;

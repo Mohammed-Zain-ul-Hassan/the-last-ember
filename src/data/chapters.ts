@@ -13,6 +13,8 @@ export interface SkyKey {
   glowY: number; // -1..1, where the glow sits on the sky
   fog: string;
   stars: number; // 0..1
+  disc?: number; // sun/moon disc radius on the sky (0 = none)
+  fogDensity?: number; // default 0.022
 }
 
 export interface Chapter {
@@ -22,7 +24,9 @@ export interface Chapter {
   title: string;
   line: string;
   duration: number; // seconds of play for the hour
-  phase: 'hearth' | 'torch';
+  phase: 'hearth' | 'torch' | 'dawn';
+  memory: string; // revealed on the card after the hour is survived
+  bigAt?: number; // progress (0..1) at which a great shade rises
   lightHeight: number; // flame height in metres; lower = longer shadows
   lightRadius: number;
   spawnEvery: [number, number]; // seconds between spawns at start and end of the hour
@@ -46,6 +50,7 @@ export const CHAPTERS: Chapter[] = [
     roman: 'VII',
     title: 'Sunset',
     line: 'The last sun sinks. Only the hearth remains, and you swore to keep it.',
+    memory: 'A hall full of warm light. Your oath, spoken over the hearthstone.',
     duration: 55,
     phase: 'hearth',
     lightHeight: 2.7,
@@ -54,7 +59,7 @@ export const CHAPTERS: Chapter[] = [
     maxShades: 4,
     shadeHp: 3,
     shadeSpeed: 1.8,
-    sky: { top: '#2a1b3d', horizon: '#e0794a', glow: '#ffb070', glowY: -0.55, fog: '#3a2236', stars: 0.1 },
+    sky: { top: '#2a1b3d', horizon: '#e0794a', glow: '#ffb070', glowY: -0.55, fog: '#3a2236', stars: 0.1, disc: 0.1 },
   },
   {
     id: '9pm',
@@ -62,6 +67,7 @@ export const CHAPTERS: Chapter[] = [
     roman: 'IX',
     title: 'The First Shades',
     line: 'They rise from every shadow the fire throws. They were your people once.',
+    memory: 'Their faces. The people who slept safe because you kept the fire.',
     duration: 65,
     phase: 'hearth',
     lightHeight: 2.2,
@@ -70,7 +76,7 @@ export const CHAPTERS: Chapter[] = [
     maxShades: 6,
     shadeHp: 3,
     shadeSpeed: 2.0,
-    sky: { top: '#0f0d22', horizon: '#3b2a52', glow: '#9fb4ff', glowY: 0.45, fog: '#1b1730', stars: 0.6 },
+    sky: { top: '#0f0d22', horizon: '#3b2a52', glow: '#9fb4ff', glowY: 0.45, fog: '#1b1730', stars: 0.6, disc: 0.045 },
   },
   {
     id: '11pm',
@@ -78,6 +84,7 @@ export const CHAPTERS: Chapter[] = [
     roman: 'XI',
     title: 'The Hearth Falters',
     line: 'The flame sinks lower. Every shadow grows long.',
+    memory: 'One long night, long ago. You closed your eyes. The fire went out.',
     duration: 75,
     phase: 'hearth',
     lightHeight: 1.75,
@@ -86,6 +93,63 @@ export const CHAPTERS: Chapter[] = [
     maxShades: 8,
     shadeHp: 4,
     shadeSpeed: 2.2,
-    sky: { top: '#07060f', horizon: '#1a1530', glow: '#c8d2ff', glowY: 0.75, fog: '#110f1e', stars: 1 },
+    sky: { top: '#07060f', horizon: '#1a1530', glow: '#c8d2ff', glowY: 0.75, fog: '#110f1e', stars: 1, disc: 0.04 },
+  },
+  {
+    id: '1am',
+    clock: '1 AM',
+    roman: 'I',
+    title: 'Carrying the Flame',
+    line: 'The hearth is ash. Its fire lives in your hand now, and every shade can see it.',
+    memory: 'The dark came in through the doors you were sworn to hold.',
+    duration: 60,
+    phase: 'torch',
+    lightHeight: 2.35,
+    lightRadius: 8,
+    spawnEvery: [2.2, 1.4],
+    maxShades: 7,
+    shadeHp: 4,
+    shadeSpeed: 2.3,
+    sky: { top: '#04040b', horizon: '#141327', glow: '#b8c6ff', glowY: 0.85, fog: '#0b0a16', stars: 1, disc: 0.035 },
+  },
+  {
+    id: '3am',
+    clock: '3 AM',
+    roman: 'III',
+    title: 'The Darkest Hour',
+    line: 'No moon. No stars. Only the torch, and the thing that comes for it.',
+    memory: 'You did not die that night. You became what took them.',
+    duration: 70,
+    phase: 'torch',
+    lightHeight: 2.35,
+    lightRadius: 7,
+    spawnEvery: [2.0, 1.2],
+    maxShades: 8,
+    shadeHp: 4,
+    shadeSpeed: 2.4,
+    bigAt: 0.4,
+    sky: { top: '#020205', horizon: '#0a0812', glow: '#3a2a4a', glowY: 0.2, fog: '#07060c', stars: 0.25 },
+  },
+  {
+    id: '5am',
+    clock: '5 AM',
+    roman: 'V',
+    title: 'Before Dawn',
+    line: 'The sky remembers its colour. Hold on.',
+    memory: '',
+    duration: 50,
+    phase: 'dawn',
+    lightHeight: 2.35,
+    lightRadius: 7.5,
+    spawnEvery: [1.6, 1.0],
+    maxShades: 9,
+    shadeHp: 4,
+    shadeSpeed: 2.5,
+    sky: { top: '#141a3a', horizon: '#7a5a78', glow: '#ffc9a8', glowY: -0.75, fog: '#2a2236', stars: 0.4 },
   },
 ];
+
+/** Sky for the dawn finale / ending. */
+export const DAWN_SKY: SkyKey = { top: '#33507f', horizon: '#f2a070', glow: '#ffe6b8', glowY: -0.08, fog: '#4a3848', stars: 0, disc: 0.075, fogDensity: 0.014 };
+/** Sky for the midnight cutscene: almost nothing left. */
+export const MIDNIGHT_SKY: SkyKey = { top: '#030308', horizon: '#0d0b18', glow: '#6a6f9a', glowY: 0.95, fog: '#08070f', stars: 0.8, disc: 0.04 };

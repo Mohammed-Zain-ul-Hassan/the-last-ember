@@ -9,6 +9,7 @@ export interface FxTargets {
   glow: Particles; // additive
   smoke: Particles; // dark, normal blend
   flash: (strength: number, color?: string) => void;
+  slowmo: (scale: number, seconds: number) => void;
 }
 
 export function playEvents(events: readonly GameEvent[], fx: FxTargets): void {
@@ -34,6 +35,11 @@ export function playEvents(events: readonly GameEvent[], fx: FxTargets): void {
       }
       case 'kill':
         sfx(e.burned ? 'burn' : 'kill');
+        if (e.big) {
+          fx.slowmo(0.2, 1.4);
+          fx.rig.kick(1.4);
+          fx.flash(0.4, '#ffe0c0');
+        }
         fx.rig.shake(e.burned ? 0.1 : 0.3);
         for (let i = 0; i < 40; i++)
           fx.smoke.emit({ x: e.x, y: e.y, z: -0.2, spread: 3, vy: 1.2, life: 1.1, size: 1, sizeEnd: 2.2, r: 0.02, g: 0.015, b: 0.035, alpha: 0.9, drag: 2.2 });
@@ -68,6 +74,26 @@ export function playEvents(events: readonly GameEvent[], fx: FxTargets): void {
         fx.rig.shake(0.12);
         break;
       case 'shadeWindup':
+        break;
+      case 'fireburst':
+        sfx('fireburst');
+        fx.rig.shake(0.5);
+        fx.rig.kick(0.9);
+        fx.flash(0.18, '#ff7a2f');
+        for (let i = 0; i < 70; i++) {
+          const k = Math.random();
+          fx.glow.emit({
+            x: e.x - e.facing * 0.6, y: e.y + (Math.random() - 0.5) * 1.4, z: (Math.random() - 0.5) * 0.8,
+            vx: e.facing * (6 + Math.random() * 9), vy: (Math.random() - 0.3) * 3, spread: 1.2,
+            life: 0.55, size: 0.9 - k * 0.5, sizeEnd: 0.1, r: 3 + k * 1.5, g: 0.8 + k * 1.4, b: 0.15 + k * 0.3, alpha: 0.7, drag: 3.5, gravity: -3,
+          });
+        }
+        for (let i = 0; i < 20; i++)
+          fx.smoke.emit({ x: e.x + e.facing * 2, y: e.y, vx: e.facing * 3, spread: 1.2, vy: 1, life: 1.3, size: 1.2, sizeEnd: 2.6, r: 0.05, g: 0.04, b: 0.04, alpha: 0.5, drag: 1.5 });
+        break;
+      case 'bigSpawn':
+        sfx('bigSpawn');
+        fx.rig.shake(0.7);
         break;
       case 'cleared':
         sfx('bell');

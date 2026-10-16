@@ -29,6 +29,7 @@ export class Hud {
     const hf = Math.max(0, w.hearthHp / CFG.hearth.maxHp);
     ($('hearth-bar').firstElementChild as HTMLElement).style.width = `${(hf * 100).toFixed(1)}%`;
     $('hearth').classList.toggle('low', hf < 0.3);
+    $('hearth').style.opacity = w.torch ? '0' : '1';
     if (this.flashA > 0) {
       this.flashA = Math.max(0, this.flashA - dt * 2.5);
       this.flashEl.style.opacity = String(this.flashA);
@@ -51,6 +52,10 @@ export class Hud {
 
   hideCard(): void {
     $('card').classList.add('hidden');
+  }
+
+  choice(on: boolean): void {
+    $('choice').classList.toggle('hidden', !on);
   }
 
   title(on: boolean): void {

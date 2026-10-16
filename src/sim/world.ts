@@ -57,17 +57,20 @@ export interface Shade {
   target: 'hearth' | 'knight';
   light: number; // light level it stands in, for render smoke
   deadT: number;
+  big: boolean;
 }
 
 export type GameEvent =
   | { type: 'swing'; x: number; y: number; facing: number; combo: number; heavy: boolean }
   | { type: 'hit'; x: number; y: number; dmg: number; heavy: boolean; facing: number }
-  | { type: 'kill'; x: number; y: number; burned: boolean }
+  | { type: 'kill'; x: number; y: number; burned: boolean; big: boolean }
   | { type: 'spawn'; x: number }
   | { type: 'jump' | 'land' | 'dash'; x: number; y: number }
   | { type: 'knightHurt'; x: number; y: number; hp: number }
   | { type: 'hearthHurt'; hp: number }
   | { type: 'shadeWindup'; x: number; id: number }
+  | { type: 'fireburst'; x: number; y: number; facing: number }
+  | { type: 'bigSpawn'; x: number }
   | { type: 'cleared' }
   | { type: 'lost'; reason: 'hearth' | 'knight' };
 
@@ -90,6 +93,9 @@ export class World {
   shadows: Interval[] = [];
   spawnT = 1.5;
   kills = 0;
+  bigSpawned = false;
+  spawning = true; // false for scripted scenes (dawn choice)
+  endless = false; // true: the hour never ends on its own
   events: GameEvent[] = [];
   private nextId = 1;
 
@@ -103,6 +109,7 @@ export class World {
       coyote: 0, jumpBuffer: 0, dashCd: 0, airDash: true, iframes: 0, hitThisSwing: new Set(),
     };
     this.light = { x: CFG.hearth.x, y: this.chapter.lightHeight, radius: this.chapter.lightRadius };
+    if (this.torch) this.knight.x = -1.5;
     this.updateLight();
   }
 
@@ -111,7 +118,20 @@ export class World {
     return Math.min(1, this.time / this.chapter.duration);
   }
 
+  get torch(): boolean {
+    return this.chapter.phase !== 'hearth';
+  }
+
   updateLight(): void {
+    if (this.torch) {
+      // the fire is in his hand: the light, and every shadow, moves with him
+      const k = this.knight;
+      this.light.x = k.x + k.facing * 0.35;
+      this.light.y = this.chapter.lightHeight + k.y;
+      this.light.radius = this.chapter.lightRadius;
+      this.shadows = shadowIntervals(this.light, this.walls, CFG.arena.minX, CFG.arena.maxX);
+      return;
+    }
     const hpFrac = this.hearthHp / CFG.hearth.maxHp;
     // A wounded hearth burns lower and smaller: shadows lengthen.
     this.light.y = this.chapter.lightHeight * (0.75 + 0.25 * hpFrac);
@@ -140,9 +160,9 @@ export class World {
     this.shades = this.shades.filter((s) => s.state !== 'dead' || s.deadT < 1.2);
     for (const s of this.shades) if (s.state === 'dead') s.deadT += dt;
 
-    if (this.hearthHp <= 0) this.lose('hearth');
+    if (!this.torch && this.hearthHp <= 0) this.lose('hearth');
     else if (this.knight.hp <= 0 && this.knight.state === 'dead' && this.knight.stateT > 1.1) this.lose('knight');
-    else if (this.time >= this.chapter.duration) {
+    else if (!this.endless && this.time >= this.chapter.duration) {
       // The hour turns: every remaining shade dissolves.
       for (const s of this.shades) if (s.state !== 'dead') this.killShade(s, true);
       this.status = 'cleared';
@@ -281,6 +301,25 @@ export class World {
     this.events.push({ type: 'swing', x: k.x, y: k.y, facing: k.facing, combo, heavy });
   }
 
+  /** Torch phase: the heavy strike throws a wave of fire. */
+  private fireBurst(): void {
+    const k = this.knight;
+    this.events.push({ type: 'fireburst', x: k.x + k.facing * 1.2, y: k.y + 1.2, facing: k.facing });
+    for (const s of this.shades) {
+      if (s.state === 'dead') continue;
+      const d = (s.x - k.x) * k.facing;
+      if (d < -0.5 || d > 4.2 || Math.abs(s.y - k.y) > 2) continue;
+      s.hp -= 2;
+      s.vx = k.facing * (s.big ? 3 : 9);
+      this.events.push({ type: 'hit', x: s.x, y: s.y + 1, dmg: 2, heavy: true, facing: k.facing });
+      if (s.hp <= 0) this.killShade(s, true);
+      else {
+        s.state = 'stagger';
+        s.stateT = 0;
+      }
+    }
+  }
+
   private stepSwing(dt: number): void {
     const k = this.knight;
     const heavy = k.state === 'heavy';
@@ -288,7 +327,10 @@ export class World {
     const t = k.stateT;
     if (k.onGround) k.vx *= Math.max(0, 1 - 12 * dt);
     // lunge on the first active frame
-    if (t - dt < sp.windup && t >= sp.windup) k.vx = k.facing * sp.lunge;
+    if (t - dt < sp.windup && t >= sp.windup) {
+      k.vx = k.facing * sp.lunge;
+      if (heavy && this.torch) this.fireBurst();
+    }
     if (t >= sp.windup && t < sp.windup + sp.active) this.applySwingHits(sp, heavy);
     if (t >= sp.windup + sp.active + sp.recover) {
       if (k.bufferedAttack && !heavy && k.combo < CFG.combo.length - 1) this.startSwing(k.combo + 1, false);
@@ -310,24 +352,26 @@ export class World {
       if (k.y > s.y + CFG.shade.h || k.y + CFG.knight.h < s.y) continue;
       k.hitThisSwing.add(s.id);
       s.hp -= sp.dmg;
-      s.vx = k.facing * sp.knock;
+      s.vx = k.facing * sp.knock * (s.big ? 0.25 : 1);
       s.facing = (-k.facing) as 1 | -1;
       this.events.push({ type: 'hit', x: s.x, y: s.y + 1, dmg: sp.dmg, heavy, facing: k.facing });
       if (s.hp <= 0) {
         this.killShade(s, false);
         this.hitstop = Math.max(this.hitstop, heavy ? CFG.hitstop.heavy : CFG.hitstop.kill);
       } else {
-        s.state = 'stagger';
-        s.stateT = 0;
+        if (!s.big || heavy) {
+          s.state = 'stagger';
+          s.stateT = 0;
+        }
         this.hitstop = Math.max(this.hitstop, heavy ? CFG.hitstop.heavy : CFG.hitstop.light);
       }
     }
   }
 
-  private hurtKnight(fromX: number): void {
+  private hurtKnight(fromX: number, dmg: number = CFG.shade.knightDmg): void {
     const k = this.knight;
     if (k.iframes > 0 || k.state === 'dead') return;
-    k.hp -= CFG.shade.knightDmg;
+    k.hp -= dmg;
     k.iframes = CFG.knight.iframes;
     k.vx = Math.sign(k.x - fromX || 1) * CFG.knight.hurtKnock;
     k.vy = 5;
@@ -338,9 +382,16 @@ export class World {
 
   // ---------------------------------------------------------------- shades
   private stepSpawner(dt: number): void {
-    if (this.time >= this.chapter.duration - 2) return;
+    if (!this.spawning || this.time >= this.chapter.duration - 2) return;
     this.spawnT -= dt;
     const alive = this.shades.filter((s) => s.state !== 'dead').length;
+    const c = this.chapter;
+    if (c.bigAt !== undefined && !this.bigSpawned && this.progress >= c.bigAt) {
+      this.bigSpawned = true;
+      const side = this.knight.x > 0 ? -1 : 1;
+      const s = this.spawnShade(side * (CFG.arena.maxX - 2), true);
+      this.events.push({ type: 'bigSpawn', x: s.x });
+    }
     if (this.spawnT > 0 || alive >= this.chapter.maxShades) return;
     const [a, b] = this.chapter.spawnEvery;
     this.spawnT = a + (b - a) * this.progress;
@@ -366,12 +417,13 @@ export class World {
     return side * (maxX - 1);
   }
 
-  spawnShade(x: number): Shade {
+  spawnShade(x: number, big = false): Shade {
     const c = this.chapter;
+    const hp = big ? c.shadeHp * 7 : c.shadeHp;
     const s: Shade = {
-      id: this.nextId++, x, y: 0, vx: 0, hp: c.shadeHp, maxHp: c.shadeHp,
-      speed: c.shadeSpeed * this.rng.range(0.85, 1.15), facing: x > this.light.x ? -1 : 1,
-      state: 'rise', stateT: 0, cd: this.rng.range(0, 0.5), target: 'hearth', light: 0, deadT: 0,
+      id: this.nextId++, x, y: 0, vx: 0, hp, maxHp: hp,
+      speed: c.shadeSpeed * (big ? 0.6 : this.rng.range(0.85, 1.15)), facing: x > this.light.x ? -1 : 1,
+      state: 'rise', stateT: 0, cd: this.rng.range(0, 0.5), target: 'hearth', light: 0, deadT: 0, big,
     };
     this.shades.push(s);
     this.events.push({ type: 'spawn', x });
@@ -384,7 +436,7 @@ export class World {
     s.stateT = 0;
     s.deadT = 0;
     this.kills++;
-    this.events.push({ type: 'kill', x: s.x, y: s.y + 0.9, burned });
+    this.events.push({ type: 'kill', x: s.x, y: s.y + 0.9, burned, big: s.big });
   }
 
   private stepShade(s: Shade, dt: number): void {
@@ -397,7 +449,7 @@ export class World {
 
     // light burns shades (not while still rising out of the dark)
     if (s.state !== 'rise' && s.light > 0) {
-      s.hp -= S.lightDps * s.light * dt;
+      s.hp -= S.lightDps * (this.torch ? 1.5 : 1) * (s.big ? 0.3 : 1) * s.light * dt;
       if (s.hp <= 0) return this.killShade(s, true);
     }
 
@@ -423,10 +475,11 @@ export class World {
     const kAlive = k.state !== 'dead';
     const toKnight = k.x - s.x;
     const knightNear = kAlive && Math.abs(toKnight) < S.aggroRange && Math.abs(k.y - s.y) < 1.6;
-    s.target = knightNear ? 'knight' : 'hearth';
+    s.target = knightNear || (this.torch && kAlive) ? 'knight' : 'hearth';
     const tx = s.target === 'knight' ? k.x : this.light.x;
     const dist = Math.abs(tx - s.x);
-    const range = s.target === 'knight' ? S.attackRange : S.hearthRange + CFG.hearth.radius;
+    const reach = s.big ? 1.9 : 1;
+    const range = s.target === 'knight' ? S.attackRange * reach : S.hearthRange + CFG.hearth.radius;
 
     if (s.state === 'walk') {
       s.facing = tx >= s.x ? 1 : -1;
@@ -442,7 +495,7 @@ export class World {
         s.state = 'strike';
         s.stateT = 0;
         if (s.target === 'knight') {
-          if (Math.abs(k.x - s.x) < S.attackRange + 0.35 && Math.abs(k.y - s.y) < 1.6) this.hurtKnight(s.x);
+          if (Math.abs(k.x - s.x) < S.attackRange * reach + 0.35 && Math.abs(k.y - s.y) < 1.6 * reach) this.hurtKnight(s.x, s.big ? 2 : 1);
         } else if (Math.abs(this.light.x - s.x) <= range + 0.3) {
           this.hearthHp = Math.max(0, this.hearthHp - S.hearthDmg);
           this.events.push({ type: 'hearthHurt', hp: this.hearthHp });
