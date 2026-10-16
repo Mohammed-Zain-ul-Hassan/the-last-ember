@@ -5,6 +5,7 @@ const held = new Set<string>();
 const latched = new Set<string>();
 let mouseL = false;
 let mouseR = false;
+let mouseLHeld = false;
 
 const BIND = {
   left: ['KeyA', 'ArrowLeft'],
@@ -13,6 +14,7 @@ const BIND = {
   attack: ['KeyJ', 'KeyZ'],
   heavy: ['KeyK', 'KeyX'],
   dash: ['ShiftLeft', 'ShiftRight', 'KeyL', 'KeyC'],
+  down: ['KeyS', 'ArrowDown'],
 };
 
 type Listener = (code: string) => void;
@@ -33,16 +35,23 @@ export function initInput(canvas: HTMLElement): void {
   window.addEventListener('keyup', (e) => held.delete(e.code));
   window.addEventListener('blur', () => held.clear());
   canvas.addEventListener('mousedown', (e) => {
-    if (e.button === 0) mouseL = true;
+    if (e.button === 0) {
+      mouseL = true;
+      mouseLHeld = true;
+    }
     if (e.button === 2) mouseR = true;
     for (const l of listeners) l('Mouse' + e.button);
   });
+  window.addEventListener('mouseup', (e) => {
+    if (e.button === 0) mouseLHeld = false;
+  });
+  window.addEventListener('blur', () => (mouseLHeld = false));
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 const any = (codes: string[], set: Set<string>) => codes.some((c) => set.has(c));
 
-/** Build the input for one sim step and clear latched presses. */
+/** Build the input for ONE sim step and clear latched presses. Only call it when a step will actually run. */
 export function readInput(): Input {
   const inp: Input = {
     left: any(BIND.left, held),
@@ -52,6 +61,8 @@ export function readInput(): Input {
     attack: any(BIND.attack, latched) || mouseL,
     heavy: any(BIND.heavy, latched) || mouseR,
     dash: any(BIND.dash, latched),
+    down: any(BIND.down, held),
+    attackHeld: any(BIND.attack, held) || mouseLHeld,
   };
   latched.clear();
   mouseL = mouseR = false;

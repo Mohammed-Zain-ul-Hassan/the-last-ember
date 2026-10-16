@@ -428,6 +428,28 @@ export class KnightView {
         stiff = 300;
         break;
       }
+      case 'charge': {
+        // gathering: low stance, blade drawn back and down behind him, trembling as it fills
+        const lv = Math.min(1, k.chargeT / CFG.charge.full);
+        const shake = Math.sin(t * 55) * 0.03 * lv;
+        p.lean = 0.42 + lv * 0.12;
+        p.bob = -0.14 - lv * 0.1;
+        p.twist = -0.45 - lv * 0.2;
+        p.th0 = 0.85;
+        p.th1 = -0.75;
+        p.kn0 = 1.0 + lv * 0.25;
+        p.kn1 = 0.55;
+        p.arm = -1.15 - lv * 0.35 + shake;
+        p.elbow = -0.35;
+        p.swordRel = 0.7;
+        p.armTilt = 0.55;
+        p.offArm = 0.9;
+        p.offElbow = 1.1;
+        p.head = 0.18;
+        stiff = 380;
+        zeta = 0.85;
+        break;
+      }
       case 'attack':
       case 'heavy': {
         const heavy = k.state === 'heavy';
@@ -564,6 +586,9 @@ export class KnightView {
     switch (move) {
       case 'heavy':
         return { ...HEAVY, tilt: HEAVY.tilt + j(0.15), a0: HEAVY.a0 + j(0.1) };
+      case 'charged':
+        // released from low behind: a rising rend that sweeps up and over
+        return { a0: -0.9, a1: 4.0 + j(0.1), tilt: 0.75 + j(0.1), twist: 0.7, lean: 0.55 };
       case 'plunge':
         return { a0: 4.4, a1: 0.05, tilt: 0.08, twist: 0.3, lean: 0.5 };
       case 'lunge':
@@ -653,7 +678,17 @@ export class KnightView {
     this.body.visible = !(k.iframes > 0.3 && k.state !== 'dash' && Math.floor(t * 20) % 2 === 0 && k.state !== 'dead');
 
     // the aura flares when he shadow-steps or strikes
-    const flare = k.state === 'dash' ? 1 : k.state === 'attack' || k.state === 'heavy' ? 0.45 : 0;
+    const chargeLv = k.state === 'charge' ? Math.min(1, k.chargeT / CFG.charge.full) : 0;
+    const flare = k.state === 'dash' ? 1 : k.state === 'charge' ? 0.3 + chargeLv * 0.9 : k.state === 'attack' || k.state === 'heavy' ? (k.move === 'charged' ? 1 : 0.45) : 0;
+    if (chargeLv > 0 && Math.random() < dt * (20 + chargeLv * 70)) {
+      // shadow pulled in from the air toward the blade
+      this.sword.getWorldPosition(this.tmp);
+      const a = Math.random() * Math.PI * 2;
+      const r = 1.2 + Math.random() * 0.8;
+      const life = 0.3;
+      const full = chargeLv >= 1;
+      glow.emit({ x: this.tmp.x + Math.cos(a) * r, y: this.tmp.y + Math.sin(a) * r, z: this.tmp.z, vx: (-Math.cos(a) * r) / life, vy: (-Math.sin(a) * r) / life, spread: 0.05, life, size: full ? 0.12 : 0.08, sizeEnd: 0.03, r: full ? 2.6 : 1.4, g: full ? 1.8 : 0.9, b: 5 });
+    }
     this.dashGlow += (flare - this.dashGlow) * Math.min(1, dt * (flare > this.dashGlow ? 20 : 4));
     SHADOW.uTime.value = t;
     SHADOW.uAuraStrength.value = (k.state === 'dead' ? 0.3 : 1) * (1 + this.dashGlow * 2.2);

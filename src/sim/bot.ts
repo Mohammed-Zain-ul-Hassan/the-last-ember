@@ -58,6 +58,15 @@ export function botInput(w: World): Input {
     return inp;
   }
 
+  // charging: hold until the blade is full, then let it go (a threat cuts it short)
+  if (k.state === 'charge') {
+    const threat = target !== null && target.state === 'windup' && target.target === 'knight' && Math.abs(target.x - k.x) < 2.2;
+    inp.attackHeld = k.chargeT < CFG.charge.full && !threat;
+    inp.right = want > 0 && k.facing !== want;
+    inp.left = want < 0 && k.facing !== want;
+    return inp;
+  }
+
   if (near && target) {
     if (k.facing !== want && k.state !== 'attack') {
       inp.right = want > 0;
@@ -68,7 +77,8 @@ export function botInput(w: World): Input {
       inp.dash = true;
       inp.right = want > 0;
       inp.left = want < 0;
-    } else if (crowd >= 2 && f % 7 === 0) inp.heavy = true; // cleave the crowd
+    } else if (crowd >= 1 && f % 480 < 30) inp.attackHeld = true; // now and then: hold for a charged rend
+    else if (crowd >= 2 && f % 7 === 0) inp.heavy = true; // cleave the crowd
     else if (f % 200 < 3) {
       inp.jump = true; // now and then: jump in for an aerial or a plunge
       inp.jumpHeld = true;

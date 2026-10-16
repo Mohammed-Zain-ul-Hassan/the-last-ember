@@ -12,7 +12,8 @@ import { Particles } from './render/particles';
 import { ShadeViews } from './render/shadeView';
 import { LevelView } from './render/levelView';
 import { Stage } from './render/stage';
-import { rampTexture } from './render/textures';
+import { glowTexture, rampTexture } from './render/textures';
+const glowTex = glowTexture();
 import { botInput } from './sim/bot';
 import { NO_INPUT, World, type Input, type WorldOpts } from './sim/world';
 import { Hud } from './ui/hud';
@@ -275,10 +276,21 @@ function pause(): void {
 
 // ------------------------------------------------------------------ scripted scenes
 let simAcc = 0;
-function stepSim(input: Input, dt: number): void {
+/**
+ * Advance the sim in fixed 1/60 s steps. `source` is asked for input once per step that actually runs, so a key
+ * pressed on a frame where no step runs (high-refresh displays) stays latched for the next step instead of being lost.
+ */
+function stepSim(source: Input | (() => Input), dt: number): void {
   simAcc += dt;
+  let first = true;
   while (simAcc >= CFG.dt) {
     simAcc -= CFG.dt;
+    let input: Input;
+    if (typeof source === 'function') input = source();
+    else {
+      input = first ? source : { ...source, jump: false, attack: false, heavy: false, dash: false };
+      first = false;
+    }
     if (godMode) {
       world.knight.iframes = Math.max(world.knight.iframes, 0.2);
       world.hearthHp = Math.max(world.hearthHp, 50);
@@ -293,7 +305,6 @@ function stepSim(input: Input, dt: number): void {
         hud.hit();
       }
     }
-    input = { ...input, jump: false, attack: false, heavy: false, dash: false };
     if (world.status !== 'playing') break;
   }
 }
@@ -389,8 +400,7 @@ function choice(dt: number): void {
   const target = dawnBase + 2.5;
   sunEdge += (target - sunEdge) * Math.min(1, dt * 0.9);
   hud.choice(modeT > 0.6);
-  const input = DEMO ? { ...NO_INPUT, right: true } : readInput();
-  stepSim({ ...input, attack: false, heavy: false }, dt);
+  stepSim(DEMO ? { ...NO_INPUT, right: true } : () => ({ ...readInput(), attack: false, heavy: false }), dt);
   const k = world.knight;
   const inLight = k.x > sunEdge + 0.4;
   const inShadow = k.x < dawnBase - 4.4; // back into the shadow of the gatehouse
@@ -498,7 +508,7 @@ function update(now: number): void {
   if (mode === 'intro' && modeT > 3.8) beginPlay();
 
   if (mode === 'play') {
-    stepSim(DEMO ? botInput(world) : readInput(), dt);
+    stepSim(DEMO ? () => botInput(world) : readInput, dt);
     placeCheck(rawDt);
     if (world.status === 'cleared') {
       knightX = world.knight.x;
@@ -549,6 +559,7 @@ function update(now: number): void {
     const live = mode === 'play' || mode === 'outro' || mode === 'lost';
     shadeViews.update(live ? world.shades : [], dt, t, smoke, glow);
     ambient(dt);
+    drawProjectiles(dt);
     glow.update(dt, t);
     smoke.update(dt, t);
   }
@@ -589,6 +600,36 @@ function update(now: number): void {
       hud.fps(`${Math.round(frames / fpsT)} fps · ${glow.alive + smoke.alive} particles · ${mode}`);
       frames = 0;
       fpsT = 0;
+    }
+  }
+}
+
+/** Shadow bolts (a swallowing violet core with a dark trail) and the Marshal's ground waves. */
+const boltSprites: THREE.Sprite[] = [];
+function drawProjectiles(dt: number): void {
+  const live = mode === 'play' ? world.bolts : [];
+  while (boltSprites.length < live.length) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(0.9, 0.35, 2.8), blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    sp.scale.setScalar(0.75);
+    stage.scene.add(sp);
+    boltSprites.push(sp);
+  }
+  boltSprites.forEach((sp, i) => {
+    const b = live[i];
+    sp.visible = !!b;
+    if (!b) return;
+    sp.position.set(b.x, b.y, 0.3);
+    sp.scale.setScalar(0.65 + Math.sin(t * 30 + i) * 0.1);
+    for (let j = 0; j < 2; j++)
+      smoke.emit({ x: b.x, y: b.y, z: 0.3, vx: -b.vx * 0.05, vy: -b.vy * 0.05, spread: 0.1, life: 0.45, size: 0.45, sizeEnd: 0.15, r: 0.03, g: 0.0, b: 0.06, alpha: 0.85, drag: 2 });
+    glow.emit({ x: b.x, y: b.y, z: 0.3, spread: 0.3, life: 0.25, size: 0.08, sizeEnd: 0.01, r: 1.2, g: 0.5, b: 3.5 });
+  });
+  if (mode !== 'play') return;
+  for (const w of world.waves) {
+    const n = Math.max(1, Math.round(dt * 160));
+    for (let i = 0; i < n; i++) {
+      glow.emit({ x: w.x, y: 0.15, z: (Math.random() - 0.5) * 1.6, vy: 2.5 + Math.random() * 2, vx: w.dir * 2, spread: 0.4, life: 0.4, size: 0.18, sizeEnd: 0.03, r: 4, g: 0.6, b: 0.25, gravity: 6, drag: 1 });
+      smoke.emit({ x: w.x, y: 0.2, z: (Math.random() - 0.5) * 1.4, vy: 1.6, spread: 0.3, life: 0.6, size: 0.7, sizeEnd: 1.4, r: 0.05, g: 0.0, b: 0.02, alpha: 0.7, drag: 2 });
     }
   }
 }

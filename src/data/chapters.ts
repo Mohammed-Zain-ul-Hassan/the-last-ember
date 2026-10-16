@@ -26,6 +26,7 @@ export interface Chapter {
   duration: number; // seconds of play for the hour
   phase: 'hearth' | 'torch' | 'dawn';
   level: string; // key into LEVELS
+  mix: { shade: number; crawler: number; lantern: number }; // spawn weights
   memory: string; // revealed on the card after the hour is survived
   bigAt?: number; // progress (0..1) at which a great shade rises
   lightHeight: number; // flame height in metres; lower = longer shadows
@@ -47,6 +48,7 @@ export const WALLS: Wall[] = [
 export const CHAPTERS: Chapter[] = [
   {
     id: '7pm',
+    mix: { shade: 1, crawler: 0, lantern: 0 },
     level: 'grounds',
     clock: '7 PM',
     roman: 'VII',
@@ -65,6 +67,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '9pm',
+    mix: { shade: 0.75, crawler: 0.25, lantern: 0 },
     level: 'grounds',
     clock: '9 PM',
     roman: 'IX',
@@ -83,6 +86,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '11pm',
+    mix: { shade: 0.6, crawler: 0.25, lantern: 0.15 },
     level: 'grounds',
     clock: '11 PM',
     roman: 'XI',
@@ -101,6 +105,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '1am',
+    mix: { shade: 0.5, crawler: 0.3, lantern: 0.2 },
     level: 'lowerCity',
     clock: '1 AM',
     roman: 'I',
@@ -119,6 +124,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '3am',
+    mix: { shade: 0.45, crawler: 0.3, lantern: 0.25 },
     level: 'cathedral',
     clock: '3 AM',
     roman: 'III',
@@ -137,6 +143,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '5am',
+    mix: { shade: 0.4, crawler: 0.35, lantern: 0.25 },
     level: 'cityWall',
     clock: '5 AM',
     roman: 'V',

@@ -58,7 +58,27 @@ export function playEvents(events: readonly GameEvent[], fx: FxTargets): void {
         fx.rig.kick(0.25);
         break;
       case 'jump':
-        sfx('jump');
+        if (!e.double) {
+          sfx('jump');
+          break;
+        }
+        // double jump: a ring of shadow kicked off the air under his feet
+        sfx('airJump');
+        fx.rig.kick(0.2);
+        for (let i = 0; i < 28; i++) {
+          const a = (i / 28) * Math.PI * 2;
+          fx.smoke.emit({ x: e.x, y: e.y + 0.1, z: 0, vx: Math.cos(a) * 3.2, vz: Math.sin(a) * 2, vy: -1.2, spread: 0.2, life: 0.45, size: 0.45, sizeEnd: 1, r: 0.03, g: 0.02, b: 0.06, alpha: 0.75, drag: 4 });
+          if (i % 2) fx.glow.emit({ x: e.x, y: e.y + 0.1, vx: Math.cos(a) * 4, vz: Math.sin(a) * 2.4, vy: -0.6, spread: 0.1, life: 0.3, size: 0.1, sizeEnd: 0.02, r: 1.6, g: 1.0, b: 4, drag: 4 });
+        }
+        break;
+      case 'chargeFull':
+        sfx('chargeFull');
+        fx.flash(0.12, '#9a6bff');
+        fx.rig.kick(0.3);
+        for (let i = 0; i < 36; i++) {
+          const a = (i / 36) * Math.PI * 2;
+          fx.glow.emit({ x: e.x + Math.cos(a) * 0.3, y: e.y + Math.sin(a) * 0.3, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5, spread: 0.1, life: 0.35, size: 0.12, sizeEnd: 0.02, r: 2.4, g: 1.6, b: 5, drag: 3 });
+        }
         break;
       case 'land':
         sfx('land');
@@ -111,6 +131,39 @@ export function playEvents(events: readonly GameEvent[], fx: FxTargets): void {
         }
         break;
       }
+      case 'bolt':
+        sfx('bolt');
+        break;
+      case 'boltCut':
+        sfx('cut');
+        fx.rig.kick(0.25);
+        for (let i = 0; i < 24; i++)
+          fx.glow.emit({ x: e.x, y: e.y, spread: 3, life: 0.35, size: 0.1, sizeEnd: 0.02, r: 3.2, g: 2.6, b: 4.5, drag: 3 });
+        break;
+      case 'boltHit':
+        fx.flash(0.3, '#3a1260');
+        fx.rig.shake(0.35);
+        for (let i = 0; i < 30; i++)
+          fx.smoke.emit({ x: e.x, y: e.y, spread: 2, life: 0.8, size: 0.7, sizeEnd: 1.4, r: 0.04, g: 0.01, b: 0.08, alpha: 0.85, drag: 3 });
+        break;
+      case 'pounce':
+        sfx('pounce');
+        break;
+      case 'marshalCry':
+        sfx('cry');
+        fx.rig.shake(1);
+        fx.rig.kick(1.2);
+        fx.flash(0.35, '#7a1010');
+        fx.slowmo(0.45, 0.9);
+        for (let i = 0; i < 80; i++) {
+          const a = (i / 80) * Math.PI * 2;
+          fx.smoke.emit({ x: e.x, y: e.y, vx: Math.cos(a) * 6, vy: Math.sin(a) * 4, spread: 0.5, life: 1.0, size: 1, sizeEnd: 2.4, r: 0.05, g: 0.0, b: 0.02, alpha: 0.8, drag: 2.5 });
+        }
+        break;
+      case 'wave':
+        sfx('hitHeavy');
+        fx.rig.shake(0.45);
+        break;
       case 'bigSpawn':
         sfx('bigSpawn');
         fx.rig.shake(0.7);

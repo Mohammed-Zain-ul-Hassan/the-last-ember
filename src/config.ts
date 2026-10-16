@@ -15,7 +15,9 @@ export const CFG = {
     jumpV: 13.5,
     jumpCut: 0.45, // vy multiplier when jump is released early
     coyote: 0.1,
-    jumpBuffer: 0.12,
+    jumpBuffer: 0.15,
+    airJumps: 1, // double jump
+    airJumpV: 12.2,
     dashSpeed: 21,
     dashTime: 0.17,
     dashCd: 0.5,
@@ -39,6 +41,9 @@ export const CFG = {
   plunge: { windup: 0.14, active: 0, recover: 0.34, dmg: 3, reach: 3.3, back: 3.3, knock: 10, lunge: 0, multi: true }, // heavy in the air: dive + slam
   dashStrike: { windup: 0.03, active: 0.17, recover: 0.24, dmg: 2, reach: 1.5, back: 0.7, knock: 6, lunge: 17, multi: true }, // attack out of a dash: pierce the line
   lunge: { windup: 0.08, active: 0.1, recover: 0.22, dmg: 2, reach: 2.7, back: 0.3, knock: 9, lunge: 10, multi: false }, // attack while running
+  // hold attack: after the instant tap-swing, keep holding to charge; release for a wide cleave
+  charged: { windup: 0.04, active: 0.14, recover: 0.32, dmg: 2, reach: 3.2, back: 0.9, knock: 13, lunge: 7, multi: true },
+  charge: { holdToCharge: 0.26, full: 1.0, minDmg: 2, maxDmg: 7, moveSpeed: 0.3 },
   airChain: 3, // air attacks per jump
   dashStrikeWindow: 0.16, // seconds after a dash in which attack becomes a dash strike
 
@@ -59,6 +64,13 @@ export const CFG = {
     aggroRange: 2.6,
     floatSpeed: 2.6, // m/s a shade drifts up or down toward the knight
   },
+
+  // fast, low, in pairs: they crouch (telegraph) and pounce from range
+  crawler: { hpMul: 0.5, speed: 4.4, pounceRange: 3.4, windup: 0.32, pounceSpeed: 10.5, strikeTime: 0.3, cd: 1.5, h: 0.95 },
+  // keeps its distance above jump height and spits shadow bolts; light cannot burn it (it eats light)
+  lantern: { hp: 3, speed: 2.8, near: 5.5, far: 8.5, hover: 2.5, windup: 0.75, cd: 2.9, boltSpeed: 8.5, boltLife: 3, dimTime: 3, dimMul: 0.55 },
+  // the Hollow Marshal below half health: a cry, two crawlers, faster, and every strike sends a ground wave
+  marshal: { enrageAt: 0.5, speedMul: 1.5, cdMul: 0.6, waveSpeed: 9, waveLife: 1.4 },
 
   hearth: { x: 0, maxHp: 100, radius: 0.9, emberHeal: 30 },
 

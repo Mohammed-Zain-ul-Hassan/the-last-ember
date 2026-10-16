@@ -12,6 +12,7 @@ export interface Input {
   jumpHeld: boolean;
   jump: boolean; // pressed this step
   down?: boolean; // held: with jump, drop through a platform
+  attackHeld?: boolean; // held: charge an attack
   attack: boolean;
   heavy: boolean;
   dash: boolean;
@@ -19,9 +20,9 @@ export interface Input {
 
 export const NO_INPUT: Input = { left: false, right: false, jumpHeld: false, jump: false, attack: false, heavy: false, dash: false };
 
-export type KnightState = 'idle' | 'run' | 'air' | 'attack' | 'heavy' | 'dash' | 'hurt' | 'dead';
+export type KnightState = 'idle' | 'run' | 'air' | 'attack' | 'heavy' | 'dash' | 'hurt' | 'dead' | 'charge';
 /** What the current attack is. Light/air/lunge/dashStrike run in state 'attack'; heavy/plunge in state 'heavy'. */
-export type Move = 'light' | 'heavy' | 'air' | 'plunge' | 'dashStrike' | 'lunge';
+export type Move = 'light' | 'heavy' | 'air' | 'plunge' | 'dashStrike' | 'lunge' | 'charged';
 
 export interface Knight {
   x: number;
@@ -40,6 +41,10 @@ export interface Knight {
   airHits: number;
   slamT: number; // plunge: time since landing (-1 = still diving)
   ember: boolean; // carrying an ember to the hearth
+  airJumps: number; // jumps left in the air
+  holdT: number; // how long attack has been held
+  chargeT: number; // time spent charging
+  chargeLevel: number; // 0..1, for the released strike
   dropT: number; // > 0: falling through platforms
   bufferedAttack: boolean;
   coyote: number;
@@ -68,6 +73,27 @@ export interface Shade {
   light: number; // light level it stands in, for render smoke
   deadT: number;
   big: boolean;
+  kind: ShadeKind;
+  enraged: boolean;
+}
+
+export type ShadeKind = 'shade' | 'crawler' | 'lantern';
+
+export interface Bolt {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+}
+
+/** A ground shockwave from the enraged Marshal: jump it. */
+export interface Wave {
+  x: number;
+  dir: 1 | -1;
+  life: number;
+  hit: boolean;
 }
 
 export type GameEvent =
@@ -77,7 +103,8 @@ export type GameEvent =
   | { type: 'move'; name: string; x: number; y: number; count: number }
   | { type: 'kill'; x: number; y: number; burned: boolean; big: boolean; id: number }
   | { type: 'spawn'; x: number }
-  | { type: 'jump' | 'land' | 'dash'; x: number; y: number }
+  | { type: 'jump' | 'land' | 'dash'; x: number; y: number; double?: boolean }
+  | { type: 'chargeFull'; x: number; y: number }
   | { type: 'knightHurt'; x: number; y: number; hp: number }
   | { type: 'hearthHurt'; hp: number }
   | { type: 'shadeWindup'; x: number; id: number }
@@ -88,6 +115,12 @@ export type GameEvent =
   | { type: 'feed'; x: number; hp: number }
   | { type: 'checkpoint'; x: number; index: number }
   | { type: 'gate'; x: number; open: boolean }
+  | { type: 'bolt'; x: number; y: number }
+  | { type: 'boltCut'; x: number; y: number }
+  | { type: 'boltHit'; x: number; y: number }
+  | { type: 'pounce'; x: number; id: number }
+  | { type: 'marshalCry'; x: number; y: number }
+  | { type: 'wave'; x: number }
   | { type: 'cleared' }
   | { type: 'lost'; reason: 'hearth' | 'knight' };
 
@@ -125,6 +158,9 @@ export class World {
   loseReason: 'hearth' | 'knight' | null = null;
   knight: Knight;
   shades: Shade[] = [];
+  bolts: Bolt[] = [];
+  waves: Wave[] = [];
+  torchDim = 0; // seconds the torch stays dimmed after a lantern-eater's bolt
   hearthHp: number = CFG.hearth.maxHp;
   light: LightSrc;
   shadows: Interval[] = [];
@@ -151,7 +187,7 @@ export class World {
     this.bossDone = this.level.bossAt === undefined;
     this.knight = {
       x: opts.startX ?? this.level.start, y: opts.startY ?? 0, vx: 0, vy: 0, facing: 1, onGround: true, hp: CFG.knight.maxHp,
-      state: 'idle', stateT: 0, combo: 0, move: 'light', swingId: 0, sinceDash: 9, airHits: 0, slamT: -1, ember: false, dropT: 0, bufferedAttack: false,
+      state: 'idle', stateT: 0, combo: 0, move: 'light', swingId: 0, sinceDash: 9, airHits: 0, slamT: -1, ember: false, airJumps: CFG.knight.airJumps, holdT: 0, chargeT: 0, chargeLevel: 0, dropT: 0, bufferedAttack: false,
       coyote: 0, jumpBuffer: 0, dashCd: 0, airDash: true, iframes: 0, hitThisSwing: new Set(),
     };
     this.light = { x: this.hearthX, y: this.chapter.lightHeight, radius: this.chapter.lightRadius };
@@ -179,7 +215,7 @@ export class World {
       const k = this.knight;
       this.light.x = k.x + k.facing * 0.35;
       this.light.y = this.chapter.lightHeight + k.y;
-      this.light.radius = this.chapter.lightRadius;
+      this.light.radius = this.chapter.lightRadius * (this.torchDim > 0 ? CFG.lantern.dimMul : 1);
       this.shadows = shadowIntervals(this.light, this.walls, this.minX, this.maxX);
       return;
     }
@@ -204,11 +240,14 @@ export class World {
     const dt = CFG.dt;
     this.frame++;
     this.time += dt;
+    this.torchDim = Math.max(0, this.torchDim - dt);
     this.updateLight();
     this.stepKnight(input, dt);
     this.stepJourney();
     this.stepSpawner(dt);
     for (const s of this.shades) this.stepShade(s, dt);
+    this.stepBolts(dt);
+    this.stepWaves(dt);
     this.shades = this.shades.filter((s) => s.state !== 'dead' || s.deadT < 1.2);
     for (const s of this.shades) if (s.state === 'dead') s.deadT += dt;
 
@@ -251,7 +290,39 @@ export class World {
     }
 
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-    const busy = k.state === 'attack' || k.state === 'heavy' || k.state === 'dash' || k.state === 'hurt';
+    k.holdT = inp.attackHeld ? k.holdT + dt : 0;
+    // a jump cancels the tail of a swing or a dash, so it never feels swallowed
+    if (k.jumpBuffer > 0 && (k.state === 'attack' || k.state === 'heavy') && k.move !== 'plunge') {
+      const sp = this.spec();
+      if (k.stateT >= sp.windup + sp.active) this.setKState(k.onGround ? 'idle' : 'air');
+    }
+    if (k.jumpBuffer > 0 && k.state === 'dash' && k.stateT > 0.06) {
+      k.sinceDash = 0;
+      this.setKState(k.onGround ? 'run' : 'air');
+    }
+    // charging: keep holding attack once the instant swing is done
+    if (inp.attackHeld && k.holdT >= CFG.charge.holdToCharge && k.state !== 'charge' && k.state !== 'hurt' && k.state !== 'dash' && k.onGround) {
+      const swingDone = (k.state === 'attack' && k.move === 'light' && k.stateT >= this.spec().windup + this.spec().active) || k.state === 'idle' || k.state === 'run';
+      if (swingDone) {
+        this.setKState('charge');
+        k.chargeT = 0;
+      }
+    }
+    if (k.state === 'charge') {
+      k.chargeT += dt;
+      if (k.chargeT - dt < CFG.charge.full && k.chargeT >= CFG.charge.full) this.events.push({ type: 'chargeFull', x: k.x, y: k.y + 1.4 });
+      if (dir !== 0) k.facing = dir as 1 | -1;
+      k.vx = dir * K.speed * CFG.charge.moveSpeed;
+      if (!inp.attackHeld) {
+        k.chargeLevel = Math.min(1, k.chargeT / CFG.charge.full);
+        this.startMove('charged');
+      } else if (inp.dash || !k.onGround) this.setKState(k.onGround ? 'idle' : 'air');
+      else {
+        this.integrateKnight(dt, true);
+        return;
+      }
+    }
+    const busy = k.state === 'attack' || k.state === 'heavy' || k.state === 'dash' || k.state === 'hurt' || k.state === 'charge';
 
     // --- dash (can cancel an attack's recovery)
     if (inp.dash && k.dashCd <= 0 && (k.onGround || k.airDash) && k.state !== 'hurt' && k.state !== 'dash') {
@@ -317,6 +388,12 @@ export class World {
         k.coyote = 0;
         k.jumpBuffer = 0;
         this.events.push({ type: 'jump', x: k.x, y: k.y });
+      } else if (k.jumpBuffer > 0 && !k.onGround && k.coyote <= 0 && k.airJumps > 0) {
+        // double jump: a second leap out of the air on a burst of shadow
+        k.vy = K.airJumpV;
+        k.airJumps--;
+        k.jumpBuffer = 0;
+        this.events.push({ type: 'jump', x: k.x, y: k.y, double: true });
       }
       if (!inp.jumpHeld && k.vy > 0) k.vy *= 1 - (1 - K.jumpCut) * Math.min(1, dt * 20);
       const next: KnightState = !k.onGround ? 'air' : Math.abs(k.vx) > 0.3 ? 'run' : 'idle';
@@ -372,12 +449,14 @@ export class World {
       if (k.vy < 0) k.vy = 0;
       k.onGround = true;
       k.airDash = true;
+      k.airJumps = CFG.knight.airJumps;
     } else k.onGround = false;
     if (!wasGround && k.onGround && k.state !== 'dead') this.events.push({ type: 'land', x: k.x, y: k.y });
   }
 
   private spec(): MoveSpec {
     const k = this.knight;
+    if (k.move === 'charged') return { ...CFG.charged, dmg: Math.round(CFG.charge.minDmg + (CFG.charge.maxDmg - CFG.charge.minDmg) * k.chargeLevel) };
     return k.move === 'light' ? CFG.combo[k.combo] : CFG[k.move];
   }
 
@@ -416,7 +495,7 @@ export class World {
   }
 
   private static readonly MOVE_NAMES: Partial<Record<Move, string>> = {
-    heavy: 'Cleave', plunge: 'Shadow Plunge', dashStrike: 'Piercing Step', lunge: 'Lunge', air: 'Aerial',
+    heavy: 'Cleave', plunge: 'Shadow Plunge', dashStrike: 'Piercing Step', lunge: 'Lunge', air: 'Aerial', charged: 'Shadow Rend',
   };
 
   private stepSwing(dt: number): void {
@@ -485,6 +564,7 @@ export class World {
     if (!name || n === 0) return;
     if (k.move === 'air' && k.airHits < CFG.airChain) return; // name a full aerial chain only
     if (k.move === 'heavy' && n < 2 && !always) return; // a cleave is worth naming when it hits a crowd
+    if (k.move === 'charged' && k.chargeLevel < 0.95) return; // only a full charge earns the name
     this.events.push({ type: 'move', name, x: k.x, y: k.y + 2.6, count: n });
   }
 
@@ -492,12 +572,21 @@ export class World {
     const k = this.knight;
     const heavy = k.state === 'heavy';
     // single-target moves only ever connect with one shade per swing
+    // any blade cuts shadow bolts out of the air
+    const bx0 = k.facing > 0 ? cx - sp.back : cx - sp.reach;
+    const bx1 = k.facing > 0 ? cx + sp.reach + 0.4 : cx + sp.back;
+    for (const b of this.bolts) {
+      if (b.life <= 0 || b.x < bx0 || b.x > bx1 || b.y < k.y - 0.2 || b.y > k.y + 2.8) continue;
+      b.life = 0;
+      this.events.push({ type: 'boltCut', x: b.x, y: b.y });
+      this.hitstop = Math.max(this.hitstop, 2);
+    }
     if (!sp.multi && k.hitThisSwing.size > 0) return;
     const x0 = k.facing > 0 ? cx - sp.back : cx - sp.reach;
     const x1 = k.facing > 0 ? cx + sp.reach : cx + sp.back;
     const hw = CFG.shade.w / 2;
     const inRange = this.shades.filter(
-      (s) => s.state !== 'dead' && !k.hitThisSwing.has(s.id) && s.x + hw >= x0 && s.x - hw <= x1 && !(k.y > s.y + CFG.shade.h * (s.big ? 1.65 : 1) || k.y + CFG.knight.h < s.y),
+      (s) => s.state !== 'dead' && !k.hitThisSwing.has(s.id) && s.x + hw >= x0 && s.x - hw <= x1 && !(k.y > s.y + this.shadeH(s) || k.y + CFG.knight.h < s.y),
     );
     if (!inRange.length) return;
     const targets = sp.multi ? inRange : [inRange.reduce((a, b) => (Math.abs(a.x - k.x) <= Math.abs(b.x - k.x) ? a : b))];
@@ -549,7 +638,23 @@ export class World {
     if (this.spawnT > 0 || alive >= this.chapter.maxShades) return;
     const [a, b] = this.chapter.spawnEvery;
     this.spawnT = a + (b - a) * this.progress;
-    this.spawnShade(this.pickSpawnX());
+    const x = this.pickSpawnX();
+    const kind = this.pickKind();
+    this.spawnShade(x, false, kind);
+    if (kind === 'crawler') this.spawnShade(Math.max(this.minX + 1, Math.min(this.maxX - 1, x + (x > this.knight.x ? 1.3 : -1.3))), false, 'crawler'); // they come in pairs
+  }
+
+  private pickKind(): ShadeKind {
+    const m = this.chapter.mix;
+    let r = this.rng.next() * (m.shade + m.crawler + m.lantern);
+    if ((r -= m.lantern) < 0) return 'lantern';
+    if ((r -= m.crawler) < 0) return 'crawler';
+    return 'shade';
+  }
+
+  /** Body height for hit tests. */
+  shadeH(s: Shade): number {
+    return s.big ? CFG.shade.h * 1.65 : s.kind === 'crawler' ? CFG.crawler.h : CFG.shade.h;
   }
 
   /**
@@ -632,13 +737,14 @@ export class World {
     return this.checkpointsLit > 0 ? this.level.checkpoints[this.checkpointsLit - 1] : this.level.start;
   }
 
-  spawnShade(x: number, big = false): Shade {
+  spawnShade(x: number, big = false, kind: ShadeKind = 'shade'): Shade {
     const c = this.chapter;
-    const hp = big ? c.shadeHp * 7 : c.shadeHp;
+    const hp = big ? c.shadeHp * 7 : kind === 'crawler' ? Math.max(1, Math.ceil(c.shadeHp * CFG.crawler.hpMul)) : kind === 'lantern' ? CFG.lantern.hp : c.shadeHp;
+    const speed = big ? c.shadeSpeed * 0.6 : kind === 'crawler' ? CFG.crawler.speed : kind === 'lantern' ? CFG.lantern.speed : c.shadeSpeed;
     const s: Shade = {
       id: this.nextId++, x, y: 0, vx: 0, hp, maxHp: hp,
-      speed: c.shadeSpeed * (big ? 0.6 : this.rng.range(0.85, 1.15)), facing: x > this.light.x ? -1 : 1,
-      state: 'rise', stateT: 0, cd: this.rng.range(0, 0.5), target: 'hearth', light: 0, deadT: 0, big,
+      speed: speed * (big ? 1 : this.rng.range(0.85, 1.15)), facing: x > this.light.x ? -1 : 1,
+      state: 'rise', stateT: 0, cd: this.rng.range(0, 0.5), target: 'hearth', light: 0, deadT: 0, big, kind, enraged: false,
     };
     this.shades.push(s);
     this.events.push({ type: 'spawn', x });
@@ -663,7 +769,7 @@ export class World {
     s.light = this.lightAt(s.x);
 
     // light burns shades (not while still rising out of the dark)
-    if (s.state !== 'rise' && s.light > 0) {
+    if (s.state !== 'rise' && s.light > 0 && s.kind !== 'lantern') {
       s.hp -= S.lightDps * (this.torch ? 1.5 : 1) * (s.big ? 0.3 : 1) * s.light * dt;
       if (s.hp <= 0) return this.killShade(s, true);
     }
@@ -687,6 +793,8 @@ export class World {
       return;
     }
 
+    if (s.kind === 'lantern') return this.stepLantern(s, dt);
+    if (s.big) this.marshalPhase(s);
     const kAlive = k.state !== 'dead';
     const toKnight = k.x - s.x;
     const knightNear = kAlive && Math.abs(toKnight) < S.aggroRange && Math.abs(k.y - s.y) < 3.5;
@@ -697,7 +805,10 @@ export class World {
     const ty = s.target === 'knight' && Math.abs(toKnight) < 7 ? k.y : 0;
     if (s.state === 'walk' || s.state === 'windup') s.y += Math.sign(ty - s.y) * Math.min(Math.abs(ty - s.y), S.floatSpeed * dt);
     const reach = s.big ? 1.9 : 1;
-    const range = s.target === 'knight' ? S.attackRange * reach : S.hearthRange + CFG.hearth.radius;
+    const crawler = s.kind === 'crawler';
+    const range = s.target === 'knight' ? (crawler ? CFG.crawler.pounceRange : S.attackRange * reach) : S.hearthRange + CFG.hearth.radius;
+    const windup = crawler ? CFG.crawler.windup : S.windup;
+    const strikeTime = crawler ? CFG.crawler.strikeTime : S.strikeTime;
 
     if (s.state === 'walk') {
       s.facing = tx >= s.x ? 1 : -1;
@@ -709,10 +820,15 @@ export class World {
         this.events.push({ type: 'shadeWindup', x: s.x, id: s.id });
       }
     } else if (s.state === 'windup') {
-      if (s.stateT >= S.windup) {
+      if (s.stateT >= windup) {
         s.state = 'strike';
         s.stateT = 0;
-        if (s.target === 'knight') {
+        if (crawler && s.target === 'knight') {
+          // pounce: the hit lands during the leap, not at its start
+          s.vx = s.facing * CFG.crawler.pounceSpeed;
+          this.events.push({ type: 'pounce', x: s.x, id: s.id });
+        } else if (s.target === 'knight') {
+          if (s.big && s.enraged) this.marshalWaves(s);
           if (Math.abs(k.x - s.x) < S.attackRange * reach + 0.35 && Math.abs(k.y - s.y) < 1.6 * reach) this.hurtKnight(s.x, s.big ? 2 : 1);
         } else if (Math.abs(this.hearthX - s.x) <= range + 0.3) {
           this.hearthHp = Math.max(0, this.hearthHp - S.hearthDmg);
@@ -720,11 +836,93 @@ export class World {
         }
       }
     } else if (s.state === 'strike') {
-      if (s.stateT >= S.strikeTime) {
+      if (crawler && s.target === 'knight') {
+        s.vx = s.facing * CFG.crawler.pounceSpeed; // the leap holds its speed
+        if (Math.abs(k.x - s.x) < 1.0 && Math.abs(k.y - s.y) < 1.4) this.hurtKnight(s.x, 1);
+      }
+      if (s.stateT >= strikeTime) {
         s.state = 'walk';
         s.stateT = 0;
-        s.cd = S.attackCd;
+        s.cd = crawler ? CFG.crawler.cd : S.attackCd * (s.enraged ? CFG.marshal.cdMul : 1);
       }
     }
+  }
+
+  /** Lantern-eater: hover out of reach, keep its distance, spit bolts that dim the torch. */
+  private stepLantern(s: Shade, dt: number): void {
+    const L = CFG.lantern;
+    const k = this.knight;
+    s.target = 'knight';
+    const dx = k.x - s.x;
+    const adx = Math.abs(dx);
+    s.facing = dx >= 0 ? 1 : -1;
+    const want = adx < L.near ? -1 : adx > L.far ? 1 : 0; // back off, close in, or hold
+    s.x += want * s.facing * s.speed * dt;
+    const ty = k.y + L.hover + Math.sin(this.time * 2 + s.id) * 0.25;
+    s.y += Math.sign(ty - s.y) * Math.min(Math.abs(ty - s.y), CFG.shade.floatSpeed * dt);
+    if (s.state === 'walk' && s.cd <= 0 && adx < L.far + 3 && k.state !== 'dead') {
+      s.state = 'windup';
+      s.stateT = 0;
+      this.events.push({ type: 'shadeWindup', x: s.x, id: s.id });
+    } else if (s.state === 'windup' && s.stateT >= L.windup) {
+      const ox = s.x;
+      const oy = s.y + 1.2;
+      const tx = k.x - ox;
+      const ty2 = k.y + 1.1 - oy;
+      const d = Math.hypot(tx, ty2) || 1;
+      this.bolts.push({ id: this.nextId++, x: ox, y: oy, vx: (tx / d) * L.boltSpeed, vy: (ty2 / d) * L.boltSpeed, life: L.boltLife });
+      this.events.push({ type: 'bolt', x: ox, y: oy });
+      s.state = 'walk';
+      s.stateT = 0;
+      s.cd = L.cd;
+    }
+  }
+
+  private stepBolts(dt: number): void {
+    const k = this.knight;
+    for (const b of this.bolts) {
+      if (b.life <= 0) continue;
+      b.life -= dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      if (b.y < 0) b.life = 0;
+      if (Math.abs(b.x - k.x) < 0.45 && b.y > k.y && b.y < k.y + CFG.knight.h && k.iframes <= 0 && k.state !== 'dead') {
+        b.life = 0;
+        this.events.push({ type: 'boltHit', x: b.x, y: b.y });
+        this.hurtKnight(b.x, 1);
+        if (this.torch) this.torchDim = CFG.lantern.dimTime; // it eats the light
+      }
+    }
+    this.bolts = this.bolts.filter((b) => b.life > 0);
+  }
+
+  /** Below half health the Marshal cries out, calls two crawlers and quickens. */
+  private marshalPhase(s: Shade): void {
+    if (s.enraged || s.state === 'dead' || s.hp > s.maxHp * CFG.marshal.enrageAt) return;
+    s.enraged = true;
+    s.speed *= CFG.marshal.speedMul;
+    this.events.push({ type: 'marshalCry', x: s.x, y: s.y + 3 });
+    for (const dx of [-3, 3]) {
+      const c = this.spawnShade(Math.max(this.minX + 1, Math.min(this.maxX - 1, s.x + dx)), false, 'crawler');
+      c.target = 'knight';
+    }
+  }
+
+  private marshalWaves(s: Shade): void {
+    for (const dir of [-1, 1] as const) this.waves.push({ x: s.x + dir * 1.2, dir, life: CFG.marshal.waveLife, hit: false });
+    this.events.push({ type: 'wave', x: s.x });
+  }
+
+  private stepWaves(dt: number): void {
+    const k = this.knight;
+    for (const w of this.waves) {
+      w.life -= dt;
+      w.x += w.dir * CFG.marshal.waveSpeed * dt;
+      if (!w.hit && Math.abs(w.x - k.x) < 0.6 && k.y < 0.45 && k.state !== 'dead') {
+        w.hit = true;
+        this.hurtKnight(w.x, 1);
+      }
+    }
+    this.waves = this.waves.filter((w) => w.life > 0);
   }
 }

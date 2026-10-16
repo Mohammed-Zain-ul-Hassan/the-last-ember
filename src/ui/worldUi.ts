@@ -14,7 +14,7 @@ const NAMES = [
   'the twins', 'Rook', 'Bertrand', 'the miller', 'Agnes', 'Wat', 'Isolde', 'the lamplighter', 'Piers', 'Nell',
 ];
 
-const TAGS: Record<Move, string> = { light: 'light', heavy: 'heavy', air: 'aerial', plunge: 'plunge', dashStrike: 'pierce', lunge: 'lunge' };
+const TAGS: Record<Move, string> = { light: 'light', heavy: 'heavy', air: 'aerial', plunge: 'plunge', dashStrike: 'pierce', lunge: 'lunge', charged: 'charged' };
 
 interface Bar {
   el: HTMLDivElement;
@@ -50,7 +50,9 @@ export class WorldUi {
     return { x: (this.v.x * 0.5 + 0.5) * window.innerWidth, y: (-this.v.y * 0.5 + 0.5) * window.innerHeight, on: this.v.z < 1 };
   }
 
-  private headY(big: boolean): number {
+  private headY(big: boolean, kind: string = 'shade'): number {
+    if (kind === 'crawler') return 1.45;
+    if (kind === 'lantern') return 2.3;
     return (big ? 1.65 : 1) * 2.2 + 0.25;
   }
 
@@ -86,7 +88,7 @@ export class WorldUi {
         if (bar) bar.lastHit = this.t;
         if (big) this.bossLastHit = this.t;
         const kind = w.torch && e.heavy ? 'fire' : e.heavy ? 'heavy' : e.move === 'light' ? 'light' : 'skill';
-        this.pop(e.heavy ? `${e.dmg}!` : `${e.dmg}`, e.x, (s ? s.y : 0) + this.headY(big) + 0.1, kind, -0.2, TAGS[e.move]);
+        this.pop(e.heavy ? `${e.dmg}!` : `${e.dmg}`, e.x, (s ? s.y : 0) + this.headY(big, s?.kind) + 0.1, kind, -0.2, TAGS[e.move]);
       } else if (e.type === 'kill') {
         const name = NAMES[this.nameIdx++ % NAMES.length];
         this.pop(e.big ? 'the Hollow Marshal is free' : name, e.x, e.y + 1.9, e.big ? 'soul big' : 'soul', -0.2);
@@ -94,6 +96,8 @@ export class WorldUi {
       } else if (e.type === 'move') {
         for (const old of Array.from(this.root.querySelectorAll('.pop.callout'))) old.remove(); // one callout at a time
         this.pop(e.count >= 2 ? `${e.name} ×${e.count}` : e.name, e.x, e.y + 0.4, 'callout', 0);
+      } else if (e.type === 'marshalCry') {
+        this.pop('the Marshal remembers his oath, and hates you for keeping yours', e.x, e.y + 0.6, 'soul big', 0);
       } else if (e.type === 'knightHurt') {
         this.pop('-1', e.x, e.y + 2.9, 'hurt', 0);
       }
@@ -124,7 +128,7 @@ export class WorldUi {
         b.chipHp = Math.max(b.chipHp, s.hp);
         const target = s.state === 'rise' ? 0 : 1;
         b.shown += (target - b.shown) * Math.min(1, dt * 6);
-        const p = this.project(s.x, s.y + this.headY(false), -0.2);
+        const p = this.project(s.x, s.y + this.headY(false, s.kind), -0.2);
         b.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
         b.el.style.opacity = p.on ? (b.shown * (s.light > 0.05 ? 1 : 0.85)).toFixed(2) : '0';
         b.el.classList.toggle('burning', s.light > 0.05);

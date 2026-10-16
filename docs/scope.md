@@ -40,8 +40,10 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
   mechanic cut to story-only (user). Engine Phaser to Three.js (research agent recommendation).
 
 ## NOW / NEXT / DONE
-- NOW: Level 2 phase 2 (places: reveal shots, more dressing per region) — see docs/level2.md.
-- NEXT: phase 3 enemies (Lantern-eater, Crawler, Marshal phases), phase 4 memory vignettes, phase 5 grades/settings;
-  re-capture trailer clips on the new places.
+- NOW: Level 2 phase 4 (memory vignettes between hours) — see docs/level2.md.
+- NEXT: phase 5 grades/settings; re-capture trailer clips on the new places, enemies and the charged rend.
+- DONE: Level 2 phases 2 + 3 (playable-9): places with reveal shots; Crawlers, Lantern-eaters, the Marshal's two
+  phases. Controls: no dropped presses (input read per sim step), double jump, jumps cancel swing/dash tails,
+  hold-to-charge strike (2-7 dmg AOE, "Shadow Rend" at full).
 - DONE: Level 2 phase 1 (playable-8): the journey across four places, platforms, embers, road, braziers, boss gate,
   dawn on the wall. Combat moveset (playable-7). Live: https://the-last-ember-xi.vercel.app

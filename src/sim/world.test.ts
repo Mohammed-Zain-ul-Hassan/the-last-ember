@@ -173,4 +173,70 @@ describe('world', () => {
     w.step(press({ right: true, attack: true }));
     expect(w.knight.move).toBe('lunge');
   });
+
+  it('double jump: one extra leap in the air, restored on landing', () => {
+    const w = arena();
+    run(w, 1, { jump: true, jumpHeld: true });
+    run(w, 20, { jumpHeld: true });
+    const y0 = w.knight.y;
+    w.step(press({ jump: true, jumpHeld: true }));
+    expect(w.events.some((e) => e.type === 'jump' && e.double)).toBe(true);
+    expect(w.knight.vy).toBeGreaterThan(CFG.knight.airJumpV * 0.9);
+    run(w, 10, { jumpHeld: true });
+    expect(w.knight.y).toBeGreaterThan(y0);
+    // no third jump
+    w.step(press({ jump: true, jumpHeld: true }));
+    expect(w.events.some((e) => e.type === 'jump')).toBe(false);
+    run(w, 200);
+    expect(w.knight.onGround).toBe(true);
+    expect(w.knight.airJumps).toBe(CFG.knight.airJumps);
+  });
+
+  it('a jump pressed during the tail of a swing is not swallowed', () => {
+    const w = arena();
+    w.step(press({ attack: true }));
+    const sp = CFG.combo[0];
+    run(w, Math.ceil((sp.windup + sp.active) / CFG.dt) + 1);
+    expect(w.knight.state).toBe('attack');
+    w.step(press({ jump: true, jumpHeld: true }));
+    run(w, 2, { jumpHeld: true });
+    expect(w.knight.onGround).toBe(false);
+  });
+
+  it('a tap is still an instant light swing; holding charges, and a full charge hits harder than any light hit, to every shade in reach', () => {
+    const w = arena();
+    w.step(press({ attack: true, attackHeld: true }));
+    expect(w.knight.state).toBe('attack');
+    expect(w.knight.move).toBe('light');
+
+    const w2 = arena();
+    const a = dummy(w2, -12.6);
+    const b = dummy(w2, -12.0);
+    w2.step(press({ attack: true, attackHeld: true }));
+    let full = false;
+    for (let i = 0; i < 90; i++) {
+      w2.step(press({ attackHeld: true }));
+      if (w2.events.some((e) => e.type === 'chargeFull')) full = true;
+    }
+    expect(w2.knight.state).toBe('charge');
+    expect(full).toBe(true);
+    const before = [a.hp, b.hp];
+    run(w2, 40); // release
+    expect(w2.knight.move).toBe('charged');
+    const dealt = [before[0] - a.hp, before[1] - b.hp];
+    expect(Math.min(...dealt)).toBe(CFG.charge.maxDmg); // both shades, full damage
+    expect(CFG.charge.maxDmg).toBeGreaterThan(Math.max(...CFG.combo.map((c) => c.dmg), CFG.heavy.dmg));
+  });
+
+  it('a short charge deals less than a full one', () => {
+    const w = arena();
+    const a = dummy(w, -12.6);
+    for (let i = 0; i < Math.ceil(CFG.charge.holdToCharge / CFG.dt) + 6; i++) w.step(press({ attackHeld: true }));
+    expect(w.knight.state).toBe('charge');
+    const hp = a.hp;
+    run(w, 40);
+    const dealt = hp - a.hp;
+    expect(dealt).toBeGreaterThanOrEqual(CFG.charge.minDmg);
+    expect(dealt).toBeLessThan(CFG.charge.maxDmg);
+  });
 });

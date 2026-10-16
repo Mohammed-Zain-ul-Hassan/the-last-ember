@@ -105,7 +105,8 @@ function tone(t: number, type: OscillatorType, f0: number, f1: number, dur: numb
 
 export type SfxName =
   | 'swing' | 'swingHeavy' | 'hit' | 'hitHeavy' | 'kill' | 'burn' | 'dash' | 'jump' | 'land' | 'hurt' | 'hearthHurt'
-  | 'spawn' | 'bell' | 'lose' | 'ui' | 'fireburst' | 'ignite' | 'bigSpawn' | 'dawn' | 'gutter' | 'dissolve';
+  | 'spawn' | 'bell' | 'lose' | 'ui' | 'fireburst' | 'ignite' | 'bigSpawn' | 'dawn' | 'gutter' | 'dissolve'
+  | 'bolt' | 'cut' | 'cry' | 'pounce' | 'airJump' | 'chargeFull';
 
 export function sfx(name: SfxName, combo = 0): void {
   if (!ctx || ctx.state !== 'running') return;
@@ -186,6 +187,36 @@ export function sfx(name: SfxName, combo = 0): void {
     case 'dawn':
       // a slow major chord swelling out of the dark: D major, wide voicing
       for (const [f, a] of [[73.4, 0.3], [146.8, 0.22], [220, 0.18], [293.7, 0.15], [370, 0.12], [440, 0.1]] as const) tone(t, 'sine', f, f * 1.001, 7, a, 2.5, musicBus);
+      break;
+    case 'bolt':
+      tone(t, 'sine', vary(220), 90, 0.5, 0.25, 0.04); // a hollow, swallowing hum
+      noise(t, 0.4, 'bandpass', 600, 200, 4, 0.2, 0.05);
+      break;
+    case 'cut':
+      tone(t, 'triangle', vary(1300), 700, 0.18, 0.3);
+      noise(t, 0.12, 'highpass', 5000, 2500, 0.8, 0.35);
+      break;
+    case 'pounce':
+      noise(t, 0.2, 'bandpass', 900, 300, 1.5, 0.35, 0.01);
+      tone(t, 'sawtooth', vary(160), 90, 0.15, 0.12);
+      break;
+    case 'cry':
+      // the Marshal's cry: a falling roar under a choir of wrong notes
+      tone(t, 'sawtooth', 110, 55, 2.2, 0.5, 0.15);
+      tone(t, 'sawtooth', 116, 58, 2.2, 0.35, 0.15);
+      noise(t, 2.0, 'lowpass', 1800, 200, 2, 0.5, 0.2);
+      for (const f of [311, 330, 349]) tone(t, 'sine', f, f * 0.94, 2.5, 0.06, 0.3, musicBus);
+      break;
+    case 'airJump':
+      // a soft whoomph of shadow underfoot
+      noise(t, 0.22, 'bandpass', vary(500), vary(1600), 1.2, 0.3, 0.01);
+      tone(t, 'sine', vary(140), 260, 0.18, 0.18);
+      break;
+    case 'chargeFull':
+      // the blade is ready: a bright ring over a low swell
+      tone(t, 'triangle', vary(880), 880, 0.6, 0.18, 0.01);
+      tone(t, 'sine', 1320, 1320, 0.5, 0.1, 0.01);
+      tone(t, 'sawtooth', 70, 90, 0.4, 0.12, 0.05);
       break;
     case 'dissolve':
       for (let i = 0; i < 6; i++) tone(t + i * 0.35, 'sine', 587 * Math.pow(1.122, i), 587 * Math.pow(1.122, i), 2.5, 0.06, 0.05, musicBus);

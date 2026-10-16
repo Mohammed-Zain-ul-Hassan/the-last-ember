@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CFG } from '../config';
-import type { Shade } from '../sim/world';
+import type { Shade, ShadeKind } from '../sim/world';
+import { CrawlerMesh, LanternMesh, type EnemyMesh } from './enemyViews';
 import type { Particles } from './particles';
 import { rimify } from './rim';
 import { tatterTexture } from './textures';
@@ -213,42 +214,49 @@ class ShadeMesh {
   }
 }
 
+type AnyMesh = EnemyMesh | ShadeMesh;
+
 export class ShadeViews {
   readonly group = new THREE.Group();
-  private live = new Map<number, ShadeMesh>();
-  private pool: ShadeMesh[] = [];
+  private live = new Map<number, { kind: ShadeKind; v: AnyMesh }>();
+  private pools: Record<ShadeKind, AnyMesh[]> = { shade: [], crawler: [], lantern: [] };
+
+  private make(kind: ShadeKind): AnyMesh {
+    return kind === 'crawler' ? new CrawlerMesh() : kind === 'lantern' ? new LanternMesh() : new ShadeMesh();
+  }
 
   update(shades: readonly Shade[], dt: number, t: number, smoke: Particles, embers: Particles): void {
     const seen = new Set<number>();
     for (const s of shades) {
       seen.add(s.id);
-      let v = this.live.get(s.id);
-      if (!v) {
-        v = this.pool.pop() ?? new ShadeMesh();
+      let e = this.live.get(s.id);
+      if (!e) {
+        const v = this.pools[s.kind].pop() ?? this.make(s.kind);
+        e = { kind: s.kind, v };
         this.group.add(v.root);
-        this.live.set(s.id, v);
+        this.live.set(s.id, e);
       }
-      v.update(s, dt, t, smoke, embers);
+      e.v.update(s, dt, t, smoke, embers);
     }
-    for (const [id, v] of this.live) {
+    for (const [id, e] of this.live) {
       if (seen.has(id)) continue;
-      this.group.remove(v.root);
+      this.group.remove(e.v.root);
       this.live.delete(id);
-      this.pool.push(v);
+      this.pools[e.kind].push(e.v);
     }
   }
 
   clear(): void {
-    for (const v of this.live.values()) {
-      this.group.remove(v.root);
-      this.pool.push(v);
+    for (const e of this.live.values()) {
+      this.group.remove(e.v.root);
+      this.pools[e.kind].push(e.v);
     }
     this.live.clear();
   }
 
   hit(id: number): void {
-    const v = this.live.get(id);
-    if (v) v.flash = 1;
+    const e = this.live.get(id);
+    if (e) e.v.flash = 1;
   }
 
   get count(): number {

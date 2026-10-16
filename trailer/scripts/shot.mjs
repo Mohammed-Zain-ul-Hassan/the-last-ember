@@ -90,6 +90,39 @@ const SCENES = {
       for (let i = 0; i < 6; i++) { key(i % 3 === 2 ? 'KeyK' : 'KeyJ'); G.tick(16.67, 10); }
       G.tick(16.67, 3);`,
   },
+  charge: {
+    q: 'seed=11&chapter=3',
+    js: `G.skipTo(3); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 150);
+      const w = G.world; w.shades.length = 0; w.knight.x = 2; w.knight.facing = 1;
+      for (const x of [4.6, 5.4]) { const s = w.spawnShade(x); s.state = 'walk'; s.cd = 99; s.hp = s.maxHp = 9; s.speed = 0; }
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyJ' })); G.tick(16.67, 70);
+      G.rig.fitSpan = false; G.rig.snap({ yaw: 0.3, height: 1.6, dist: 7, lookY: 1.4, fov: 34 }); G.rig.x = 3; G.tick(16.67, 2);`,
+  },
+  charged_hit: {
+    q: 'seed=11&chapter=3',
+    js: `G.skipTo(3); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 150);
+      const w = G.world; w.shades.length = 0; w.knight.x = 2; w.knight.facing = 1;
+      for (const x of [3.6, 4.4]) { const s = w.spawnShade(x); s.state = 'walk'; s.cd = 99; s.hp = s.maxHp = 9; s.speed = 0; }
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyJ' })); G.tick(16.67, 80);
+      dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyJ' })); G.tick(16.67, 9);`,
+  },
+  double_jump: {
+    q: 'seed=12&chapter=3',
+    js: `G.skipTo(3); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 150);
+      const w = G.world; w.shades.length = 0; w.knight.x = 1; w.knight.facing = 1;
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD' }));
+      key('Space'); G.tick(16.67, 24); key('Space'); G.tick(16.67, 6);`,
+  },
+  enemies: {
+    q: 'seed=13&chapter=3',
+    js: `G.skipTo(3); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 150);
+      const w = G.world; w.shades.length = 0; w.knight.x = 2; w.knight.facing = 1;
+      const c1 = w.spawnShade(5, false, 'crawler'); const c2 = w.spawnShade(6.4, false, 'crawler');
+      const l = w.spawnShade(8.5, false, 'lantern');
+      for (const s of [c1, c2, l]) { s.state = 'walk'; s.cd = 99; s.speed = 0; s.facing = -1; }
+      G.tick(16.67, 40); for (const s of [c1, c2, l]) { s.state = 'walk'; s.cd = 99; }
+      G.rig.fitSpan = false; G.rig.snap({ yaw: 0.3, height: 2, dist: 9.5, lookY: 1.6, fov: 34 }); G.rig.x = 5.5; G.tick(16.67, 2);`,
+  },
 };
 
 const want = process.argv.slice(2);
