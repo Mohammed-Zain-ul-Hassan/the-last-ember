@@ -95,7 +95,7 @@ const SCENES = {
     js: `G.skipTo(3); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 150);
       const w = G.world; w.shades.length = 0; w.knight.x = 2; w.knight.facing = 1;
       for (const x of [4.6, 5.4]) { const s = w.spawnShade(x); s.state = 'walk'; s.cd = 99; s.hp = s.maxHp = 9; s.speed = 0; }
-      dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyJ' })); G.tick(16.67, 70);
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyK' })); G.tick(16.67, 70);
       G.rig.fitSpan = false; G.rig.snap({ yaw: 0.3, height: 1.6, dist: 7, lookY: 1.4, fov: 34 }); G.rig.x = 3; G.tick(16.67, 2);`,
   },
   charged_hit: {
@@ -103,8 +103,8 @@ const SCENES = {
     js: `G.skipTo(3); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 150);
       const w = G.world; w.shades.length = 0; w.knight.x = 2; w.knight.facing = 1;
       for (const x of [3.6, 4.4]) { const s = w.spawnShade(x); s.state = 'walk'; s.cd = 99; s.hp = s.maxHp = 9; s.speed = 0; }
-      dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyJ' })); G.tick(16.67, 80);
-      dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyJ' })); G.tick(16.67, 9);`,
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyK' })); G.tick(16.67, 80);
+      dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyK' })); G.tick(16.67, 9);`,
   },
   double_jump: {
     q: 'seed=12&chapter=3',
@@ -122,6 +122,32 @@ const SCENES = {
       for (const s of [c1, c2, l]) { s.state = 'walk'; s.cd = 99; s.speed = 0; s.facing = -1; }
       G.tick(16.67, 40); for (const s of [c1, c2, l]) { s.state = 'walk'; s.cd = 99; }
       G.rig.fitSpan = false; G.rig.snap({ yaw: 0.3, height: 2, dist: 9.5, lookY: 1.6, fov: 34 }); G.rig.x = 5.5; G.tick(16.67, 2);`,
+  },
+  bars: {
+    q: 'seed=21&chapter=3',
+    js: `G.skipTo(3); G.tick(16, 30); G.play(); G.tick(16.67, 150);
+      const w = G.world; w.shades.length = 0; w.knight.x = 2; w.knight.facing = 1;
+      const hs = [];
+      for (const x of [4.2, 5.6, 7.0]) { const s = w.spawnShade(x); s.state = 'walk'; s.cd = 99; s.hp = s.maxHp = 9; s.speed = 0; hs.push(s); }
+      hs[1].hp = 5; hs[2].hp = 2; G.tick(16.67, 30);
+      w.knight.hp = 58; G.tick(16.67, 10);
+      key('KeyJ'); G.tick(16.67, 7);
+      w.knight.iframes = 0; const sh = w.shades[0]; sh.x = 2.9; sh.state = 'strike'; sh.target = 'knight'; sh.stateT = 0; G.tick(16.67, 4);`,
+  },
+  life_lost: {
+    q: 'seed=22&chapter=3',
+    js: `G.skipTo(3); G.tick(16, 30); G.play(); G.tick(16.67, 150);
+      const w = G.world; w.shades.length = 0; w.knight.x = 2;
+      for (const x of [3.5, 0.8]) { const s = w.spawnShade(x); s.state = 'walk'; s.cd = 99; }
+      G.tick(16.67, 20); w.knight.hp = 10; w.knight.iframes = 0; const sh = w.shades[0]; sh.x = 2.9; sh.state = 'strike'; sh.target = 'knight'; sh.stateT = 0; G.tick(16.67, 14);`,
+  },
+  level_complete: {
+    q: 'seed=23&chapter=1',
+    js: `G.skipTo(1); G.tick(16, 30); G.play(); G.tick(16.67, 400); G.endHour(); G.tick(16.67, 150);`,
+  },
+  level_intro: {
+    q: 'seed=24&chapter=2',
+    js: `G.skipTo(2); G.tick(16.67, 70);`,
   },
 };
 

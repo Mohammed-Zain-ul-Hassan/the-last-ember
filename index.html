@@ -12,12 +12,12 @@
   <body>
     <div id="app"></div>
     <div id="hud">
-      <div id="vitals"><div id="vit-head"><span id="vit-crest"></span><span id="vit-label">The Knight</span><span id="hp-num">6 / 6</span><span id="ember-tag">✦ ember</span></div><div id="hp"></div></div>
+      <div id="vitals"><div id="vit-head"><span id="vit-crest"></span><span id="vit-label">The Knight</span><span id="hp" title="lives"></span><span id="ember-tag">✦ ember</span></div><div id="vit-row"><div id="vit-bar"><div class="chip"></div><div class="fill"></div></div><span id="hp-num">100</span></div></div>
       <div id="toast"></div>
       <div id="place"><div id="place-name"></div><div id="place-sub"></div></div>
       <div id="hearth-marker"><span class="arrow"></span><span class="label">the hearth</span><span class="hp"></span></div>
       <div id="combo"><span id="combo-n">0</span><span id="combo-label">strikes</span></div>
-      <div id="bossbar"><div id="boss-name">The Hollow Marshal</div><div id="boss-sub">once captain of your hearthguard</div><div id="boss-track"><div id="boss-chip"></div><div id="boss-fill"></div></div></div>
+      <div id="bossbar"><div id="boss-name">The Hollow Marshal</div><div id="boss-sub">once captain of your hearthguard</div><div id="boss-track"><div class="chip"></div><div class="fill"></div></div></div>
       <div id="clock"><div id="clock-roman">VII</div><div id="clock-bar"><i></i></div><div id="clock-label">7 PM</div></div>
       <div id="hearth"><div id="hearth-label">The Hearth</div><div id="hearth-bar"><i></i></div></div>
       <div id="fps"></div>
@@ -25,17 +25,20 @@
     <div id="worldui"></div>
     <div id="flash"></div>
     <div id="card" class="hidden">
+      <div id="card-eyebrow"></div>
       <div id="card-roman"></div>
       <div id="card-title"></div>
       <div id="card-line"></div>
+      <div id="card-stats"></div>
       <div id="card-hint"></div>
+      <div id="card-levels"></div>
     </div>
     <div id="choice" class="hidden"><span>&larr; remain in shadow</span><span>step into the light &rarr;</span></div>
     <div id="title" class="hidden">
       <h1>The Last Ember</h1>
       <p class="sub">A shadow knight. One fire. One night.</p>
       <p class="hint">Press any key</p>
-      <p class="controls">A D move &nbsp;·&nbsp; Space jump (twice in the air) &nbsp;·&nbsp; J / click strike, hold to charge &nbsp;·&nbsp; K / right-click heavy &nbsp;·&nbsp; Shift shadow-step &nbsp;·&nbsp; M mute &nbsp;·&nbsp; Esc pause</p>
+      <p class="controls">A D move &nbsp;·&nbsp; Space jump (twice in the air) &nbsp;·&nbsp; J / click strike &nbsp;·&nbsp; K / right-click heavy, hold to charge &nbsp;·&nbsp; Shift shadow-step &nbsp;·&nbsp; M mute &nbsp;·&nbsp; Esc pause</p>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

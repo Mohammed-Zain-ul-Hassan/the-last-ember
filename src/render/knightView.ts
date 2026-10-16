@@ -429,24 +429,24 @@ export class KnightView {
         break;
       }
       case 'charge': {
-        // gathering: low stance, blade drawn back and down behind him, trembling as it fills
+        // gathering: feet planted wide, blade raised high behind him, the whole body coiled; it trembles as it fills
         const lv = Math.min(1, k.chargeT / CFG.charge.full);
-        const shake = Math.sin(t * 55) * 0.03 * lv;
-        p.lean = 0.42 + lv * 0.12;
-        p.bob = -0.14 - lv * 0.1;
-        p.twist = -0.45 - lv * 0.2;
-        p.th0 = 0.85;
+        const shake = Math.sin(t * 55) * 0.035 * lv;
+        p.lean = -0.18 - lv * 0.08;
+        p.bob = -0.16 - lv * 0.12;
+        p.twist = -0.5 - lv * 0.2;
+        p.th0 = 0.7;
         p.th1 = -0.75;
-        p.kn0 = 1.0 + lv * 0.25;
-        p.kn1 = 0.55;
-        p.arm = -1.15 - lv * 0.35 + shake;
-        p.elbow = -0.35;
-        p.swordRel = 0.7;
-        p.armTilt = 0.55;
-        p.offArm = 0.9;
-        p.offElbow = 1.1;
-        p.head = 0.18;
-        stiff = 380;
+        p.kn0 = 0.9 + lv * 0.3;
+        p.kn1 = 0.5;
+        p.arm = 4.25 + lv * 0.25 + shake;
+        p.elbow = -0.25;
+        p.swordRel = 0.25;
+        p.armTilt = 0.2;
+        p.offArm = 1.2;
+        p.offElbow = 0.6;
+        p.head = -0.12;
+        stiff = 420;
         zeta = 0.85;
         break;
       }
@@ -587,8 +587,8 @@ export class KnightView {
       case 'heavy':
         return { ...HEAVY, tilt: HEAVY.tilt + j(0.15), a0: HEAVY.a0 + j(0.1) };
       case 'charged':
-        // released from low behind: a rising rend that sweeps up and over
-        return { a0: -0.9, a1: 4.0 + j(0.1), tilt: 0.75 + j(0.1), twist: 0.7, lean: 0.55 };
+        // released from high behind: the whole body brings the blade over and down into the ground
+        return { a0: 4.55, a1: -0.25 + j(0.08), tilt: 0.1 + j(0.05), twist: 0.8, lean: 0.75 };
       case 'plunge':
         return { a0: 4.4, a1: 0.05, tilt: 0.08, twist: 0.3, lean: 0.5 };
       case 'lunge':

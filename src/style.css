@@ -42,7 +42,7 @@ html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; 
 #card, #title { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; pointer-events: none; transition: opacity 1.1s ease; padding: 0 16px; }
 #card.hidden, #title.hidden { opacity: 0; }
-#card { background: radial-gradient(ellipse at center, rgba(7, 6, 10, 0.55), rgba(7, 6, 10, 0) 70%); }
+#card { background: radial-gradient(ellipse at center, rgba(7, 6, 10, 0.78), rgba(7, 6, 10, 0.35) 55%, rgba(7, 6, 10, 0) 85%); }
 #card-roman { font-family: var(--display); font-size: clamp(56px, 9vw, 120px); letter-spacing: 0.2em; color: var(--bone);
   text-shadow: 0 0 40px rgba(255, 140, 60, 0.45); line-height: 1; }
 #card-title { font-family: var(--display); font-size: clamp(16px, 2vw, 24px); letter-spacing: 0.45em; text-transform: uppercase; margin-top: 18px; color: var(--gold); }
@@ -63,17 +63,36 @@ html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; 
   pointer-events: none; transition: opacity 1.5s; text-shadow: 0 0 18px rgba(0, 0, 0, 0.9); }
 #choice span:last-child { color: #fff2d6; text-shadow: 0 0 22px rgba(255, 200, 140, 0.9); }
 #choice.hidden { opacity: 0; }
-#card-roman:empty, #card-title:empty, #card-hint:empty { display: none; }
+#card-roman:empty, #card-title:empty, #card-hint:empty, #card-eyebrow:empty, #card-stats:empty, #card-levels:empty { display: none; }
+#card-eyebrow { font-family: var(--display); font-size: clamp(11px, 1.1vw, 14px); letter-spacing: 0.55em; text-transform: uppercase;
+  color: var(--mist); margin-bottom: 14px; }
+#card-eyebrow b { color: var(--gold); font-weight: 600; }
+#card-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 46px; margin-top: 34px; max-width: 90vw; }
+#card-stats div { display: flex; flex-direction: column; align-items: center; animation: stat-in 0.5s both; }
+#card-stats div:nth-child(2) { animation-delay: 0.12s; } #card-stats div:nth-child(3) { animation-delay: 0.24s; }
+#card-stats div:nth-child(4) { animation-delay: 0.36s; } #card-stats div:nth-child(5) { animation-delay: 0.48s; }
+#card-stats div { text-shadow: 0 0 14px #000, 0 0 4px #000; }
+#card-stats b { font-family: var(--display); font-size: clamp(24px, 2.6vw, 36px); color: var(--bone); font-weight: 500; }
+#card-stats span { font-family: var(--display); font-size: 11px; letter-spacing: 0.4em; text-transform: uppercase; color: var(--mist); margin-top: 4px; }
+@keyframes stat-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+#card-levels { display: flex; gap: 18px; margin-top: 30px; align-items: center; }
+#card-levels i { width: 10px; height: 10px; transform: rotate(45deg); border: 1px solid rgba(220, 205, 255, 0.5); }
+#card-levels i.done { background: #a28cff; box-shadow: 0 0 10px rgba(160, 140, 255, 0.9); border-color: #d9d0ff; }
+#card-levels i.now { width: 14px; height: 14px; border-color: #ffd9a8; box-shadow: 0 0 14px rgba(255, 190, 120, 0.9); animation: low-pulse 0.8s infinite alternate; }
 
 /* ---------------------------------------------------------------- player vitals (top-left) */
-#hp { position: static; display: flex; gap: 9px; margin-top: 8px; }
+#hp { position: static; display: flex; gap: 7px; margin-left: 6px; }
+#vit-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+#vit-bar { position: relative; width: min(300px, 34vw); height: 12px; background: rgba(6, 4, 10, 0.85);
+  border: 1px solid rgba(220, 210, 255, 0.4); box-shadow: 0 0 14px rgba(0, 0, 0, 0.85), inset 0 0 6px rgba(0, 0, 0, 0.9); }
+#hp-num { min-width: 3ch; }
 #vitals { position: absolute; top: 24px; left: 30px; }
 #vit-head { display: flex; align-items: center; gap: 10px; font-family: var(--display); }
 #vit-crest { width: 14px; height: 14px; transform: rotate(45deg); border: 1px solid rgba(200, 185, 255, 0.8);
   box-shadow: 0 0 12px rgba(170, 150, 255, 0.8), inset 0 0 6px rgba(170, 150, 255, 0.9); }
 #vit-label { font-size: 12px; letter-spacing: 0.42em; text-transform: uppercase; color: var(--bone); }
-#hp-num { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--mist); margin-left: 4px; }
-#hp i { width: 16px; height: 16px; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); transform: none; border: 0;
+#hp-num { font-family: var(--display); font-size: 17px; color: var(--bone); text-shadow: 0 0 10px rgba(0, 0, 0, 0.9); }
+#hp i { width: 13px; height: 13px; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); transform: none; border: 0;
   background: linear-gradient(160deg, #e4dcff, #8b74ff 55%, #4c2fb8); box-shadow: none;
   filter: drop-shadow(0 0 6px rgba(160, 140, 255, 0.9)); transition: opacity 0.3s, filter 0.3s; }
 #hp i.gone { background: rgba(160, 140, 255, 0.14); filter: none; }
@@ -85,7 +104,8 @@ html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; 
 }
 #vitals.hurt { animation: vit-shake 0.35s; }
 @keyframes vit-shake { 25% { transform: translateX(-5px); } 50% { transform: translateX(4px); } 75% { transform: translateX(-2px); } }
-#vitals.low #hp i:not(.gone) { animation: low-pulse 0.7s infinite alternate; }
+#vitals.lastlife #hp i:not(.gone) { animation: low-pulse 0.7s infinite alternate; }
+#vitals.low #hp-num { color: #ff8a7a; }
 #vitals.low #vit-label { color: #ff8a7a; }
 @keyframes low-pulse { from { filter: drop-shadow(0 0 4px #ff5040); } to { filter: drop-shadow(0 0 12px #ff5040) brightness(1.4); } }
 
@@ -108,21 +128,24 @@ html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; 
 #boss-sub { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--mist); margin: 2px 0 8px; }
 #boss-track { position: relative; height: 8px; background: rgba(20, 8, 12, 0.85); border: 1px solid rgba(255, 140, 110, 0.35);
   box-shadow: 0 0 16px rgba(0, 0, 0, 0.8); }
-#boss-chip, #boss-fill { position: absolute; left: 0; top: 0; bottom: 0; }
-#boss-chip { background: #f2e6dc; }
-#boss-fill { background: linear-gradient(90deg, #5b0e14, #b3261e 60%, #ff6a3d); box-shadow: 0 0 10px rgba(255, 70, 40, 0.7); }
 #bossbar.struck #boss-track { box-shadow: 0 0 22px rgba(255, 200, 160, 0.9); }
 
 /* ---------------------------------------------------------------- world-anchored UI */
 #worldui { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 .capture #worldui { display: none; }
-.ebar { position: absolute; left: 0; top: 0; width: 78px; height: 6px; background: rgba(8, 4, 12, 0.85);
+.ebar { position: absolute; left: 0; top: 0; width: 84px; height: 7px; background: rgba(8, 4, 12, 0.85);
   border: 1px solid rgba(190, 150, 255, 0.35); box-shadow: 0 0 8px rgba(0, 0, 0, 0.9); will-change: transform, opacity; }
-.ebar .chip, .ebar .fill { position: absolute; left: 0; top: 0; bottom: 0; }
-.ebar .chip { background: #f3eaff; }
-.ebar .fill { background: linear-gradient(90deg, #3d1a7a, #8c5cff); }
-.ebar.burning .fill { background: linear-gradient(90deg, #7a2a10, #ff8a3d); }
+.ebar.burning { border-color: rgba(255, 150, 70, 0.85); box-shadow: 0 0 9px rgba(255, 120, 40, 0.7); }
 .ebar.struck { border-color: #fff; box-shadow: 0 0 12px rgba(255, 255, 255, 0.8); }
+
+/* shared health bar (src/ui/healthBar.ts): instant fill over a slow pale chip; JS sets the fill's colour ramp */
+.hbar { overflow: hidden; }
+.hbar .chip, .hbar .fill { position: absolute; left: 0; top: 0; bottom: 0; }
+.hbar .chip { background: linear-gradient(180deg, #fffaf2, #e9dccd); }
+.hbar.blink .fill { background: #ffffff !important; box-shadow: 0 0 12px #ffffff !important; }
+.hbar.blink { border-color: #fff !important; }
+.hbar.low .fill { animation: hbar-low 0.55s infinite alternate; }
+@keyframes hbar-low { from { filter: brightness(0.85); } to { filter: brightness(1.5); } }
 
 .pop { position: absolute; transform: translate(-50%, -50%); font-family: var(--display); font-weight: 600; white-space: nowrap;
   animation: pop-up 0.95s cubic-bezier(0.2, 0.9, 0.3, 1) forwards; will-change: transform, opacity; }

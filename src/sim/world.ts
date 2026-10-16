@@ -12,7 +12,7 @@ export interface Input {
   jumpHeld: boolean;
   jump: boolean; // pressed this step
   down?: boolean; // held: with jump, drop through a platform
-  attackHeld?: boolean; // held: charge an attack
+  heavyHeld?: boolean; // held: charge a heavy strike
   attack: boolean;
   heavy: boolean;
   dash: boolean;
@@ -41,8 +41,8 @@ export interface Knight {
   airHits: number;
   slamT: number; // plunge: time since landing (-1 = still diving)
   ember: boolean; // carrying an ember to the hearth
+  lives: number; // shards left; health refills when one breaks
   airJumps: number; // jumps left in the air
-  holdT: number; // how long attack has been held
   chargeT: number; // time spent charging
   chargeLevel: number; // 0..1, for the released strike
   dropT: number; // > 0: falling through platforms
@@ -105,7 +105,8 @@ export type GameEvent =
   | { type: 'spawn'; x: number }
   | { type: 'jump' | 'land' | 'dash'; x: number; y: number; double?: boolean }
   | { type: 'chargeFull'; x: number; y: number }
-  | { type: 'knightHurt'; x: number; y: number; hp: number }
+  | { type: 'knightHurt'; x: number; y: number; hp: number; dmg: number }
+  | { type: 'lifeLost'; x: number; y: number; lives: number }
   | { type: 'hearthHurt'; hp: number }
   | { type: 'shadeWindup'; x: number; id: number }
   | { type: 'fireburst'; x: number; y: number; facing: number }
@@ -186,8 +187,8 @@ export class World {
     this.checkpointsLit = opts.checkpointsLit ?? 0;
     this.bossDone = this.level.bossAt === undefined;
     this.knight = {
-      x: opts.startX ?? this.level.start, y: opts.startY ?? 0, vx: 0, vy: 0, facing: 1, onGround: true, hp: CFG.knight.maxHp,
-      state: 'idle', stateT: 0, combo: 0, move: 'light', swingId: 0, sinceDash: 9, airHits: 0, slamT: -1, ember: false, airJumps: CFG.knight.airJumps, holdT: 0, chargeT: 0, chargeLevel: 0, dropT: 0, bufferedAttack: false,
+      x: opts.startX ?? this.level.start, y: opts.startY ?? 0, vx: 0, vy: 0, facing: 1, onGround: true, hp: CFG.knight.maxHp, lives: CFG.knight.lives,
+      state: 'idle', stateT: 0, combo: 0, move: 'light', swingId: 0, sinceDash: 9, airHits: 0, slamT: -1, ember: false, airJumps: CFG.knight.airJumps, chargeT: 0, chargeLevel: 0, dropT: 0, bufferedAttack: false,
       coyote: 0, jumpBuffer: 0, dashCd: 0, airDash: true, iframes: 0, hitThisSwing: new Set(),
     };
     this.light = { x: this.hearthX, y: this.chapter.lightHeight, radius: this.chapter.lightRadius };
@@ -290,7 +291,6 @@ export class World {
     }
 
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-    k.holdT = inp.attackHeld ? k.holdT + dt : 0;
     // a jump cancels the tail of a swing or a dash, so it never feels swallowed
     if (k.jumpBuffer > 0 && (k.state === 'attack' || k.state === 'heavy') && k.move !== 'plunge') {
       const sp = this.spec();
@@ -300,20 +300,19 @@ export class World {
       k.sinceDash = 0;
       this.setKState(k.onGround ? 'run' : 'air');
     }
-    // charging: keep holding attack once the instant swing is done
-    if (inp.attackHeld && k.holdT >= CFG.charge.holdToCharge && k.state !== 'charge' && k.state !== 'hurt' && k.state !== 'dash' && k.onGround) {
-      const swingDone = (k.state === 'attack' && k.move === 'light' && k.stateT >= this.spec().windup + this.spec().active) || k.state === 'idle' || k.state === 'run';
-      if (swingDone) {
-        this.setKState('charge');
-        k.chargeT = 0;
-      }
+    // charging: a heavy that is still held past holdToCharge (inside its wind-up, before it lands) becomes a charge.
+    // A tap still cleaves at once; a hold plants his feet until the key is let go.
+    if (inp.heavyHeld && k.state === 'heavy' && k.move === 'heavy' && k.onGround && k.stateT >= CFG.charge.holdToCharge && k.stateT < CFG.heavy.windup) {
+      const held = k.stateT;
+      this.setKState('charge');
+      k.chargeT = held;
     }
     if (k.state === 'charge') {
       k.chargeT += dt;
       if (k.chargeT - dt < CFG.charge.full && k.chargeT >= CFG.charge.full) this.events.push({ type: 'chargeFull', x: k.x, y: k.y + 1.4 });
-      if (dir !== 0) k.facing = dir as 1 | -1;
-      k.vx = dir * K.speed * CFG.charge.moveSpeed;
-      if (!inp.attackHeld) {
+      if (dir !== 0) k.facing = dir as 1 | -1; // he can turn, but his feet stay planted
+      k.vx = 0;
+      if (!inp.heavyHeld) {
         k.chargeLevel = Math.min(1, k.chargeT / CFG.charge.full);
         this.startMove('charged');
       } else if (inp.dash || !k.onGround) this.setKState(k.onGround ? 'idle' : 'air');
@@ -613,12 +612,29 @@ export class World {
   private hurtKnight(fromX: number, dmg: number = CFG.shade.knightDmg): void {
     const k = this.knight;
     if (k.iframes > 0 || k.state === 'dead') return;
+    const dealt = Math.min(dmg, Math.max(0, k.hp));
     k.hp -= dmg;
     k.iframes = CFG.knight.iframes;
     k.vx = Math.sign(k.x - fromX || 1) * CFG.knight.hurtKnock;
     k.vy = 5;
     k.onGround = false;
-    this.events.push({ type: 'knightHurt', x: k.x, y: k.y, hp: k.hp });
+    this.events.push({ type: 'knightHurt', x: k.x, y: k.y, hp: Math.max(0, k.hp), dmg: dealt });
+    if (k.hp <= 0 && k.lives > 1) {
+      // a shard breaks: he rises again at full health, and the burst throws the shades back
+      k.lives--;
+      k.hp = CFG.knight.maxHp;
+      k.iframes = CFG.knight.lifeIframes;
+      this.events.push({ type: 'lifeLost', x: k.x, y: k.y, lives: k.lives });
+      for (const s of this.shades) {
+        if (s.state === 'dead' || s.big || Math.abs(s.x - k.x) > 4.5) continue;
+        s.vx = Math.sign(s.x - k.x || 1) * 12;
+        s.state = 'stagger';
+        s.stateT = 0;
+      }
+      this.setKState('hurt');
+      return;
+    }
+    if (k.hp <= 0) k.lives = 0;
     this.setKState(k.hp <= 0 ? 'dead' : 'hurt');
   }
 
@@ -829,7 +845,7 @@ export class World {
           this.events.push({ type: 'pounce', x: s.x, id: s.id });
         } else if (s.target === 'knight') {
           if (s.big && s.enraged) this.marshalWaves(s);
-          if (Math.abs(k.x - s.x) < S.attackRange * reach + 0.35 && Math.abs(k.y - s.y) < 1.6 * reach) this.hurtKnight(s.x, s.big ? 2 : 1);
+          if (Math.abs(k.x - s.x) < S.attackRange * reach + 0.35 && Math.abs(k.y - s.y) < 1.6 * reach) this.hurtKnight(s.x, s.big ? S.bigDmg : S.knightDmg);
         } else if (Math.abs(this.hearthX - s.x) <= range + 0.3) {
           this.hearthHp = Math.max(0, this.hearthHp - S.hearthDmg);
           this.events.push({ type: 'hearthHurt', hp: this.hearthHp });
@@ -838,7 +854,7 @@ export class World {
     } else if (s.state === 'strike') {
       if (crawler && s.target === 'knight') {
         s.vx = s.facing * CFG.crawler.pounceSpeed; // the leap holds its speed
-        if (Math.abs(k.x - s.x) < 1.0 && Math.abs(k.y - s.y) < 1.4) this.hurtKnight(s.x, 1);
+        if (Math.abs(k.x - s.x) < 1.0 && Math.abs(k.y - s.y) < 1.4) this.hurtKnight(s.x, CFG.crawler.dmg);
       }
       if (s.stateT >= strikeTime) {
         s.state = 'walk';
@@ -889,7 +905,7 @@ export class World {
       if (Math.abs(b.x - k.x) < 0.45 && b.y > k.y && b.y < k.y + CFG.knight.h && k.iframes <= 0 && k.state !== 'dead') {
         b.life = 0;
         this.events.push({ type: 'boltHit', x: b.x, y: b.y });
-        this.hurtKnight(b.x, 1);
+        this.hurtKnight(b.x, CFG.lantern.boltDmg);
         if (this.torch) this.torchDim = CFG.lantern.dimTime; // it eats the light
       }
     }
@@ -920,7 +936,7 @@ export class World {
       w.x += w.dir * CFG.marshal.waveSpeed * dt;
       if (!w.hit && Math.abs(w.x - k.x) < 0.6 && k.y < 0.45 && k.state !== 'dead') {
         w.hit = true;
-        this.hurtKnight(w.x, 1);
+        this.hurtKnight(w.x, CFG.marshal.waveDmg);
       }
     }
     this.waves = this.waves.filter((w) => w.life > 0);

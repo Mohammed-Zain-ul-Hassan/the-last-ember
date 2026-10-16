@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { initAudio, isMuted, setBeds, setMood, setMuted, sfx } from './audio/sfx';
 import { CFG } from './config';
 import { CHAPTERS, DAWN_SKY, MIDNIGHT_SKY } from './data/chapters';
+import { LEVELS } from './data/levels';
 import { playEvents, type FxTargets } from './fx';
 import { clearInput, initInput, onKey, readInput } from './input';
 import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, GAMEPLAY_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, TITLE_SHOT, TORCH_SHOT } from './render/cameraRig';
@@ -110,8 +111,32 @@ function ensureLevel(): void {
   hearth.group.visible = world.level.hearthX !== undefined;
 }
 
+// ------------------------------------------------------------------ levels: every hour is a level
+const OUTRO_TIME = DEMO ? 4.2 : 9; // the level-complete card waits this long (any key continues sooner)
+const levelStats = { wounds: 0, embers: 0 };
+const levelTitle = (i: number) => `Level ${i + 1} of ${CHAPTERS.length}  ·  <b>${LEVELS[CHAPTERS[i].level].name}</b>`;
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+function levelComplete(): void {
+  const c = world.chapter;
+  const i = chapterIndex;
+  const next = CHAPTERS[i + 1];
+  const stats: [string, string | number][] = [
+    ['shades freed', world.kills],
+    ['wounds taken', levelStats.wounds],
+    ['best combo', hud.bestCombo],
+    [world.road ? 'time' : 'hearth', world.road ? mmss(world.time) : `${Math.round(Math.max(0, world.hearthHp))}%`],
+  ];
+  if (!world.road) stats.splice(3, 0, ['embers fed', levelStats.embers]);
+  const hint = next ? `Next  ·  Level ${i + 2}: ${next.title}${DEMO ? '' : '   ·   any key to continue'}` : '';
+  hud.card(c.roman, 'A memory returns', c.memory, hint, { eyebrow: `<b>Level ${i + 1} complete</b>  ·  ${c.clock}`, stats, level: i + 1, levels: CHAPTERS.length });
+}
+
 function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   chapterIndex = i;
+  levelStats.wounds = 0;
+  levelStats.embers = 0;
+  hud.bestCombo = 0;
   world = new World(i, seed, opts);
   ensureLevel();
   shadeViews.clear();
@@ -124,7 +149,7 @@ function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   stage.dawn = 0;
   rig.fitSpan = true;
   const c = world.chapter;
-  hud.card(c.roman, c.title, c.line);
+  hud.card(c.roman, c.title, c.line, '', { eyebrow: levelTitle(i), level: i, levels: CHAPTERS.length });
   hud.show(false);
   hud.choice(false);
   knight.pose = 'kneel';
@@ -246,6 +271,9 @@ onKey((code) => {
         hearth.setLit(false);
       }
       return;
+    case 'outro':
+      if (modeT > 1.2 && modeT < OUTRO_TIME) modeT = OUTRO_TIME;
+      return;
     case 'lost':
       if (modeT > 0.8 && (code === 'KeyR' || code === 'Enter' || code === 'Space')) retry();
       return;
@@ -296,6 +324,10 @@ function stepSim(source: Input | (() => Input), dt: number): void {
       world.hearthHp = Math.max(world.hearthHp, 50);
     }
     world.step(input);
+    for (const e of world.events) {
+      if (e.type === 'knightHurt') levelStats.wounds += e.dmg;
+      else if (e.type === 'feed') levelStats.embers++;
+    }
     playEvents(world.events, fx);
     worldUi.events(world.events, world);
     journeyEvents();
@@ -516,7 +548,7 @@ function update(now: number): void {
       if (world.chapter.phase === 'dawn') setMode('dawn');
       else {
         setMode('outro');
-        hud.card(world.chapter.roman, 'A memory returns', world.chapter.memory);
+        levelComplete();
         hud.show(false);
         rig.go(CARD_SHOT, 2.5);
         fx.slowmo(1, 0);
@@ -524,12 +556,12 @@ function update(now: number): void {
     } else if (world.status === 'lost') {
       setMode('lost');
       const why = world.loseReason === 'hearth' ? 'The hearth went dark.' : 'The knight fell, and the dark came in.';
-      hud.card(world.chapter.roman, 'The fire is lost', why, DEMO ? '' : 'R to rise again');
+      hud.card(world.chapter.roman, 'The fire is lost', why, DEMO ? '' : 'R to rise again', { eyebrow: levelTitle(chapterIndex), level: chapterIndex, levels: CHAPTERS.length });
       hud.show(false);
     }
   }
 
-  if (mode === 'outro' && modeT > 4.2) {
+  if (mode === 'outro' && modeT >= OUTRO_TIME) {
     const next = chapterIndex + 1;
     if (next === midnightIndex) {
       world.status = 'playing';

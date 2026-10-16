@@ -203,22 +203,25 @@ describe('world', () => {
     expect(w.knight.onGround).toBe(false);
   });
 
-  it('a tap is still an instant light swing; holding charges, and a full charge hits harder than any light hit, to every shade in reach', () => {
+  it('a heavy tap still cleaves; holding heavy plants his feet and charges, and a full charge out-hits everything, to every shade in reach', () => {
     const w = arena();
-    w.step(press({ attack: true, attackHeld: true }));
-    expect(w.knight.state).toBe('attack');
-    expect(w.knight.move).toBe('light');
+    w.step(press({ heavy: true }));
+    run(w, 40);
+    expect(w.knight.move).toBe('heavy');
+    expect(w.knight.state).not.toBe('charge');
 
     const w2 = arena();
     const a = dummy(w2, -12.6);
     const b = dummy(w2, -12.0);
-    w2.step(press({ attack: true, attackHeld: true }));
+    w2.step(press({ heavy: true, heavyHeld: true }));
     let full = false;
+    const x0 = w2.knight.x;
     for (let i = 0; i < 90; i++) {
-      w2.step(press({ attackHeld: true }));
+      w2.step(press({ heavyHeld: true, right: true })); // pushing right does not move him while he charges
       if (w2.events.some((e) => e.type === 'chargeFull')) full = true;
     }
     expect(w2.knight.state).toBe('charge');
+    expect(Math.abs(w2.knight.x - x0)).toBeLessThan(0.05);
     expect(full).toBe(true);
     const before = [a.hp, b.hp];
     run(w2, 40); // release
@@ -228,15 +231,38 @@ describe('world', () => {
     expect(CFG.charge.maxDmg).toBeGreaterThan(Math.max(...CFG.combo.map((c) => c.dmg), CFG.heavy.dmg));
   });
 
-  it('a short charge deals less than a full one', () => {
+  it('a short charge deals less than a full one, never less than a cleave', () => {
     const w = arena();
     const a = dummy(w, -12.6);
-    for (let i = 0; i < Math.ceil(CFG.charge.holdToCharge / CFG.dt) + 6; i++) w.step(press({ attackHeld: true }));
+    w.step(press({ heavy: true, heavyHeld: true }));
+    for (let i = 0; i < Math.ceil(CFG.charge.holdToCharge / CFG.dt) + 2; i++) w.step(press({ heavyHeld: true }));
     expect(w.knight.state).toBe('charge');
     const hp = a.hp;
     run(w, 40);
     const dealt = hp - a.hp;
-    expect(dealt).toBeGreaterThanOrEqual(CFG.charge.minDmg);
+    expect(dealt).toBeGreaterThanOrEqual(CFG.heavy.dmg);
     expect(dealt).toBeLessThan(CFG.charge.maxDmg);
+  });
+
+  it('health runs out -> a life breaks and he rises at full health; the last life is death', () => {
+    const w = arena();
+    const k = w.knight;
+    const dummyShade = dummy(w, -10);
+    expect(k.lives).toBe(CFG.knight.lives);
+    const strike = () => {
+      k.iframes = 0;
+      (w as unknown as { hurtKnight: (x: number, d: number) => void }).hurtKnight(dummyShade.x, 30);
+      w.step(NO_INPUT);
+    };
+    for (let i = 0; i < 3; i++) strike();
+    expect(k.hp).toBe(CFG.knight.maxHp - 90);
+    expect(k.lives).toBe(CFG.knight.lives);
+    strike(); // 10 left, 30 dealt: the shard breaks
+    expect(k.lives).toBe(CFG.knight.lives - 1);
+    expect(k.hp).toBe(CFG.knight.maxHp);
+    expect(k.state).not.toBe('dead');
+    for (let n = 0; n < 50 && k.state !== 'dead'; n++) strike();
+    expect(k.state).toBe('dead');
+    expect(k.lives).toBe(0);
   });
 });

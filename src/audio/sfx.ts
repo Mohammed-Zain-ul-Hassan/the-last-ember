@@ -106,7 +106,7 @@ function tone(t: number, type: OscillatorType, f0: number, f1: number, dur: numb
 export type SfxName =
   | 'swing' | 'swingHeavy' | 'hit' | 'hitHeavy' | 'kill' | 'burn' | 'dash' | 'jump' | 'land' | 'hurt' | 'hearthHurt'
   | 'spawn' | 'bell' | 'lose' | 'ui' | 'fireburst' | 'ignite' | 'bigSpawn' | 'dawn' | 'gutter' | 'dissolve'
-  | 'bolt' | 'cut' | 'cry' | 'pounce' | 'airJump' | 'chargeFull';
+  | 'bolt' | 'cut' | 'cry' | 'pounce' | 'airJump' | 'chargeFull' | 'shard';
 
 export function sfx(name: SfxName, combo = 0): void {
   if (!ctx || ctx.state !== 'running') return;
@@ -217,6 +217,13 @@ export function sfx(name: SfxName, combo = 0): void {
       tone(t, 'triangle', vary(880), 880, 0.6, 0.18, 0.01);
       tone(t, 'sine', 1320, 1320, 0.5, 0.1, 0.01);
       tone(t, 'sawtooth', 70, 90, 0.4, 0.12, 0.05);
+      break;
+    case 'shard':
+      // a crystal cracks, then a deep breath of flame as he rises again
+      for (const f of [2200, 2950, 3700]) tone(t, 'triangle', vary(f), f * 0.7, 0.35, 0.09, 0.002);
+      noise(t, 0.3, 'highpass', 6000, 3000, 0.7, 0.35, 0.002);
+      tone(t + 0.05, 'sine', 55, 110, 1.2, 0.35, 0.25);
+      noise(t + 0.05, 1.0, 'lowpass', 300, 1400, 1, 0.3, 0.3);
       break;
     case 'dissolve':
       for (let i = 0; i < 6; i++) tone(t + i * 0.35, 'sine', 587 * Math.pow(1.122, i), 587 * Math.pow(1.122, i), 2.5, 0.06, 0.05, musicBus);

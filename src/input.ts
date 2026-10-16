@@ -5,7 +5,7 @@ const held = new Set<string>();
 const latched = new Set<string>();
 let mouseL = false;
 let mouseR = false;
-let mouseLHeld = false;
+let mouseRHeld = false;
 
 const BIND = {
   left: ['KeyA', 'ArrowLeft'],
@@ -35,17 +35,17 @@ export function initInput(canvas: HTMLElement): void {
   window.addEventListener('keyup', (e) => held.delete(e.code));
   window.addEventListener('blur', () => held.clear());
   canvas.addEventListener('mousedown', (e) => {
-    if (e.button === 0) {
-      mouseL = true;
-      mouseLHeld = true;
+    if (e.button === 0) mouseL = true;
+    if (e.button === 2) {
+      mouseR = true;
+      mouseRHeld = true;
     }
-    if (e.button === 2) mouseR = true;
     for (const l of listeners) l('Mouse' + e.button);
   });
   window.addEventListener('mouseup', (e) => {
-    if (e.button === 0) mouseLHeld = false;
+    if (e.button === 2) mouseRHeld = false;
   });
-  window.addEventListener('blur', () => (mouseLHeld = false));
+  window.addEventListener('blur', () => (mouseRHeld = false));
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
@@ -62,7 +62,7 @@ export function readInput(): Input {
     heavy: any(BIND.heavy, latched) || mouseR,
     dash: any(BIND.dash, latched),
     down: any(BIND.down, held),
-    attackHeld: any(BIND.attack, held) || mouseLHeld,
+    heavyHeld: any(BIND.heavy, held) || mouseRHeld,
   };
   latched.clear();
   mouseL = mouseR = false;

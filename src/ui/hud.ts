@@ -1,19 +1,31 @@
 import { CFG } from '../config';
 import type { World } from '../sim/world';
+import { HealthBar } from './healthBar';
 
 const $ = (id: string) => document.getElementById(id)!;
 
+export interface CardOpts {
+  eyebrow?: string; // small line above the roman numeral (may hold <b>)
+  stats?: [string, string | number][]; // label, value
+  level?: number; // index of the current level, for the progress diamonds
+  levels?: number;
+}
+
 export class Hud {
+  /** Highest combo since the last reset (the level-complete card shows it). */
+  bestCombo = 0;
   private hpPips: HTMLElement[] = [];
   private flashEl = $('flash');
   private flashA = 0;
+  private lastLives: number = CFG.knight.lives;
   private lastHp: number = CFG.knight.maxHp;
+  private bar = new HealthBar($('vit-bar') as HTMLDivElement);
   private combo = 0;
   private comboT = 0;
 
   constructor() {
     const hp = $('hp');
-    for (let i = 0; i < CFG.knight.maxHp; i++) {
+    for (let i = 0; i < CFG.knight.lives; i++) {
       const p = document.createElement('i');
       hp.appendChild(p);
       this.hpPips.push(p);
@@ -27,6 +39,7 @@ export class Hud {
   /** A strike landed: build the combo counter. */
   hit(): void {
     this.combo = this.comboT > 0 ? this.combo + 1 : 1;
+    this.bestCombo = Math.max(this.bestCombo, this.combo);
     this.comboT = 1.6;
     const el = $('combo');
     $('combo-n').textContent = String(this.combo);
@@ -38,24 +51,33 @@ export class Hud {
   }
 
   update(w: World, dt: number): void {
-    const hp = Math.max(0, w.knight.hp);
-    if (hp < this.lastHp) {
-      // the lost shard cracks and falls away
-      for (let i = hp; i < this.lastHp; i++) {
+    const k = w.knight;
+    const hp = Math.max(0, k.hp);
+    const lives = Math.max(0, k.lives);
+    if (lives < this.lastLives || (lives > this.lastLives && hp >= this.lastHp)) {
+      // a shard cracks and falls away; the bar empties, then refills as he rises
+      for (let i = lives; i < this.lastLives; i++) {
         const p = this.hpPips[i];
         if (!p) continue;
         p.classList.remove('shatter');
         void p.offsetWidth;
         p.classList.add('shatter');
       }
+      if (lives < this.lastLives && lives > 0) this.bar.reset(1, 0);
+      else this.bar.reset(hp / CFG.knight.maxHp);
+    }
+    if (hp < this.lastHp || lives < this.lastLives) {
       $('vitals').classList.remove('hurt');
       void $('vitals').offsetWidth;
       $('vitals').classList.add('hurt');
     }
     this.lastHp = hp;
-    this.hpPips.forEach((p, i) => p.classList.toggle('gone', i >= hp));
-    $('hp-num').textContent = `${hp} / ${CFG.knight.maxHp}`;
-    $('vitals').classList.toggle('low', hp <= 2 && hp > 0);
+    this.lastLives = lives;
+    this.bar.set(hp / CFG.knight.maxHp, dt);
+    this.hpPips.forEach((p, i) => p.classList.toggle('gone', i >= lives));
+    $('hp-num').textContent = String(Math.ceil(this.bar.shownFrac * CFG.knight.maxHp));
+    $('vitals').classList.toggle('low', hp <= CFG.knight.maxHp * 0.25 && hp > 0);
+    $('vitals').classList.toggle('lastlife', lives === 1);
     if (this.toastT > 0) {
       this.toastT -= dt;
       if (this.toastT <= 0) $('toast').classList.remove('on');
@@ -66,7 +88,7 @@ export class Hud {
       if (this.comboT <= 0) $('combo').classList.remove('on');
     }
     $('clock-roman').textContent = w.chapter.roman;
-    $('clock-label').textContent = w.chapter.clock;
+    $('clock-label').textContent = `Level ${w.chapterIndex + 1}  ·  ${w.chapter.clock}`;
     ($('clock-bar').firstElementChild as HTMLElement).style.width = `${(w.progress * 100).toFixed(1)}%`;
     const hf = Math.max(0, w.hearthHp / CFG.hearth.maxHp);
     ($('hearth-bar').firstElementChild as HTMLElement).style.width = `${(hf * 100).toFixed(1)}%`;
@@ -84,7 +106,11 @@ export class Hud {
     this.flashEl.style.opacity = String(this.flashA);
   }
 
-  card(roman: string, title: string, line: string, hint = ''): void {
+  card(roman: string, title: string, line: string, hint = '', opts: CardOpts = {}): void {
+    $('card-eyebrow').innerHTML = opts.eyebrow ?? '';
+    $('card-stats').innerHTML = (opts.stats ?? []).map(([label, value]) => `<div><b>${value}</b><span>${label}</span></div>`).join('');
+    $('card-levels').innerHTML =
+      opts.level === undefined ? '' : Array.from({ length: opts.levels ?? 0 }, (_, i) => `<i class="${i < opts.level! ? 'done' : i === opts.level ? 'now' : ''}"></i>`).join('');
     $('card-roman').textContent = roman;
     $('card-title').textContent = title;
     $('card-line').textContent = line;

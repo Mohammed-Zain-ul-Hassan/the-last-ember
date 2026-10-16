@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { GameEvent, Move, World } from '../sim/world';
+import { HealthBar } from './healthBar';
 
 // World-anchored UI drawn as crisp DOM over the canvas: a health bar over every shade (with a trailing "chip" that
 // shows the damage just dealt), damage numbers bursting from their heads, the name of the person each shade once
@@ -17,10 +18,7 @@ const NAMES = [
 const TAGS: Record<Move, string> = { light: 'light', heavy: 'heavy', air: 'aerial', plunge: 'plunge', dashStrike: 'pierce', lunge: 'lunge', charged: 'charged' };
 
 interface Bar {
-  el: HTMLDivElement;
-  fill: HTMLDivElement;
-  chip: HTMLDivElement;
-  chipHp: number;
+  hb: HealthBar;
   lastHit: number;
   shown: number;
 }
@@ -31,10 +29,9 @@ export class WorldUi {
   private v = new THREE.Vector3();
   private t = 0;
   private nameIdx = 0;
-  private bossFill = $('boss-fill') as HTMLDivElement;
-  private bossChip = $('boss-chip') as HTMLDivElement;
-  private bossChipHp = 1;
+  private bossBar = new HealthBar($('boss-track') as HTMLDivElement);
   private bossLastHit = 0;
+  private bossOn = false;
   private camera: THREE.Camera;
   hidden = false;
   private stack = 0;
@@ -99,7 +96,9 @@ export class WorldUi {
       } else if (e.type === 'marshalCry') {
         this.pop('the Marshal remembers his oath, and hates you for keeping yours', e.x, e.y + 0.6, 'soul big', 0);
       } else if (e.type === 'knightHurt') {
-        this.pop('-1', e.x, e.y + 2.9, 'hurt', 0);
+        this.pop(`-${e.dmg}`, e.x, e.y + 2.9, 'hurt', 0);
+      } else if (e.type === 'lifeLost') {
+        this.pop(e.lives === 1 ? 'the last shard' : 'a shard breaks', e.x, e.y + 3.3, 'soul big', 0);
       }
     }
   }
@@ -115,44 +114,37 @@ export class WorldUi {
         seen.add(s.id);
         let b = this.bars.get(s.id);
         if (!b) {
-          const el = document.createElement('div');
-          el.className = 'ebar';
-          el.innerHTML = '<div class="chip"></div><div class="fill"></div>';
-          this.root.appendChild(el);
-          b = { el, fill: el.querySelector('.fill') as HTMLDivElement, chip: el.querySelector('.chip') as HTMLDivElement, chipHp: s.hp, lastHit: -9, shown: 0 };
+          const hb = new HealthBar('ebar');
+          hb.reset(Math.max(0, s.hp / s.maxHp));
+          this.root.appendChild(hb.el);
+          b = { hb, lastHit: -9, shown: 0 };
           this.bars.set(s.id, b);
         }
-        const frac = Math.max(0, s.hp / s.maxHp);
-        // the chip holds briefly, then drains down to the real value
-        if (this.t - b.lastHit > 0.35) b.chipHp += (s.hp - b.chipHp) * Math.min(1, dt * 5);
-        b.chipHp = Math.max(b.chipHp, s.hp);
+        b.hb.set(s.hp / s.maxHp, dt);
+        const el = b.hb.el;
         const target = s.state === 'rise' ? 0 : 1;
         b.shown += (target - b.shown) * Math.min(1, dt * 6);
         const p = this.project(s.x, s.y + this.headY(false, s.kind), -0.2);
-        b.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
-        b.el.style.opacity = p.on ? (b.shown * (s.light > 0.05 ? 1 : 0.85)).toFixed(2) : '0';
-        b.el.classList.toggle('burning', s.light > 0.05);
-        b.el.classList.toggle('struck', this.t - b.lastHit < 0.15);
-        b.fill.style.width = `${(frac * 100).toFixed(1)}%`;
-        b.chip.style.width = `${(Math.max(0, b.chipHp / s.maxHp) * 100).toFixed(1)}%`;
+        el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
+        el.style.opacity = p.on ? (b.shown * (s.light > 0.05 ? 1 : 0.85)).toFixed(2) : '0';
+        el.classList.toggle('burning', s.light > 0.05);
+        el.classList.toggle('struck', this.t - b.lastHit < 0.15);
       }
     }
     for (const [id, b] of this.bars) {
       if (seen.has(id)) continue;
-      b.el.remove();
+      b.hb.el.remove();
       this.bars.delete(id);
     }
     // boss bar for the great shade
     const bossEl = $('bossbar');
     bossEl.classList.toggle('on', !!boss && live && !this.hidden);
     if (boss) {
-      const frac = Math.max(0, boss.hp / boss.maxHp);
-      if (this.t - this.bossLastHit > 0.45) this.bossChipHp += (frac - this.bossChipHp) * Math.min(1, dt * 3);
-      this.bossChipHp = Math.max(this.bossChipHp, frac);
-      this.bossFill.style.width = `${(frac * 100).toFixed(2)}%`;
-      this.bossChip.style.width = `${(this.bossChipHp * 100).toFixed(2)}%`;
+      if (!this.bossOn) this.bossBar.reset(boss.hp / boss.maxHp);
+      this.bossOn = true;
+      this.bossBar.set(boss.hp / boss.maxHp, dt);
       bossEl.classList.toggle('struck', this.t - this.bossLastHit < 0.12);
-    } else this.bossChipHp = 1;
+    } else this.bossOn = false;
   }
 
   private hearthHitT = -9;
@@ -179,7 +171,7 @@ export class WorldUi {
   }
 
   clear(): void {
-    for (const b of this.bars.values()) b.el.remove();
+    for (const b of this.bars.values()) b.hb.el.remove();
     this.bars.clear();
     for (const el of Array.from(this.root.querySelectorAll('.pop'))) el.remove();
   }

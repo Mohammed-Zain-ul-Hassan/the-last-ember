@@ -85,6 +85,20 @@ export function playEvents(events: readonly GameEvent[], fx: FxTargets): void {
         for (let i = 0; i < 8; i++)
           fx.smoke.emit({ x: e.x, y: e.y + 0.05, vx: (i % 2 ? 1 : -1) * 2, spread: 0.6, life: 0.45, size: 0.5, sizeEnd: 0.9, r: 0.1, g: 0.08, b: 0.1, alpha: 0.5, drag: 4 });
         break;
+      case 'lifeLost':
+        sfx('shard');
+        fx.slowmo(0.25, 0.9);
+        fx.flash(0.55, '#c9b8ff');
+        fx.rig.shake(0.8);
+        fx.rig.kick(1.2);
+        for (let i = 0; i < 80; i++) {
+          const a = (i / 80) * Math.PI * 2;
+          const v = 6 + Math.random() * 5;
+          fx.glow.emit({ x: e.x, y: e.y + 1.1, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.7 + 1, spread: 0.2, life: 0.7, size: 0.16, sizeEnd: 0.02, r: 2.2, g: 1.6, b: 5, drag: 2.5 });
+        }
+        for (let i = 0; i < 30; i++)
+          fx.smoke.emit({ x: e.x, y: e.y + 0.4, spread: 1.4, vy: 1.5, life: 1.2, size: 1, sizeEnd: 2.4, r: 0.03, g: 0.02, b: 0.06, alpha: 0.8, drag: 2 });
+        break;
       case 'knightHurt':
         sfx('hurt');
         fx.rig.shake(0.6);

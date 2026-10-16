@@ -42,6 +42,10 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
 ## NOW / NEXT / DONE
 - NOW: Level 2 phase 4 (memory vignettes between hours) — see docs/level2.md.
 - NEXT: phase 5 grades/settings; re-capture trailer clips on the new places, enemies and the charged rend.
+- DONE (playable-10): every hour is a numbered level (Level n of 6 on the intro card and HUD, a Level complete card
+  with stats and a level strip, any key continues). Heavy hold-to-charge (feet planted, 3-8 dmg). Lives + health:
+  3 shards x 100 health; a broken shard throws the shades back and refills the bar. Shared health bar: instant fill,
+  slow pale chip, green-yellow-red ramp, blink on hit (no blink for burning drain).
 - DONE: Level 2 phases 2 + 3 (playable-9): places with reveal shots; Crawlers, Lantern-eaters, the Marshal's two
   phases. Controls: no dropped presses (input read per sim step), double jump, jumps cancel swing/dash tails,
   hold-to-charge strike (2-7 dmg AOE, "Shadow Rend" at full).

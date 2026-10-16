@@ -7,7 +7,9 @@ export const CFG = {
   knight: {
     w: 0.7,
     h: 2.1,
-    maxHp: 6,
+    maxHp: 100, // health per life
+    lives: 3, // shards: lose one when health runs out, rise again at full health
+    lifeIframes: 1.8,
     speed: 7.5,
     accel: 70,
     airAccel: 40,
@@ -43,7 +45,8 @@ export const CFG = {
   lunge: { windup: 0.08, active: 0.1, recover: 0.22, dmg: 2, reach: 2.7, back: 0.3, knock: 9, lunge: 10, multi: false }, // attack while running
   // hold attack: after the instant tap-swing, keep holding to charge; release for a wide cleave
   charged: { windup: 0.04, active: 0.14, recover: 0.32, dmg: 2, reach: 3.2, back: 0.9, knock: 13, lunge: 7, multi: true },
-  charge: { holdToCharge: 0.26, full: 1.0, minDmg: 2, maxDmg: 7, moveSpeed: 0.3 },
+  // hold heavy: past holdToCharge (inside the cleave's wind-up) he plants his feet and charges until it is let go
+  charge: { holdToCharge: 0.18, full: 1.1, minDmg: 3, maxDmg: 8 },
   airChain: 3, // air attacks per jump
   dashStrikeWindow: 0.16, // seconds after a dash in which attack becomes a dash strike
 
@@ -57,7 +60,8 @@ export const CFG = {
     strikeTime: 0.15,
     attackCd: 0.9,
     hearthDmg: 4, // per strike
-    knightDmg: 1,
+    knightDmg: 22, // per strike, out of the knight's 100 health
+    bigDmg: 40,
     staggerTime: 0.32,
     lightDps: 0.7, // damage per second at full light
     lightSlow: 0.55, // fraction of speed lost at full light
@@ -66,11 +70,11 @@ export const CFG = {
   },
 
   // fast, low, in pairs: they crouch (telegraph) and pounce from range
-  crawler: { hpMul: 0.5, speed: 4.4, pounceRange: 3.4, windup: 0.32, pounceSpeed: 10.5, strikeTime: 0.3, cd: 1.5, h: 0.95 },
+  crawler: { dmg: 16, hpMul: 0.5, speed: 4.4, pounceRange: 3.4, windup: 0.32, pounceSpeed: 10.5, strikeTime: 0.3, cd: 1.5, h: 0.95 },
   // keeps its distance above jump height and spits shadow bolts; light cannot burn it (it eats light)
-  lantern: { hp: 3, speed: 2.8, near: 5.5, far: 8.5, hover: 2.5, windup: 0.75, cd: 2.9, boltSpeed: 8.5, boltLife: 3, dimTime: 3, dimMul: 0.55 },
+  lantern: { boltDmg: 14, hp: 3, speed: 2.8, near: 5.5, far: 8.5, hover: 2.5, windup: 0.75, cd: 2.9, boltSpeed: 8.5, boltLife: 3, dimTime: 3, dimMul: 0.55 },
   // the Hollow Marshal below half health: a cry, two crawlers, faster, and every strike sends a ground wave
-  marshal: { enrageAt: 0.5, speedMul: 1.5, cdMul: 0.6, waveSpeed: 9, waveLife: 1.4 },
+  marshal: { waveDmg: 26, enrageAt: 0.5, speedMul: 1.5, cdMul: 0.6, waveSpeed: 9, waveLife: 1.4 },
 
   hearth: { x: 0, maxHp: 100, radius: 0.9, emberHeal: 30 },
 
