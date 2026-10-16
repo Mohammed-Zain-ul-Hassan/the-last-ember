@@ -1,7 +1,8 @@
 // Pure 2D game simulation on the side-view plane (x right, y up, feet at y=0).
 // No three.js here: render reads this state, the demo bot drives it, vitest tests it.
 import { CFG, type MoveSpec } from '../config';
-import { CHAPTERS, WALLS, type Chapter, type Wall } from '../data/chapters';
+import { CHAPTERS, type Chapter, type Wall } from '../data/chapters';
+import { LEVELS, type Level, type Platform } from '../data/levels';
 import { lightAt, shadowIntervals, type Interval, type LightSrc } from './light';
 import { Rng } from './rng';
 
@@ -10,6 +11,7 @@ export interface Input {
   right: boolean;
   jumpHeld: boolean;
   jump: boolean; // pressed this step
+  down?: boolean; // held: with jump, drop through a platform
   attack: boolean;
   heavy: boolean;
   dash: boolean;
@@ -37,6 +39,8 @@ export interface Knight {
   sinceDash: number;
   airHits: number;
   slamT: number; // plunge: time since landing (-1 = still diving)
+  ember: boolean; // carrying an ember to the hearth
+  dropT: number; // > 0: falling through platforms
   bufferedAttack: boolean;
   coyote: number;
   jumpBuffer: number;
@@ -79,15 +83,40 @@ export type GameEvent =
   | { type: 'shadeWindup'; x: number; id: number }
   | { type: 'fireburst'; x: number; y: number; facing: number }
   | { type: 'bigSpawn'; x: number }
+  | { type: 'shrine'; x: number; y: number }
+  | { type: 'ember'; x: number; y: number }
+  | { type: 'feed'; x: number; hp: number }
+  | { type: 'checkpoint'; x: number; index: number }
+  | { type: 'gate'; x: number; open: boolean }
   | { type: 'cleared' }
   | { type: 'lost'; reason: 'hearth' | 'knight' };
 
 export type Status = 'playing' | 'cleared' | 'lost';
 
+export interface Shrine {
+  x: number;
+  y: number;
+  active: boolean;
+}
+
+export interface WorldOpts {
+  startX?: number; // rise again at a checkpoint
+  startY?: number; // e.g. standing on the gatehouse at dawn
+  checkpointsLit?: number;
+}
+
 export class World {
   chapterIndex: number;
   chapter: Chapter;
-  walls: readonly Wall[] = WALLS;
+  level: Level;
+  walls: readonly Wall[];
+  platforms: readonly Platform[];
+  minX: number;
+  maxX: number;
+  hearthX: number;
+  shrines: Shrine[];
+  checkpointsLit = 0;
+  bossDone = false;
   rng: Rng;
   time = 0;
   frame = 0;
@@ -102,27 +131,41 @@ export class World {
   spawnT = 1.5;
   kills = 0;
   bigSpawned = false;
+  private shrinesLit = 0;
   spawning = true; // false for scripted scenes (dawn choice)
   endless = false; // true: the hour never ends on its own
   events: GameEvent[] = [];
   private nextId = 1;
 
-  constructor(chapterIndex = 0, seed = 1) {
+  constructor(chapterIndex = 0, seed = 1, opts: WorldOpts = {}) {
     this.chapterIndex = Math.max(0, Math.min(CHAPTERS.length - 1, chapterIndex));
     this.chapter = CHAPTERS[this.chapterIndex];
     this.rng = new Rng(seed + this.chapterIndex * 7919);
+    this.level = LEVELS[this.chapter.level] ?? LEVELS.grounds;
+    this.walls = this.level.walls;
+    this.platforms = this.level.platforms;
+    [this.minX, this.maxX] = this.level.bounds;
+    this.hearthX = this.level.hearthX ?? 0;
+    this.shrines = this.level.shrines.map((p) => ({ ...p, active: false }));
+    this.checkpointsLit = opts.checkpointsLit ?? 0;
+    this.bossDone = this.level.bossAt === undefined;
     this.knight = {
-      x: -2.2, y: 0, vx: 0, vy: 0, facing: 1, onGround: true, hp: CFG.knight.maxHp,
-      state: 'idle', stateT: 0, combo: 0, move: 'light', swingId: 0, sinceDash: 9, airHits: 0, slamT: -1, bufferedAttack: false,
+      x: opts.startX ?? this.level.start, y: opts.startY ?? 0, vx: 0, vy: 0, facing: 1, onGround: true, hp: CFG.knight.maxHp,
+      state: 'idle', stateT: 0, combo: 0, move: 'light', swingId: 0, sinceDash: 9, airHits: 0, slamT: -1, ember: false, dropT: 0, bufferedAttack: false,
       coyote: 0, jumpBuffer: 0, dashCd: 0, airDash: true, iframes: 0, hitThisSwing: new Set(),
     };
-    this.light = { x: CFG.hearth.x, y: this.chapter.lightHeight, radius: this.chapter.lightRadius };
-    if (this.torch) this.knight.x = -1.5;
+    this.light = { x: this.hearthX, y: this.chapter.lightHeight, radius: this.chapter.lightRadius };
     this.updateLight();
   }
 
-  /** Fraction of the hour elapsed, 0..1. */
+  /** Is this a road level (the hour ends at the far gate, not on the clock)? */
+  get road(): boolean {
+    return this.level.end !== undefined;
+  }
+
+  /** Fraction of the hour done, 0..1: time on the grounds, distance on the road. */
   get progress(): number {
+    if (this.road) return Math.max(0, Math.min(1, (this.knight.x - this.level.start) / ((this.level.end as number) - this.level.start)));
     return Math.min(1, this.time / this.chapter.duration);
   }
 
@@ -137,14 +180,14 @@ export class World {
       this.light.x = k.x + k.facing * 0.35;
       this.light.y = this.chapter.lightHeight + k.y;
       this.light.radius = this.chapter.lightRadius;
-      this.shadows = shadowIntervals(this.light, this.walls, CFG.arena.minX, CFG.arena.maxX);
+      this.shadows = shadowIntervals(this.light, this.walls, this.minX, this.maxX);
       return;
     }
     const hpFrac = this.hearthHp / CFG.hearth.maxHp;
     // A wounded hearth burns lower and smaller: shadows lengthen.
     this.light.y = this.chapter.lightHeight * (0.75 + 0.25 * hpFrac);
     this.light.radius = this.chapter.lightRadius * (0.6 + 0.4 * hpFrac);
-    this.shadows = shadowIntervals(this.light, this.walls, CFG.arena.minX, CFG.arena.maxX);
+    this.shadows = shadowIntervals(this.light, this.walls, this.minX, this.maxX);
   }
 
   lightAt(x: number): number {
@@ -163,6 +206,7 @@ export class World {
     this.time += dt;
     this.updateLight();
     this.stepKnight(input, dt);
+    this.stepJourney();
     this.stepSpawner(dt);
     for (const s of this.shades) this.stepShade(s, dt);
     this.shades = this.shades.filter((s) => s.state !== 'dead' || s.deadT < 1.2);
@@ -170,7 +214,7 @@ export class World {
 
     if (!this.torch && this.hearthHp <= 0) this.lose('hearth');
     else if (this.knight.hp <= 0 && this.knight.state === 'dead' && this.knight.stateT > 1.1) this.lose('knight');
-    else if (!this.endless && this.time >= this.chapter.duration) {
+    else if (!this.endless && (this.road ? this.knight.x >= (this.level.end as number) - 0.5 && this.bossDone : this.time >= this.chapter.duration)) {
       // The hour turns: every remaining shade dissolves.
       for (const s of this.shades) if (s.state !== 'dead') this.killShade(s, true);
       this.status = 'cleared';
@@ -256,12 +300,18 @@ export class World {
       if (dir !== 0) {
         k.facing = dir as 1 | -1;
         k.vx += dir * accel * dt;
-        if (Math.abs(k.vx) > K.speed) k.vx = Math.sign(k.vx) * K.speed;
+        const vmax = K.speed * (k.ember ? 0.82 : 1);
+        if (Math.abs(k.vx) > vmax) k.vx = Math.sign(k.vx) * vmax;
       } else if (k.onGround) {
         const f = K.friction * dt;
         k.vx = Math.abs(k.vx) <= f ? 0 : k.vx - Math.sign(k.vx) * f;
       }
-      if (k.jumpBuffer > 0 && k.coyote > 0) {
+      if (inp.down && inp.jump && k.onGround && k.y > 0.1 && this.platforms.some((p) => Math.abs(k.y - p.y) < 0.02 && k.x > p.x0 && k.x < p.x1)) {
+        k.dropT = 0.3; // drop through the ledge
+        k.onGround = false;
+        k.jumpBuffer = 0;
+        k.y -= 0.06;
+      } else if (k.jumpBuffer > 0 && k.coyote > 0) {
         k.vy = K.jumpV;
         k.onGround = false;
         k.coyote = 0;
@@ -297,7 +347,9 @@ export class World {
         if (k.state !== 'dash') k.vx = 0;
       }
     }
-    k.x = Math.max(CFG.arena.minX + hw, Math.min(CFG.arena.maxX - hw, k.x));
+    // the boss gate: the far doors stay shut until the Hollow Marshal falls
+    const gate = !this.bossDone && this.level.bossAt !== undefined ? (this.level.end as number) - 3 : this.maxX;
+    k.x = Math.max(this.minX + hw, Math.min(Math.min(this.maxX, gate) - hw, k.x));
 
     // y: ground and wall tops
     const prevY = k.y;
@@ -307,6 +359,13 @@ export class World {
       const l = w.x - w.w / 2;
       const r = w.x + w.w / 2;
       if (k.x + hw > l && k.x - hw < r && prevY >= w.h - 0.05) floor = Math.max(floor, w.h);
+    }
+    // one-way platforms: land on them from above, unless dropping through
+    k.dropT = Math.max(0, k.dropT - dt);
+    if (k.dropT <= 0 && k.vy <= 0) {
+      for (const p of this.platforms) {
+        if (k.x + hw * 0.4 > p.x0 && k.x - hw * 0.4 < p.x1 && prevY >= p.y - 0.05) floor = Math.max(floor, p.y);
+      }
     }
     if (k.y <= floor) {
       k.y = floor;
@@ -476,15 +535,16 @@ export class World {
 
   // ---------------------------------------------------------------- shades
   private stepSpawner(dt: number): void {
-    if (!this.spawning || this.time >= this.chapter.duration - 2) return;
+    if (!this.spawning || (!this.road && this.time >= this.chapter.duration - 2)) return;
     this.spawnT -= dt;
     const alive = this.shades.filter((s) => s.state !== 'dead').length;
-    const c = this.chapter;
-    if (c.bigAt !== undefined && !this.bigSpawned && this.progress >= c.bigAt) {
+    const bossAt = this.level.bossAt;
+    if (bossAt !== undefined && !this.bigSpawned && this.knight.x >= bossAt) {
+      // the Hollow Marshal rises in front of the far doors
       this.bigSpawned = true;
-      const side = this.knight.x > 0 ? -1 : 1;
-      const s = this.spawnShade(side * (CFG.arena.maxX - 2), true);
+      const s = this.spawnShade(Math.min(this.maxX - 3, this.knight.x + 11), true);
       this.events.push({ type: 'bigSpawn', x: s.x });
+      this.events.push({ type: 'gate', x: (this.level.end as number) - 3, open: false });
     }
     if (this.spawnT > 0 || alive >= this.chapter.maxShades) return;
     const [a, b] = this.chapter.spawnEvery;
@@ -492,23 +552,84 @@ export class World {
     this.spawnShade(this.pickSpawnX());
   }
 
-  /** Shades can only rise where it is dark: a cast shadow, or beyond the fire's reach. */
+  /**
+   * Shades can only rise where it is dark: a cast shadow, or beyond the fire's reach. They rise near the knight
+   * (biased ahead of him on the road) and, on the grounds, near the hearth too, so it is never safe to leave it.
+   */
   pickSpawnX(): number {
-    const { minX, maxX } = CFG.arena;
     const kx = this.knight.x;
+    const nearHearth = !this.torch && this.rng.next() < 0.45;
+    const cx = nearHearth ? this.hearthX : kx + (this.road ? 6 : 0);
+    const lo = Math.max(this.minX + 1, cx - 22);
+    const hi = Math.min(this.maxX - 1, cx + 22);
     const pockets = this.shadows
-      .map(([a, b]) => [Math.max(a, minX + 1), Math.min(b, maxX - 1)] as Interval)
+      .map(([a, b]) => [Math.max(a, lo), Math.min(b, hi)] as Interval)
       .filter(([a, b]) => b - a > 0.6);
     const tries: number[] = [];
     if (pockets.length && this.rng.next() < 0.65) {
       const [a, b] = pockets[Math.floor(this.rng.next() * pockets.length)];
       tries.push(this.rng.range(a + 0.2, b - 0.2));
     }
-    const side = this.rng.next() < 0.5 ? -1 : 1;
-    const edge = Math.min(maxX - 1, this.light.x + this.light.radius + 0.5);
-    tries.push(side * this.rng.range(Math.min(edge, maxX - 2), maxX - 1));
-    for (const x of tries) if (Math.abs(x - kx) > 2.5 && this.lightAt(x) === 0) return x;
-    return side * (maxX - 1);
+    // beyond the reach of the light, at the edge of what he can see
+    for (let i = 0; i < 4; i++) {
+      const side = this.road ? (this.rng.next() < 0.7 ? 1 : -1) : this.rng.next() < 0.5 ? -1 : 1;
+      const base = nearHearth ? this.hearthX : kx;
+      const d = (nearHearth ? this.light.radius : Math.max(4, this.torch ? this.light.radius : 6)) + this.rng.range(0.5, 6);
+      tries.push(base + side * d);
+    }
+    for (const x0 of tries) {
+      const x = Math.max(this.minX + 1, Math.min(this.maxX - 1, x0));
+      if (Math.abs(x - kx) > 3 && this.lightAt(x) === 0) return x;
+    }
+    return Math.max(this.minX + 1, Math.min(this.maxX - 1, kx + (this.road ? 12 : -12)));
+  }
+
+  /** Embers, shrines, checkpoints, the boss gate. */
+  private stepJourney(): void {
+    const k = this.knight;
+    // ember shrines light up during the hearth hours
+    if (!this.torch && this.shrines.length) {
+      const due = [0.08, 0.38, 0.68].filter((p) => this.progress >= p).length;
+      const lit = this.shrinesLit;
+      if (due > lit) {
+        this.shrinesLit++;
+        const idle = this.shrines.filter((s) => !s.active);
+        if (idle.length) {
+          // prefer the far side from the knight: the ember is a journey
+          idle.sort((a, b) => Math.abs(b.x - k.x) - Math.abs(a.x - k.x));
+          const pick = idle[Math.floor(this.rng.next() * Math.min(3, idle.length))];
+          pick.active = true;
+          this.events.push({ type: 'shrine', x: pick.x, y: pick.y });
+        }
+      }
+      for (const s of this.shrines) {
+        if (s.active && !k.ember && Math.abs(k.x - s.x) < 1.0 && Math.abs(k.y - s.y) < 1.0) {
+          s.active = false;
+          k.ember = true;
+          this.events.push({ type: 'ember', x: s.x, y: s.y });
+        }
+      }
+      if (k.ember && Math.abs(k.x - this.hearthX) < 2.4 && k.y < 1.6) {
+        k.ember = false;
+        this.hearthHp = Math.min(CFG.hearth.maxHp, this.hearthHp + CFG.hearth.emberHeal);
+        this.events.push({ type: 'feed', x: this.hearthX, hp: this.hearthHp });
+      }
+    }
+    // checkpoint braziers: the torch lights them as he passes
+    const cps = this.level.checkpoints;
+    while (this.checkpointsLit < cps.length && k.x >= cps[this.checkpointsLit]) {
+      this.events.push({ type: 'checkpoint', x: cps[this.checkpointsLit], index: this.checkpointsLit });
+      this.checkpointsLit++;
+    }
+    if (this.bigSpawned && !this.bossDone && !this.shades.some((s) => s.big && s.state !== 'dead')) {
+      this.bossDone = true;
+      this.events.push({ type: 'gate', x: (this.level.end as number) - 3, open: true });
+    }
+  }
+
+  /** The x to rise again at after a fall (the last lit brazier, or the start). */
+  get respawnX(): number {
+    return this.checkpointsLit > 0 ? this.level.checkpoints[this.checkpointsLit - 1] : this.level.start;
   }
 
   spawnShade(x: number, big = false): Shade {
@@ -549,7 +670,7 @@ export class World {
 
     s.x += s.vx * dt;
     s.vx *= Math.max(0, 1 - 6 * dt);
-    s.x = Math.max(CFG.arena.minX + 0.5, Math.min(CFG.arena.maxX - 0.5, s.x));
+    s.x = Math.max(this.minX + 0.5, Math.min(this.maxX - 0.5, s.x));
 
     if (s.state === 'rise') {
       if (s.stateT >= S.riseTime) {
@@ -568,10 +689,13 @@ export class World {
 
     const kAlive = k.state !== 'dead';
     const toKnight = k.x - s.x;
-    const knightNear = kAlive && Math.abs(toKnight) < S.aggroRange && Math.abs(k.y - s.y) < 1.6;
+    const knightNear = kAlive && Math.abs(toKnight) < S.aggroRange && Math.abs(k.y - s.y) < 3.5;
     s.target = knightNear || (this.torch && kAlive) ? 'knight' : 'hearth';
-    const tx = s.target === 'knight' ? k.x : this.light.x;
+    const tx = s.target === 'knight' ? k.x : this.hearthX;
     const dist = Math.abs(tx - s.x);
+    // shadows drift: they float up after him onto ledges and rooftops, and sink back to the ground
+    const ty = s.target === 'knight' && Math.abs(toKnight) < 7 ? k.y : 0;
+    if (s.state === 'walk' || s.state === 'windup') s.y += Math.sign(ty - s.y) * Math.min(Math.abs(ty - s.y), S.floatSpeed * dt);
     const reach = s.big ? 1.9 : 1;
     const range = s.target === 'knight' ? S.attackRange * reach : S.hearthRange + CFG.hearth.radius;
 
@@ -590,7 +714,7 @@ export class World {
         s.stateT = 0;
         if (s.target === 'knight') {
           if (Math.abs(k.x - s.x) < S.attackRange * reach + 0.35 && Math.abs(k.y - s.y) < 1.6 * reach) this.hurtKnight(s.x, s.big ? 2 : 1);
-        } else if (Math.abs(this.light.x - s.x) <= range + 0.3) {
+        } else if (Math.abs(this.hearthX - s.x) <= range + 0.3) {
           this.hearthHp = Math.max(0, this.hearthHp - S.hearthDmg);
           this.events.push({ type: 'hearthHurt', hp: this.hearthHp });
         }

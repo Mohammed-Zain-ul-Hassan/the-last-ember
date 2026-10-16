@@ -92,6 +92,7 @@ export class WorldUi {
         this.pop(e.big ? 'the Hollow Marshal is free' : name, e.x, e.y + 1.9, e.big ? 'soul big' : 'soul', -0.2);
         if (e.burned && !e.big) this.pop('burned away', e.x, e.y + 1.4, 'burn', -0.2);
       } else if (e.type === 'move') {
+        for (const old of Array.from(this.root.querySelectorAll('.pop.callout'))) old.remove(); // one callout at a time
         this.pop(e.count >= 2 ? `${e.name} ×${e.count}` : e.name, e.x, e.y + 0.4, 'callout', 0);
       } else if (e.type === 'knightHurt') {
         this.pop('-1', e.x, e.y + 2.9, 'hurt', 0);
@@ -148,6 +149,29 @@ export class WorldUi {
       this.bossChip.style.width = `${(this.bossChipHp * 100).toFixed(2)}%`;
       bossEl.classList.toggle('struck', this.t - this.bossLastHit < 0.12);
     } else this.bossChipHp = 1;
+  }
+
+  private hearthHitT = -9;
+  /** Points home when the hearth is off-screen; pulses when it is struck. */
+  hearthMarker(w: World, show: boolean): void {
+    const el = $('hearth-marker');
+    const p = this.project(w.hearthX, 1.4, 0);
+    const off = p.x < 40 || p.x > window.innerWidth - 40 || !p.on;
+    const on = show && w.level.hearthX !== undefined && !w.torch && off;
+    el.classList.toggle('on', on);
+    if (!on) return;
+    const left = p.x < window.innerWidth / 2;
+    el.classList.toggle('left', left);
+    el.classList.toggle('right', !left);
+    (el.querySelector('.hp') as HTMLElement).textContent = `${Math.round(w.hearthHp)}%`;
+    if (w.events.some((e) => e.type === 'hearthHurt')) {
+      if (this.t - this.hearthHitT > 1.5) {
+        el.classList.remove('struck');
+        void el.offsetWidth;
+        el.classList.add('struck');
+      }
+      this.hearthHitT = this.t;
+    }
   }
 
   clear(): void {

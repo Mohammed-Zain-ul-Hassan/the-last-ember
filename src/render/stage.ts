@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { BloomEffect, EffectComposer, EffectPass, KernelSize, NoiseEffect, OutlineEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
-import { WALLS, type SkyKey } from '../data/chapters';
+import type { SkyKey } from '../data/chapters';
 import { Rng } from '../sim/rng';
 import { RIM, rimify } from './rim';
-import { column, rock, stoneBox } from './shapes';
-import { fogTexture, shaftTexture, tatterTexture } from './textures';
+import { rock } from './shapes';
+import { fogTexture, shaftTexture } from './textures';
 
 export const SILHOUETTE = 0x09080d;
 
@@ -39,12 +39,6 @@ const SKY_FRAG = /* glsl */ `
     gl_FragColor = vec4(c, 1.0);
   }`;
 
-interface Banner {
-  mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
-  base: Float32Array;
-  seed: number;
-}
-
 export class Stage {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -63,7 +57,6 @@ export class Stage {
   private far = new THREE.Group(); // follows the camera like the sky
   private fogCards: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
   private shafts: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
-  private banners: Banner[] = [];
   private grassTime = { value: 0 };
   private cur: { top: THREE.Color; horizon: THREE.Color; glow: THREE.Color; fog: THREE.Color; glowY: number; stars: number; disc: number };
   dawn = 0; // 0..1 sunrise strength for the finale
@@ -129,9 +122,6 @@ export class Stage {
 
     this.buildGround();
     this.buildSkyline();
-    this.buildRuins();
-    this.buildStatues();
-    this.buildBanners();
     this.buildGrass();
     this.buildAtmosphere();
 
@@ -209,18 +199,6 @@ export class Stage {
       s.material.opacity = 0.55 + 0.45 * Math.sin(t * 0.25 + i * 1.7);
     });
     this.grassTime.value = t;
-    for (const b of this.banners) {
-      const pos = b.mesh.geometry.attributes.position as THREE.BufferAttribute;
-      for (let i = 0; i < pos.count; i++) {
-        const x = b.base[i * 3];
-        const y = b.base[i * 3 + 1];
-        const f = Math.max(0, -y / 3); // hangs from the top
-        pos.setX(i, x + Math.sin(t * 1.6 + b.seed - f * 3) * 0.25 * f + f * f * 0.5);
-        pos.setZ(i, Math.sin(t * 2.3 + b.seed + x * 2 - f * 4) * 0.18 * f);
-      }
-      pos.needsUpdate = true;
-      b.mesh.geometry.computeVertexNormals();
-    }
     this.sun.intensity = this.dawn * 4.2;
     this.hemi.intensity = 0.18 + this.dawn * 0.35;
     this.sun.castShadow = this.dawn > 0.05;
@@ -257,28 +235,12 @@ export class Stage {
     ground.position.set(0, 0, -40);
     ground.receiveShadow = true;
     this.scene.add(ground);
-    // worn flagstones under the lane, lighter so firelight and cast shadows read clearly
-    const stones = new THREE.Group();
     const rng = new Rng(8);
-    const flag = new THREE.MeshStandardMaterial({ color: 0x241f28, roughness: 0.9 });
-    for (let x = -20; x < 20; x += 0) {
-      const w = rng.range(0.9, 1.7);
-      for (const z of [-1.2, 0, 1.2]) {
-        if (rng.next() < 0.12) continue;
-        const s = new THREE.Mesh(stoneBox(w - 0.06, 0.12, 1.14, x * 7 + z, 0.012), flag);
-        s.position.set(x + w / 2, -0.05 + rng.range(-0.02, 0.02), z + rng.range(-0.05, 0.05));
-        s.rotation.y = rng.range(-0.03, 0.03);
-        s.receiveShadow = true;
-        stones.add(s);
-      }
-      x += w;
-    }
-    this.scene.add(stones);
     const rockMat = rimify(new THREE.MeshStandardMaterial({ color: SILHOUETTE, roughness: 1 }), 0.5, 'rock');
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 120; i++) {
       const s = rng.range(0.15, 0.5);
       const m = new THREE.Mesh(rock(s, i * 3.7), rockMat);
-      m.position.set(rng.range(-30, 30), s * 0.1, rng.range(1.9, 3.2));
+      m.position.set(rng.range(-60, 130), s * 0.1, rng.range(1.9, 3.2));
       m.rotation.set(rng.next() * 3, rng.next() * 3, rng.next() * 3);
       m.castShadow = true;
       this.scene.add(m);
@@ -288,10 +250,10 @@ export class Stage {
   /** Flat silhouette skylines at several depths; fog does the layering. A dead kingdom's cathedral and towers. */
   private buildSkyline(): void {
     const layers = [
-      { z: -11, w: 80, hMin: 2.5, hMax: 7, seed: 11, kind: 'colonnade' },
-      { z: -24, w: 130, hMin: 4, hMax: 10, seed: 12, kind: 'castle' },
-      { z: -44, w: 200, hMin: 7, hMax: 19, seed: 13, kind: 'citadel' },
-      { z: -78, w: 320, hMin: 14, hMax: 36, seed: 14, kind: 'mountain' },
+      { z: -13, w: 260, hMin: 2.5, hMax: 7, seed: 11, kind: 'colonnade' },
+      { z: -26, w: 320, hMin: 4, hMax: 10, seed: 12, kind: 'castle' },
+      { z: -46, w: 400, hMin: 7, hMax: 19, seed: 13, kind: 'citadel' },
+      { z: -80, w: 520, hMin: 14, hMax: 36, seed: 14, kind: 'mountain' },
     ] as const;
     const mat = new THREE.MeshBasicMaterial({ color: 0x050407, fog: true });
     for (const L of layers) {
@@ -357,7 +319,7 @@ export class Stage {
       shape.lineTo(L.w / 2, -2);
       shape.lineTo(x0, -2);
       const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat);
-      mesh.position.set(0, 0, L.z);
+      mesh.position.set(40, 0, L.z);
       this.scene.add(mesh);
     }
     // the cathedral: one unmistakable landmark behind the hearth
@@ -387,146 +349,6 @@ export class Stage {
     this.scene.add(cath);
   }
 
-  /** Lit 3D ruins near the lane: they catch firelight and cast the shadows you see. */
-  private buildRuins(): void {
-    const stone = rimify(new THREE.MeshStandardMaterial({ color: 0x17141b, roughness: 0.9, metalness: 0.05 }), 0.5, 'stone');
-    const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number, ry = 0, rz = 0) => {
-      const m = new THREE.Mesh(geo, stone);
-      m.position.set(x, y, z);
-      m.rotation.set(0, ry, rz);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      this.world.add(m);
-      return m;
-    };
-    const rng = new Rng(21);
-    // lane walls: coursed masonry, broken along the top (collision box in the sim is unchanged)
-    let seed = 1;
-    for (const w of WALLS) {
-      const courses = Math.max(2, Math.round(w.h / 0.34));
-      const ch = w.h / courses;
-      for (let c = 0; c < courses; c++) {
-        let x = w.x - w.w / 2;
-        const end = w.x + w.w / 2;
-        let first = c % 2 ? rng.range(0.2, 0.35) : 0;
-        while (x < end - 0.05) {
-          const len = Math.min(end - x, first || rng.range(0.42, 0.7));
-          first = 0;
-          // the top course is broken: some stones missing, some knocked askew
-          if (c === courses - 1 && rng.next() < 0.3) {
-            x += len;
-            continue;
-          }
-          const askew = c === courses - 1 ? rng.range(-0.08, 0.08) : rng.range(-0.015, 0.015);
-          add(stoneBox(len - 0.03, ch - 0.025, 1.55 + rng.range(-0.08, 0.04), seed++, 0.03), x + len / 2, ch * c + ch / 2, rng.range(-0.03, 0.03), rng.range(-0.04, 0.04), askew);
-          x += len;
-        }
-      }
-    }
-    // the hearth's great broken arch: stacked piers and a ring of wedge stones, the right side collapsed
-    const pier = (px: number, blocks: number) => {
-      for (let i = 0; i < blocks; i++) add(stoneBox(1.15, 0.95, 1.15, seed++, 0.05), px + rng.range(-0.04, 0.04), 0.6 + i * 0.97 + 0.475, -3.2, rng.range(-0.05, 0.05));
-      add(stoneBox(1.7, 0.6, 1.7, seed++, 0.05), px, 0.3, -3.2);
-    };
-    pier(-3.6, 6);
-    pier(3.6, 4);
-    const R = 3.6;
-    const cy = 6.4;
-    for (let i = 0; i <= 9; i++) {
-      const a = Math.PI - (i / 12) * Math.PI; // left springing round to just past the crown
-      const m = add(stoneBox(0.85, 0.62, 1.05, seed++, 0.05), Math.cos(a) * R, cy + Math.sin(a) * R, -3.2);
-      m.rotation.z = a - Math.PI / 2;
-    }
-    // fallen voussoirs on the ground
-    for (let i = 0; i < 4; i++) {
-      const m = add(stoneBox(0.85, 0.62, 1.05, seed++, 0.06), 4.6 + i * 0.8 + rng.range(-0.2, 0.2), 0.3, -2.4 + rng.range(-0.8, 0.6));
-      m.rotation.set(rng.range(-0.4, 0.4), rng.range(0, 3), rng.range(-0.5, 0.5));
-    }
-    // colonnade further back: fluted columns with capitals and bases
-    for (let i = 0; i < 14; i++) {
-      const x = -26 + i * 4 + rng.range(-0.8, 0.8);
-      if (Math.abs(x) < 5) continue;
-      const h = rng.range(1.5, 6.5);
-      const z = rng.range(-5.5, -4.2);
-      add(column(0.4, 0.46, h, seed++), x, h / 2 + 0.25, z);
-      add(stoneBox(1.05, 0.25, 1.05, seed++, 0.03), x, 0.125, z);
-      if (rng.next() < 0.4) add(stoneBox(1.15, 0.38, 1.15, seed++, 0.05), x, h + 0.44, z, rng.range(0, 1));
-    }
-  }
-
-  /** Stone knights of his fallen order, kneeling forever behind the hearth. */
-  private buildStatues(): void {
-    const stone = rimify(new THREE.MeshStandardMaterial({ color: 0x1b1820, roughness: 0.95 }), 0.6, 'statue');
-    const rng = new Rng(31);
-    const spots = [-15, -9.5, 8.5, 14.5, 20];
-    for (const sx of spots) {
-      const g = new THREE.Group();
-      const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number, rz = 0) => {
-        const m = new THREE.Mesh(geo, stone);
-        m.position.set(x, y, z);
-        m.rotation.z = rz;
-        m.castShadow = true;
-        m.receiveShadow = true;
-        g.add(m);
-      };
-      add(stoneBox(1.6, 0.5, 1.4, sx * 3, 0.05), 0, 0.25, 0); // plinth
-      add(new THREE.CapsuleGeometry(0.2, 0.35, 6, 16), 0.2, 0.78, 0.2, 1.3); // thigh, knee forward
-      add(new THREE.CapsuleGeometry(0.17, 0.3, 6, 16), 0.42, 0.72, 0.2); // shin
-      add(new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), -0.15, 0.62, -0.2, 1.4); // kneeling leg
-      add(new THREE.CylinderGeometry(0.42, 0.26, 0.92, 24), 0, 1.35, 0, -0.25); // torso, bowed
-      if (rng.next() > 0.3) add(new THREE.SphereGeometry(0.22, 20, 14), 0.27, 1.95, 0); // head (some lost)
-      add(stoneBox(0.09, 1.8, 0.04, sx, 0.004), 0.55, 1.0, 0.25); // planted sword
-      add(stoneBox(0.42, 0.07, 0.09, sx + 1, 0.004), 0.55, 1.6, 0.25);
-      for (const z of [0.38, -0.38]) {
-        const p = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.6), stone);
-        p.position.set(-0.05, 1.72, z);
-        p.scale.set(1.2, 0.9, 1);
-        p.castShadow = true;
-        g.add(p);
-      }
-      const s = rng.range(1.35, 1.8);
-      g.scale.setScalar(s);
-      g.position.set(sx, 0, rng.range(-7.5, -6.2));
-      g.rotation.y = sx < 0 ? 0.35 : -0.35 + Math.PI; // all face the hearth
-      if (sx > 0) g.scale.x *= 1;
-      this.world.add(g);
-    }
-  }
-
-  private buildBanners(): void {
-    const tat = tatterTexture(19);
-    const pole = rimify(new THREE.MeshStandardMaterial({ color: 0x0c0a10, roughness: 0.6, metalness: 0.4 }), 0.8, 'pole');
-    const spots = [
-      { x: -7.8, z: -2.6, h: 6.5 },
-      { x: 6.4, z: -2.8, h: 5.5 },
-      { x: -18, z: -5, h: 8 },
-      { x: 17, z: -4.6, h: 7 },
-    ];
-    for (const [i, s] of spots.entries()) {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, s.h, 14), pole);
-      p.position.set(s.x, s.h / 2, s.z);
-      p.castShadow = true;
-      this.world.add(p);
-      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.3, 10), pole);
-      bar.rotation.z = Math.PI / 2;
-      bar.position.set(s.x + 0.55, s.h - 0.15, s.z);
-      this.world.add(bar);
-      const geo = new THREE.PlaneGeometry(1.1, 3, 4, 12);
-      geo.translate(0.55, -1.5, 0);
-      const mat = rimify(
-        new THREE.MeshStandardMaterial({ color: 0x1a0c10, roughness: 1, side: THREE.DoubleSide, alphaMap: tat, alphaTest: 0.5 }),
-        0.7,
-        'banner',
-      );
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(s.x + 0.05, s.h - 0.2, s.z);
-      m.castShadow = true;
-      m.customDistanceMaterial = new THREE.MeshDistanceMaterial({ alphaMap: tat, alphaTest: 0.5 });
-      this.world.add(m);
-      this.banners.push({ mesh: m, base: Float32Array.from(geo.attributes.position.array as Float32Array), seed: i * 2.3 });
-    }
-  }
-
   /** Dry grass tufts along the front edge, swaying in the wind (vertex shader). */
   private buildGrass(): void {
     const blade = new THREE.ConeGeometry(0.035, 0.7, 3);
@@ -550,7 +372,7 @@ export class Stage {
         );
     };
     mat.customProgramCacheKey = () => 'grass';
-    const n = 900;
+    const n = 2600;
     const inst = new THREE.InstancedMesh(blade, mat, n);
     const rng = new Rng(41);
     const m = new THREE.Matrix4();
@@ -558,7 +380,7 @@ export class Stage {
     const e = new THREE.Euler();
     for (let i = 0; i < n; i++) {
       const front = rng.next() < 0.6;
-      const x = rng.range(-34, 34);
+      const x = rng.range(-62, 132);
       const z = front ? rng.range(1.75, 3.4) : rng.range(-3.5, -1.8);
       const s = rng.range(0.5, 1.4) * (front ? 1 : 0.8);
       e.set(rng.range(-0.25, 0.25), rng.range(0, 3), rng.range(-0.3, 0.3));

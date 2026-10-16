@@ -56,6 +56,11 @@ export class Hud {
     this.hpPips.forEach((p, i) => p.classList.toggle('gone', i >= hp));
     $('hp-num').textContent = `${hp} / ${CFG.knight.maxHp}`;
     $('vitals').classList.toggle('low', hp <= 2 && hp > 0);
+    if (this.toastT > 0) {
+      this.toastT -= dt;
+      if (this.toastT <= 0) $('toast').classList.remove('on');
+    }
+    $('ember-tag').classList.toggle('on', w.knight.ember);
     if (this.comboT > 0) {
       this.comboT -= dt;
       if (this.comboT <= 0) $('combo').classList.remove('on');
@@ -89,6 +94,17 @@ export class Hud {
 
   hideCard(): void {
     $('card').classList.add('hidden');
+  }
+
+  private toastT = 0;
+  /** A short line under the clock: embers, braziers, doors. */
+  toast(text: string): void {
+    const el = $('toast');
+    el.textContent = text;
+    el.classList.remove('on');
+    void el.offsetWidth;
+    el.classList.add('on');
+    this.toastT = 3;
   }
 
   choice(on: boolean): void {

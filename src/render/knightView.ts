@@ -164,6 +164,7 @@ export class KnightView {
   readonly torchFlame: Flame;
   readonly torchLight: THREE.PointLight;
   private torchHalo: THREE.Sprite;
+  private emberOrb: THREE.Sprite;
   torchOn = false;
   readonly trailColor = new THREE.Color(1.6, 1.3, 3.4);
   private eyeWorld = new THREE.Vector3();
@@ -262,6 +263,13 @@ export class KnightView {
     this.torchHalo.position.y = 0.8;
     this.torch.add(this.torchHalo);
     this.torch.visible = false;
+    // a carried ember floats over his shoulder
+    this.emberOrb = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(3.2, 1.3, 0.35), blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
+    );
+    this.emberOrb.position.set(-0.45, 2.75, 0.3);
+    this.emberOrb.visible = false;
+    this.root.add(this.emberOrb);
     this.chest.add(this.offShoulder);
     this.chest.add(this.shoulder);
 
@@ -660,6 +668,16 @@ export class KnightView {
     this.torchFlame.update(t, camera);
     if (this.torchOn) this.torchLight.intensity = 60 * (0.9 + 0.1 * Math.sin(t * 19) + 0.05 * Math.sin(t * 7));
     this.torchHalo.visible = this.torchOn;
+    this.emberOrb.visible = k.ember;
+    if (k.ember) {
+      const e = 0.55 + Math.sin(t * 6) * 0.08;
+      this.emberOrb.scale.set(e, e, 1);
+      this.emberOrb.position.y = 2.75 + Math.sin(t * 2.2) * 0.08;
+      if (Math.random() < dt * 30) {
+        this.emberOrb.getWorldPosition(this.tmp);
+        glow.emit({ x: this.tmp.x, y: this.tmp.y, z: this.tmp.z, vy: 0.8, vx: -k.vx * 0.1, spread: 0.25, life: 0.9, size: 0.09, sizeEnd: 0.01, r: 5, g: 2, b: 0.4, gravity: -0.5, wobble: 0.5 });
+      }
+    }
     const hs = 2.6 + Math.sin(t * 13) * 0.15;
     this.torchHalo.scale.set(hs, hs, 1);
 

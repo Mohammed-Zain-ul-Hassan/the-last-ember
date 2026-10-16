@@ -10,10 +10,11 @@ import { Hearth } from './render/hearth';
 import { KnightView, setKnightFade } from './render/knightView';
 import { Particles } from './render/particles';
 import { ShadeViews } from './render/shadeView';
+import { LevelView } from './render/levelView';
 import { Stage } from './render/stage';
 import { rampTexture } from './render/textures';
 import { botInput } from './sim/bot';
-import { NO_INPUT, World, type Input } from './sim/world';
+import { NO_INPUT, World, type Input, type WorldOpts } from './sim/world';
 import { Hud } from './ui/hud';
 import { WorldUi } from './ui/worldUi';
 
@@ -98,9 +99,20 @@ function applyPhase(i: number): void {
   hearth.strength = torch ? 0 : 1;
 }
 
-function startChapter(i: number, quick = false): void {
+let levelView: LevelView | null = null;
+/** Build the place for the current world (only when the place changes). */
+function ensureLevel(): void {
+  if (levelView && levelView.id === world.level.id) return;
+  levelView?.dispose();
+  levelView = new LevelView(world.level);
+  stage.world.add(levelView.group);
+  hearth.group.visible = world.level.hearthX !== undefined;
+}
+
+function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   chapterIndex = i;
-  world = new World(i, seed);
+  world = new World(i, seed, opts);
+  ensureLevel();
   shadeViews.clear();
   worldUi.clear();
   clearInput();
@@ -121,6 +133,12 @@ function startChapter(i: number, quick = false): void {
   sfx('bell');
 }
 
+/** Fallen: on the road, rise again at the last lit brazier; on the grounds, the hour begins again. */
+function retry(): void {
+  if (world.road && world.checkpointsLit > 0) startChapter(chapterIndex, true, { startX: world.respawnX, checkpointsLit: world.checkpointsLit });
+  else startChapter(chapterIndex, true);
+}
+
 function beginPlay(): void {
   hud.hideCard();
   hud.show(true);
@@ -135,6 +153,36 @@ function restartAll(): void {
   stage.dawn = 0;
   sunEdge = 30;
   startChapter(0);
+}
+
+/** Embers, braziers and the gate: toasts, sounds and the level's props. */
+function journeyEvents(): void {
+  for (const e of world.events) {
+    switch (e.type) {
+      case 'shrine':
+        hud.toast(e.x < world.knight.x ? '← an ember wakes in the ruins' : 'an ember wakes in the ruins →');
+        sfx('ui');
+        break;
+      case 'ember':
+        worldUi.pop('an ember', e.x, e.y + 2.4, 'soul', 0);
+        hud.toast('carry it home to the hearth');
+        sfx('ignite');
+        break;
+      case 'feed':
+        worldUi.pop(`+${CFG.hearth.emberHeal} the hearth drinks`, e.x, 3.4, 'soul big', 0);
+        hud.flash(0.25, '#ffb070');
+        sfx('ignite');
+        break;
+      case 'checkpoint':
+        hud.toast('a brazier is lit · you will rise here');
+        sfx('ignite');
+        break;
+      case 'gate':
+        if (levelView) levelView.gateTarget = e.open ? 1 : 0;
+        if (e.open) hud.toast('the doors open');
+        break;
+    }
+  }
 }
 
 // ------------------------------------------------------------------ input
@@ -160,7 +208,7 @@ onKey((code) => {
       }
       return;
     case 'lost':
-      if (modeT > 0.8 && (code === 'KeyR' || code === 'Enter' || code === 'Space')) startChapter(chapterIndex, true);
+      if (modeT > 0.8 && (code === 'KeyR' || code === 'Enter' || code === 'Space')) retry();
       return;
     case 'credits':
       if (modeT > 1.5 && (code === 'Enter' || code === 'KeyR')) restartAll();
@@ -200,6 +248,7 @@ function stepSim(input: Input, dt: number): void {
     world.step(input);
     playEvents(world.events, fx);
     worldUi.events(world.events, world);
+    journeyEvents();
     for (const e of world.events) {
       if (e.type === 'hit') {
         shadeViews.hit(e.id);
@@ -275,8 +324,9 @@ function dawn(dt: number): void {
     rig.go(DAWN_SHOT, 3);
     sfx('dawn');
     setMood('dawn');
-    world = new World(chapterIndex, seed);
-    world.knight.x = Math.max(-6, Math.min(2, knightX));
+    world = new World(chapterIndex, seed, { startX: knightX, startY: knightY, checkpointsLit: world.checkpointsLit });
+    dawnBase = knightX;
+    sunEdge = dawnBase + 30;
     world.spawning = false;
     world.endless = true;
     shadeViews.clear();
@@ -292,18 +342,20 @@ function dawn(dt: number): void {
   }
 }
 let knightX = 0;
+let knightY = 0;
+let dawnBase = 0;
 
 function choice(dt: number): void {
   stage.dawn = 1;
   stage.setSky(DAWN_SKY, Math.min(1, dt));
-  const target = 2.5;
+  const target = dawnBase + 2.5;
   sunEdge += (target - sunEdge) * Math.min(1, dt * 0.9);
   hud.choice(modeT > 0.6);
   const input = DEMO ? { ...NO_INPUT, right: true } : readInput();
   stepSim({ ...input, attack: false, heavy: false }, dt);
   const k = world.knight;
   const inLight = k.x > sunEdge + 0.4;
-  const inShadow = k.x < -4.4; // past the arch's pillar, before the low wall
+  const inShadow = k.x < dawnBase - 4.4; // back into the shadow of the gatehouse
   choiceHold = inLight || inShadow ? choiceHold + dt : 0;
   if (choiceHold > 1.1) {
     ending = inLight ? 'light' : 'shadow';
@@ -335,8 +387,8 @@ function endingScene(dt: number): void {
     at(5.5, 3, () => hud.card('', '', 'For a moment, he remembered every name.'));
     at(10, 4, () => hud.card('', '', 'The ember lives. The knight does not.'));
   } else {
-    sunEdge += (-4.5 - sunEdge) * Math.min(1, dt * 0.5);
-    const arrived = walkTo(-5.2, dt);
+    sunEdge += (dawnBase - 4.5 - sunEdge) * Math.min(1, dt * 0.5);
+    const arrived = walkTo(dawnBase - 5.2, dt);
     at(0.2, 1, () => hud.card('', '', 'He turned from the light.'));
     if (arrived) knight.pose = 'kneel';
     at(5.0, 2, () => hud.card('', '', 'In the shadow of the arch, he keeps the cold hearth still.'));
@@ -353,6 +405,7 @@ let last = performance.now();
 let t = 0;
 let fpsT = 0;
 let frames = 0;
+ensureLevel();
 hud.title(true);
 hud.show(false);
 rig.snap(TITLE_SHOT);
@@ -410,6 +463,7 @@ function update(now: number): void {
     stepSim(DEMO ? botInput(world) : readInput(), dt);
     if (world.status === 'cleared') {
       knightX = world.knight.x;
+      knightY = world.knight.y;
       if (world.chapter.phase === 'dawn') setMode('dawn');
       else {
         setMode('outro');
@@ -437,7 +491,7 @@ function update(now: number): void {
   if (mode === 'dawn') dawn(rawDt);
   if (mode === 'choice') choice(rawDt);
   if (mode === 'ending') endingScene(rawDt);
-  if (mode === 'lost' && DEMO && modeT > 3) startChapter(chapterIndex, true);
+  if (mode === 'lost' && DEMO && modeT > 3) retry();
   if (mode === 'credits' && DEMO && modeT > 6) restartAll();
 
   // ---- render-side updates
@@ -450,6 +504,7 @@ function update(now: number): void {
     hearth.flameTop = world.light.y;
   }
   hearth.update(dt, t, glow, smoke, stage.camera);
+  levelView?.update(dt, t, stage.camera, world.shrines.map((s) => s.active), world.checkpointsLit);
   if (mode !== 'paused') {
     knight.update(world.knight, dt, t, smoke, glow, stage.camera);
     const live = mode === 'play' || mode === 'outro' || mode === 'lost';
@@ -468,8 +523,11 @@ function update(now: number): void {
   let camTarget = 0;
   if (mode === 'title') camTarget = -0.9;
   else if (mode === 'midnight') camTarget = -1.1;
-  else if (world.torch) camTarget = Math.max(-11, Math.min(11, world.knight.x));
-  else camTarget = Math.max(-7, Math.min(7, world.knight.x * 0.75));
+  else {
+    const look = world.knight.x + world.knight.facing * 2.2;
+    camTarget = Math.max(world.minX + 7, Math.min(world.maxX - 7, look));
+  }
+  rig.liftTarget = mode === 'title' || mode === 'midnight' ? 0 : world.knight.y * 0.8;
   // lean in when the knight is fighting at close quarters
   const k = world.knight;
   const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.abs(s.x - k.x) < 3.2);
@@ -479,6 +537,7 @@ function update(now: number): void {
   stage.update(t, rig.x);
   hud.update(world, rawDt);
   worldUi.update(world, rawDt, mode === 'play');
+  worldUi.hearthMarker(world, mode === 'play');
   const danger = mode === 'play' ? Math.min(1, world.shades.filter((s) => s.state !== 'dead' && Math.abs(s.x - world.knight.x) < 6).length / 3) : 0;
   setBeds(hearth.lit ? hearth.strength : knight.torchOn ? 0.5 : 0, danger);
   stage.render();

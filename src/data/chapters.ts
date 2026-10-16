@@ -25,6 +25,7 @@ export interface Chapter {
   line: string;
   duration: number; // seconds of play for the hour
   phase: 'hearth' | 'torch' | 'dawn';
+  level: string; // key into LEVELS
   memory: string; // revealed on the card after the hour is survived
   bigAt?: number; // progress (0..1) at which a great shade rises
   lightHeight: number; // flame height in metres; lower = longer shadows
@@ -46,6 +47,7 @@ export const WALLS: Wall[] = [
 export const CHAPTERS: Chapter[] = [
   {
     id: '7pm',
+    level: 'grounds',
     clock: '7 PM',
     roman: 'VII',
     title: 'Sunset',
@@ -63,6 +65,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '9pm',
+    level: 'grounds',
     clock: '9 PM',
     roman: 'IX',
     title: 'The First Shades',
@@ -80,6 +83,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '11pm',
+    level: 'grounds',
     clock: '11 PM',
     roman: 'XI',
     title: 'The Hearth Falters',
@@ -97,6 +101,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '1am',
+    level: 'lowerCity',
     clock: '1 AM',
     roman: 'I',
     title: 'Carrying the Flame',
@@ -114,6 +119,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: '3am',
+    level: 'cathedral',
     clock: '3 AM',
     roman: 'III',
     title: 'The Darkest Hour',
@@ -127,11 +133,11 @@ export const CHAPTERS: Chapter[] = [
     maxShades: 8,
     shadeHp: 4,
     shadeSpeed: 2.4,
-    bigAt: 0.4,
     sky: { top: '#020205', horizon: '#161022', glow: '#4a2a3a', glowY: 0.2, fog: '#0b0912', stars: 0.25 },
   },
   {
     id: '5am',
+    level: 'cityWall',
     clock: '5 AM',
     roman: 'V',
     title: 'Before Dawn',

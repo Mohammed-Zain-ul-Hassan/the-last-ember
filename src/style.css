@@ -159,3 +159,24 @@ html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; 
   18% { transform: translate(-50%, -60%) scale(1); opacity: 1; letter-spacing: 0.4em; }
   100% { transform: translate(-50%, -160%) scale(1); opacity: 0; }
 }
+
+/* journey UI */
+#toast { position: absolute; top: 108px; left: 50%; transform: translateX(-50%); font-family: var(--serif); font-style: italic;
+  font-size: 18px; color: var(--bone); letter-spacing: 0.04em; text-shadow: 0 0 14px rgba(0, 0, 0, 0.9), 0 0 18px rgba(255, 150, 80, 0.35);
+  opacity: 0; transition: opacity 0.6s; white-space: nowrap; }
+#toast.on { opacity: 1; }
+#ember-tag { font-family: var(--display); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: #ffc27a;
+  text-shadow: 0 0 10px #ff7a2f; opacity: 0; transition: opacity 0.4s; margin-left: 6px; }
+#ember-tag.on { opacity: 1; animation: low-pulse 0.9s infinite alternate; }
+#hearth-marker { position: absolute; top: 50%; display: flex; align-items: center; gap: 8px; font-family: var(--display);
+  font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: #ffd2a0; opacity: 0; transition: opacity 0.4s;
+  text-shadow: 0 0 10px #000; }
+#hearth-marker.on { opacity: 1; }
+#hearth-marker .arrow { width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+#hearth-marker.left { left: 18px; }
+#hearth-marker.left .arrow { border-right: 14px solid #ff8a3d; filter: drop-shadow(0 0 8px #ff6a1a); }
+#hearth-marker.right { right: 18px; flex-direction: row-reverse; }
+#hearth-marker.right .arrow { border-left: 14px solid #ff8a3d; filter: drop-shadow(0 0 8px #ff6a1a); }
+#hearth-marker .hp { font-family: var(--serif); font-style: italic; letter-spacing: 0.05em; font-size: 14px; color: var(--mist); }
+#hearth-marker.struck { animation: marker-pulse 0.5s 3; }
+@keyframes marker-pulse { 50% { transform: scale(1.25); color: #ff5a3a; } }

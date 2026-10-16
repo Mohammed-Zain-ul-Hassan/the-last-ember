@@ -34,6 +34,8 @@ export class CameraRig {
   zoom = 1; // <1 leans in (combat), eased
   zoomTarget = 1;
   fitSpan = true; // close-ups turn this off
+  lift = 0; // rises with the knight onto ledges and rooftops (eased)
+  liftTarget = 0;
 
   private cam: THREE.PerspectiveCamera;
 
@@ -81,8 +83,9 @@ export class CameraRig {
     const sh = this.trauma * this.trauma * 0.35 * this.shakeScale;
     const nx = (Math.sin(t * 47.1) + Math.sin(t * 23.3)) * 0.5 * sh;
     const ny = (Math.sin(t * 41.7 + 1) + Math.sin(t * 19.9)) * 0.5 * sh;
-    this.cam.position.set(this.x + Math.sin(yaw) * dist + nx, s.height + ny, Math.cos(yaw) * dist);
-    this.cam.lookAt(this.x + nx * 0.5, s.lookY + ny * 0.5, 0);
+    this.lift += (this.liftTarget - this.lift) * Math.min(1, dt * 2.5);
+    this.cam.position.set(this.x + Math.sin(yaw) * dist + nx, s.height + this.lift + ny, Math.cos(yaw) * dist);
+    this.cam.lookAt(this.x + nx * 0.5, s.lookY + this.lift + ny * 0.5, 0);
     if (Math.abs(this.cam.fov - s.fov) > 0.01) {
       this.cam.fov = s.fov;
       this.cam.updateProjectionMatrix();

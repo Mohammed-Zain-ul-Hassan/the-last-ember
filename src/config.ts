@@ -57,9 +57,10 @@ export const CFG = {
     lightDps: 0.7, // damage per second at full light
     lightSlow: 0.55, // fraction of speed lost at full light
     aggroRange: 2.6,
+    floatSpeed: 2.6, // m/s a shade drifts up or down toward the knight
   },
 
-  hearth: { x: 0, maxHp: 100, radius: 0.9 },
+  hearth: { x: 0, maxHp: 100, radius: 0.9, emberHeal: 30 },
 
   // frames of sim freeze
   hitstop: { light: 3, heavy: 7, kill: 5 },

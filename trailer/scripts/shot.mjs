@@ -45,6 +45,27 @@ const SCENES = {
       dispatchEvent(new KeyboardEvent('keyup', { code: 'Space' }));
       G.tick(16.67, 5);`,
   },
+  grounds_wide: {
+    q: 'seed=12&chapter=0',
+    js: `G.skipTo(0); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 200);
+      const w = G.world; w.time = w.chapter.duration * 0.4; G.tick(16.67, 2); w.knight.x = -24; w.knight.y = 2.7; w.knight.facing = -1; G.tick(16.67, 90);`,
+  },
+  lower_city: {
+    q: 'seed=13&chapter=3&demo=1',
+    js: `G.skipTo(3); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.knight.x = 40; G.world.knight.y = 3.1; G.tick(16.67, 200);`,
+  },
+  nave: {
+    q: 'seed=14&chapter=4&demo=1',
+    js: `G.skipTo(4); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.knight.x = 18; G.tick(16.67, 160);`,
+  },
+  apse_boss: {
+    q: 'seed=15&chapter=4&demo=1',
+    js: `G.skipTo(4); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.knight.x = 76; G.tick(16.67, 240);`,
+  },
+  city_wall: {
+    q: 'seed=16&chapter=5&demo=1',
+    js: `G.skipTo(5); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.knight.x = 60; G.tick(16.67, 200);`,
+  },
   boss: {
     q: 'seed=8&chapter=4',
     js: `G.skipTo(4); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 120);

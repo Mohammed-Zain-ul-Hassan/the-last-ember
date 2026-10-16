@@ -25,7 +25,15 @@ export function botInput(w: World): Input {
   }
   const crowd = w.shades.filter((s) => s.state !== 'dead' && s.state !== 'rise' && Math.abs(s.x - k.x) < 3).length;
 
-  const goal = target ? target.x : hx - 1.6 * Math.sign(k.x - hx || -1);
+  // where to go: fight what is close; otherwise carry an ember home, walk the road, or fetch a lit shrine
+  const danger = target !== null && Math.abs(target.x - k.x) < 6;
+  const shrine = w.shrines.find((s) => s.active && s.y < 0.5);
+  let goal: number;
+  if (danger && target) goal = target.x;
+  else if (k.ember) goal = w.hearthX;
+  else if (w.road) goal = (w.level.end as number) + 2;
+  else if (shrine && w.hearthHp > 50) goal = shrine.x;
+  else goal = target ? target.x : hx - 1.6 * Math.sign(k.x - hx || -1);
   const dx = goal - k.x;
   const want = dx >= 0 ? 1 : -1;
   const near = target && Math.abs(dx) < 1.9 && Math.abs(target.y - k.y) < 1.5;
