@@ -40,8 +40,8 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
   mechanic cut to story-only (user). Engine Phaser to Three.js (research agent recommendation).
 
 ## NOW / NEXT / DONE
-- NOW: feature complete for the jam. Humans playtest (numbers), balance pass, then the trailer edit from
-  trailer/raw (16 clips) + one human-played take.
+- NOW: trailer v1 rendered (trailer/out/the-last-ember-trailer.mp4, 2:57.75, report trailer/REPORT.md): the team
+  watches it with sound; then upload to Drive on approval. Humans playtest for balance.
 - NEXT: feature freeze Day 2 evening; after it only fixes, balance, capture, ship.
 - DONE (playable-12): menus. Title: Continue / Begin / Choose a level (locked until reached, best grade shown) /
   Settings / Controls. Esc anywhere: Resume / Restart / Choose a level / Settings / Controls / Quit to title.
