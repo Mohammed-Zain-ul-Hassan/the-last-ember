@@ -149,6 +149,31 @@ const SCENES = {
     q: 'seed=24&chapter=2',
     js: `G.skipTo(2); G.tick(16.67, 70);`,
   },
+  memory0: {
+    q: 'seed=30&chapter=0',
+    js: `G.skipTo(0); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.status = 'cleared'; G.tick(16.67, 337);`,
+  },
+  memory1: {
+    q: 'seed=31&chapter=1',
+    js: `G.skipTo(1); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.status = 'cleared'; G.tick(16.67, 270);`,
+  },
+  memory2: {
+    q: 'seed=32&chapter=2',
+    js: `G.skipTo(2); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.status = 'cleared'; G.tick(16.67, 382);`,
+  },
+  memory3: {
+    q: 'seed=33&chapter=3',
+    js: `G.skipTo(3); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.status = 'cleared'; G.tick(16.67, 247);`,
+  },
+  memory4: {
+    q: 'seed=34&chapter=4',
+    js: `G.skipTo(4); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.status = 'cleared'; G.tick(16.67, 405);`,
+  },
+  after_memory: {
+    q: 'seed=40&chapter=0',
+    js: `G.skipTo(0); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 60); G.world.status = 'cleared'; G.tick(16.67, 120);
+      key('Space'); G.tick(16.67, 90); key('Space'); G.tick(16.67, 200);`,
+  },
 };
 
 const want = process.argv.slice(2);

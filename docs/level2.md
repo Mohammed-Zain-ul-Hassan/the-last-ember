@@ -38,9 +38,10 @@ approved as recommended. Dawn and the ending move to the city wall. Road stages 
 3. **Enemies with ideas.** The *Lantern-eater* (keeps its distance, spits shadow bolts that dim the flame); the
    *Crawler* (fast, low, comes in pairs). The Hollow Marshal gets two phases and a cry. **DONE (playable-9)**,
    with the controls pass: per-step input (no swallowed jumps), double jump, jump-cancel, hold-to-charge.
-4. **Story beats.** ← next. Short silhouette memory vignettes between hours (the hall, the faces, the night the fire went
+4. **Story beats.** **DONE (playable-11)**: shadow-puppet memories (the oath, their faces, the fire going out, the
+   doors, becoming the shadow), letterboxed, before each level-complete card; any key skips. Short silhouette memory vignettes between hours (the hall, the faces, the night the fire went
    out), using the in-engine renderer, not text walls.
-5. **The finish.** Per-hour grade (time, wounds, embers, shades freed), best saved locally, chapter select after the
+5. **The finish.** ← next. Per-hour grade (time, wounds, embers, shades freed), best saved locally, chapter select after the
    first completion, settings (volume, screenshake), a full audio pass per place.
 
 Feature freeze Day 2 evening. Cut from the bottom of this list.

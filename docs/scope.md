@@ -40,8 +40,10 @@ Work strictly top-down. Estimates are in 30-min units (u). Day 1 is 2026-10-16.
   mechanic cut to story-only (user). Engine Phaser to Three.js (research agent recommendation).
 
 ## NOW / NEXT / DONE
-- NOW: Level 2 phase 4 (memory vignettes between hours) — see docs/level2.md.
-- NEXT: phase 5 grades/settings; re-capture trailer clips on the new places, enemies and the charged rend.
+- NOW: phase 5 polish (settings: volume, screenshake; best grade per level saved), then re-capture trailer clips:
+  the five memories, the charged rend, levels and cards, enemies, the journey.
+- NEXT: feature freeze Day 2 evening; then balance, bug fixes, trailer edit.
+- DONE (playable-11): phase 4 memories, shadow-puppet theatre between levels (src/render/memory.ts).
 - DONE (playable-10): every hour is a numbered level (Level n of 6 on the intro card and HUD, a Level complete card
   with stats and a level strip, any key continues). Heavy hold-to-charge (feet planted, 3-8 dmg). Lives + health:
   3 shards x 100 health; a broken shard throws the shades back and refills the bar. Shared health bar: instant fill,

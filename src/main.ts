@@ -4,6 +4,7 @@ import { initAudio, isMuted, setBeds, setMood, setMuted, sfx } from './audio/sfx
 import { CFG } from './config';
 import { CHAPTERS, DAWN_SKY, MIDNIGHT_SKY } from './data/chapters';
 import { LEVELS } from './data/levels';
+import { MEMORY_TIME, Memories } from './render/memory';
 import { playEvents, type FxTargets } from './fx';
 import { clearInput, initInput, onKey, readInput } from './input';
 import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, GAMEPLAY_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, TITLE_SHOT, TORCH_SHOT } from './render/cameraRig';
@@ -112,7 +113,36 @@ function ensureLevel(): void {
 }
 
 // ------------------------------------------------------------------ levels: every hour is a level
-const OUTRO_TIME = DEMO ? 4.2 : 9; // the level-complete card waits this long (any key continues sooner)
+const STATS_TIME = DEMO ? 3.5 : 9; // the level-complete card waits this long (any key continues sooner)
+const memories = new Memories();
+stage.scene.add(memories.group);
+let memEnd = 0; // outro time at which the memory gives way to the level-complete card (0 = no memory)
+const outroTime = () => memEnd + STATS_TIME;
+
+/** A memory plays as shadow theatre, letterboxed, before the level-complete card. */
+function playMemory(i: number): void {
+  if (!memories.has(i)) {
+    memEnd = 0;
+    levelComplete();
+    return;
+  }
+  memEnd = MEMORY_TIME;
+  memories.show(i);
+  hud.hideCard();
+  hud.flash(1, '#000');
+  document.getElementById('mem-eyebrow')!.textContent = `A memory returns  ·  ${CHAPTERS[i].clock}`;
+  document.getElementById('mem-text')!.textContent = CHAPTERS[i].memory;
+  document.getElementById('letterbox')!.classList.add('on');
+  document.getElementById('memline')!.classList.add('on');
+}
+
+function endMemory(): void {
+  if (memories.active < 0) return;
+  memories.hide();
+  hud.flash(1, '#000');
+  document.getElementById('letterbox')!.classList.remove('on');
+  document.getElementById('memline')!.classList.remove('on');
+}
 const levelStats = { wounds: 0, embers: 0 };
 const levelTitle = (i: number) => `Level ${i + 1} of ${CHAPTERS.length}  ·  <b>${LEVELS[CHAPTERS[i].level].name}</b>`;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -272,7 +302,8 @@ onKey((code) => {
       }
       return;
     case 'outro':
-      if (modeT > 1.2 && modeT < OUTRO_TIME) modeT = OUTRO_TIME;
+      if (memEnd > 0 && modeT > 1.0 && modeT < memEnd) modeT = memEnd; // skip the memory to the card
+      else if (modeT > memEnd + 1.0 && modeT < outroTime()) modeT = outroTime();
       return;
     case 'lost':
       if (modeT > 0.8 && (code === 'KeyR' || code === 'Enter' || code === 'Space')) retry();
@@ -548,7 +579,7 @@ function update(now: number): void {
       if (world.chapter.phase === 'dawn') setMode('dawn');
       else {
         setMode('outro');
-        levelComplete();
+        playMemory(chapterIndex);
         hud.show(false);
         rig.go(CARD_SHOT, 2.5);
         fx.slowmo(1, 0);
@@ -561,7 +592,13 @@ function update(now: number): void {
     }
   }
 
-  if (mode === 'outro' && modeT >= OUTRO_TIME) {
+  if (mode === 'outro' && memEnd > 0 && modeT >= memEnd && document.getElementById('memline')!.classList.contains('on')) {
+    document.getElementById('memline')!.classList.remove('on');
+    document.getElementById('letterbox')!.classList.remove('on');
+    levelComplete();
+  }
+  if (mode === 'outro' && modeT >= outroTime()) {
+    endMemory();
     const next = chapterIndex + 1;
     if (next === midnightIndex) {
       world.status = 'playing';
@@ -617,9 +654,10 @@ function update(now: number): void {
   if (mode === 'play' && close) camTarget = camTarget * 0.6 + k.x * 0.4;
   if (revealT > 0) rig.zoomTarget = 1;
   rig.update(rawDt, t, camTarget);
+  memories.update(rawDt, stage.camera, glow, smoke);
   stage.update(t, rig.x);
   hud.update(world, rawDt);
-  worldUi.update(world, rawDt, mode === 'play');
+  worldUi.update(world, rawDt, mode === 'play' && memories.active < 0);
   worldUi.hearthMarker(world, mode === 'play');
   const danger = mode === 'play' ? Math.min(1, world.shades.filter((s) => s.state !== 'dead' && Math.abs(s.x - world.knight.x) < 6).length / 3) : 0;
   setBeds(hearth.lit ? hearth.strength : knight.torchOn ? 0.5 : 0, danger);
