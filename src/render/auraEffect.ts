@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BlendFunction, Effect, EffectAttribute } from 'postprocessing';
+import { DEPTH } from './depth';
 
 // The knight's aura: one living shadow-fire around his whole silhouette instead of a drawn outline.
 //
@@ -37,6 +38,9 @@ export interface AuraSource {
   smoke: AuraLayer;
   dt: number; // game time since the last frame (0 while paused: the aura freezes with the world)
   time: number;
+  light: THREE.Vector3; // the fire that lights him: the side of his outline facing it burns warm
+  lightColor: THREE.Color;
+  lightAmount: number; // 0..1, how lit he is
 }
 
 const LAYER = 7; // render layer the mask pass draws
@@ -102,6 +106,7 @@ const FRAG = /* glsl */ `
   uniform sampler2D tAura; uniform sampler2D tMask;
   uniform vec3 uBodyIn; uniform vec3 uBodyOut; uniform vec3 uSwordIn; uniform vec3 uSwordOut; uniform vec3 uSmoke;
   uniform vec3 uGlow; uniform float uFade; uniform float uKnightZ; uniform vec2 uCenter; uniform float uScale; uniform float uAspect; uniform float uClock;
+  uniform float uPull; uniform vec2 uLightDir; uniform float uLightAmt; uniform vec3 uLitRim; uniform float uRimPx;
   ${NOISE}
   float au_fbm(vec3 p) { return au_noise(p) * 0.55 + au_noise(p * 2.1 + 7.3) * 0.3 + au_noise(p * 4.3 + 1.7) * 0.15; }
   void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor) {
@@ -113,8 +118,17 @@ const FRAG = /* glsl */ `
     float near = (texture2D(tMask, uv + vec2(hr.x, 0.0)).r + texture2D(tMask, uv - vec2(hr.x, 0.0)).r
                 + texture2D(tMask, uv + vec2(0.0, hr.y)).r + texture2D(tMask, uv - vec2(0.0, hr.y)).r) * 0.25;
     float inside = max(m.r, near * near * 0.85);
-    // anything clearly nearer the camera than the knight hides his aura
-    float vis = (1.0 - smoothstep(uKnightZ + 0.8, uKnightZ + 2.2, getViewZ(depth))) * uFade;
+    // a gap the silhouette surrounds on most sides (a hole in his cape, a nook under his arm) is not his outer edge:
+    // no outline there, so only his true silhouette is drawn
+    vec2 er = vec2(0.035 * uScale / uAspect, 0.035 * uScale);
+    float around = 0.0;
+    for (int i = 0; i < 8; i++) {
+      float ang = float(i) * 0.7853982 + 0.2;
+      around += texture2D(tMask, uv + vec2(cos(ang), sin(ang)) * er).r;
+    }
+    inside = max(inside, smoothstep(5.2, 6.8, around));
+    // only things clearly nearer the camera than the knight (past his depth pull) hide his aura
+    float vis = (1.0 - smoothstep(uKnightZ + uPull + 0.4, uKnightZ + uPull + 1.6, getViewZ(depth))) * uFade;
     // noise in a frame that travels with him, scrolling upward: the fire breaks into tongues as it climbs
     vec2 q = (uv - uCenter) * vec2(uAspect, 1.0) / uScale;
     float n = au_fbm(vec3(q * 4.2 + vec2(0.0, -uClock * 1.6), uClock * 0.35));
@@ -122,10 +136,24 @@ const FRAG = /* glsl */ `
     // his body stays a pure black shadow: the aura only burns outside the silhouette
     float outside = 1.0 - smoothstep(0.2, 0.7, inside);
     float body = a.r;
-    // a thin hot rim hugging the silhouette where he is now, and dimmer tongues of shadow-fire climbing off it
-    float rim = smoothstep(0.6, 1.0, a.a) * outside;
+    // the outline: a crisp line hugging the silhouette, a few real pixels wide whatever the zoom (full-res mask)
+    vec2 px = texelSize * uRimPx;
+    float d = 0.0;
+    for (int i = 0; i < 8; i++) {
+      float ang = float(i) * 0.7853982;
+      d += texture2D(tMask, uv + vec2(cos(ang), sin(ang)) * px).r;
+    }
+    float line = smoothstep(0.03, 0.42, d * 0.125) * outside;
+    // which way the silhouette faces here, and whether that side faces the fire: that edge burns warm
+    vec2 gp = px * 2.0;
+    vec2 grad = vec2(texture2D(tMask, uv + vec2(gp.x, 0.0)).r - texture2D(tMask, uv - vec2(gp.x, 0.0)).r,
+                     texture2D(tMask, uv + vec2(0.0, gp.y)).r - texture2D(tMask, uv - vec2(0.0, gp.y)).r);
+    float toFire = max(0.0, dot(-grad / max(length(grad), 1e-4), uLightDir)) * uLightAmt;
+    vec3 rimCol = mix(uBodyIn, uLitRim, smoothstep(0.0, 0.75, toFire)) * (1.0 + 0.5 * toFire);
+    // a soft halo just outside the line, and dimmer tongues of shadow-fire climbing off him
+    float halo = smoothstep(0.55, 1.0, a.a) * outside;
     float tongues = smoothstep(0.22, 0.95, body * (0.25 + 0.95 * n + 0.3 * n2)) * outside;
-    vec3 glow = (uBodyOut * tongues + uBodyIn * rim * rim * (0.55 + 0.6 * n2)) * uGlow.x;
+    vec3 glow = (uBodyOut * tongues + rimCol * (line * (0.8 + 0.35 * n2) + halo * halo * 0.3)) * uGlow.x;
     float sw = a.g;
     float sheath = smoothstep(0.04, 0.8, sw * (0.75 + 0.45 * n2));
     vec3 swCol = mix(uSwordOut, uSwordIn, smoothstep(0.6, 1.0, sw));
@@ -159,6 +187,7 @@ export class AuraEffect extends Effect {
   private needsClear = true;
   private warmed = false;
   private aspect = 16 / 9;
+  private height = 720; // render height in pixels
 
   constructor(camera: THREE.PerspectiveCamera) {
     const u = (v: unknown) => new THREE.Uniform(v);
@@ -170,6 +199,7 @@ export class AuraEffect extends Effect {
         ['uBodyIn', u(new THREE.Color())], ['uBodyOut', u(new THREE.Color())], ['uSwordIn', u(new THREE.Color())], ['uSwordOut', u(new THREE.Color())],
         ['uSmoke', u(new THREE.Color())], ['uGlow', u(new THREE.Vector3())], ['uFade', u(0)], ['uKnightZ', u(-10)],
         ['uCenter', u(new THREE.Vector2(0.5, 0.5))], ['uScale', u(0.2)], ['uAspect', u(16 / 9)], ['uClock', u(0)],
+        ['uPull', u(0)], ['uLightDir', u(new THREE.Vector2(1, 0))], ['uLightAmt', u(0)], ['uLitRim', u(new THREE.Color())], ['uRimPx', u(1.5)],
       ]),
     });
     this.camera = camera;
@@ -203,6 +233,7 @@ export class AuraEffect extends Effect {
     for (const f of this.feed) f.setSize(w, h);
     this.feedMat.uniforms.uTexel.value.set(1 / w, 1 / h);
     this.aspect = width / Math.max(1, height);
+    this.height = Math.max(1, height);
     this.needsClear = true;
   }
 
@@ -318,6 +349,17 @@ export class AuraEffect extends Effect {
     U.get('uScale')!.value = scale;
     U.get('uAspect')!.value = this.aspect;
     U.get('uClock')!.value = src.time;
+    U.get('uPull')!.value = DEPTH.uDepthPull.value;
+    // the outline is ~0.6% of his height on screen, kept between 1.5 and 3.5 real pixels
+    U.get('uRimPx')!.value = Math.max(1.5, Math.min(3.5, scale * this.height * 0.0065));
+    // screen direction from him to the fire (in pixels, so it matches the outline's facing)
+    const lp = _q.copy(src.light).applyMatrix4(_vp);
+    const ld = U.get('uLightDir')!.value as THREE.Vector2;
+    ld.set((lp.x - cur.x) * this.aspect, lp.y - cur.y);
+    const near = ld.length();
+    if (near > 1e-4) ld.divideScalar(near);
+    U.get('uLightAmt')!.value = lp.z < 1 ? src.lightAmount : 0;
+    (U.get('uLitRim')!.value as THREE.Color).copy(src.lightColor);
   }
 
   /**

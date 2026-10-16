@@ -1,15 +1,61 @@
 import * as THREE from 'three';
+import { pullForward } from './depth';
 import { RIM } from './rim';
 import { taperTube } from './shapes';
 
 // The greatsword. A diamond-section blade: two lit facets meet at a raised spine, so the flat catches light on one
 // side and falls dark on the other. Both cutting edges burn as razor lines, and a rune channel runs down the spine
-// where shadow-fire pulses from the hilt to the point. The knight flares it on swings and charges through SWORD.
+// where fire pulses from the hilt to the point. The knight flares it on swings and charges through SWORD.
 export const SWORD = {
   uTime: { value: 0 },
-  uEdge: { value: new THREE.Color(1.5, 1.15, 3.6) },
-  uRune: { value: new THREE.Color(0.9, 0.32, 3.2) },
+  uEdge: { value: new THREE.Color(4.0, 1.5, 0.35) },
+  uRune: { value: new THREE.Color(3.4, 0.9, 0.15) },
   uFlare: { value: 0 },
+};
+
+/** One look for the blade: its steel, burning edges, runes, pommel stone, the light it casts, its aura and its slash. */
+export interface SwordPalette {
+  steel: number;
+  edge: THREE.Color;
+  rune: THREE.Color;
+  gem: THREE.Color;
+  light: number;
+  auraIn: THREE.Color;
+  auraOut: THREE.Color;
+  trail: THREE.Color;
+}
+const c = (r: number, g: number, b: number) => new THREE.Color(r, g, b);
+const EMBER_TORCH: SwordPalette = {
+  steel: 0x17110f, edge: c(5.0, 2.6, 0.8), rune: c(4.6, 1.9, 0.4), gem: c(5.0, 2.4, 0.7), light: 0xff8a3a,
+  auraIn: c(3.6, 1.9, 0.6), auraOut: c(1.3, 0.38, 0.06), trail: c(4.2, 2.0, 0.6),
+};
+/**
+ * ember: blackened steel with molten edges, the last ember carried in a shadow's hand (the default).
+ * moonsteel: pale steel with cold silver-blue edges. violet: the shadow-fire blade from the first pass.
+ * In the torch phase every blade carries the fire.
+ */
+export const SWORD_PALETTES: Record<'ember' | 'moonsteel' | 'violet', { night: SwordPalette; torch: SwordPalette }> = {
+  ember: {
+    night: {
+      steel: 0x15111a, edge: c(4.0, 1.5, 0.35), rune: c(3.4, 0.9, 0.15), gem: c(4.6, 1.8, 0.4), light: 0xff6a24,
+      auraIn: c(3.0, 1.35, 0.4), auraOut: c(1.0, 0.24, 0.04), trail: c(3.4, 1.3, 0.35),
+    },
+    torch: EMBER_TORCH,
+  },
+  moonsteel: {
+    night: {
+      steel: 0x343a46, edge: c(2.3, 2.7, 3.6), rune: c(0.7, 1.4, 3.4), gem: c(1.8, 2.6, 4.6), light: 0x9ec8ff,
+      auraIn: c(1.3, 1.7, 2.9), auraOut: c(0.22, 0.38, 0.9), trail: c(2.2, 2.6, 3.6),
+    },
+    torch: EMBER_TORCH,
+  },
+  violet: {
+    night: {
+      steel: 0x16151e, edge: c(1.5, 1.15, 3.6), rune: c(0.9, 0.32, 3.2), gem: c(2.2, 1.0, 4.6), light: 0x8a5cff,
+      auraIn: c(1.25, 0.95, 3.1), auraOut: c(0.32, 0.12, 1.15), trail: c(1.6, 1.3, 3.4),
+    },
+    torch: EMBER_TORCH,
+  },
 };
 
 /** Blade length, and where it leaves the guard in the sword's frame (the hand is the origin, the blade points -y). */
@@ -106,7 +152,7 @@ export function bladeMaterial(): THREE.MeshStandardMaterial {
       );
   };
   mat.customProgramCacheKey = () => 'sword-blade';
-  return mat;
+  return pullForward(mat);
 }
 
 export interface SwordParts {
@@ -140,7 +186,7 @@ export function buildSword(steel: THREE.Material, grip: THREE.Material): SwordPa
   const cage = add(new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.011, 8, 20), steel), 0, 0.225, 0);
   cage.scale.y = 1.25;
   const gem = add(
-    new THREE.Mesh(new THREE.OctahedronGeometry(0.042, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.0, 4.6), toneMapped: false, transparent: true })),
+    new THREE.Mesh(new THREE.OctahedronGeometry(0.042, 0), pullForward(new THREE.MeshBasicMaterial({ color: new THREE.Color(4.6, 1.8, 0.4), toneMapped: false, transparent: true }))),
     0, 0.225, 0,
   );
   gem.scale.y = 1.35;
@@ -157,8 +203,8 @@ export function buildSword(steel: THREE.Material, grip: THREE.Material): SwordPa
 
   const blade = add(new THREE.Mesh(bladeGeometry(), bladeMaterial()), 0, BLADE_ROOT, 0, true);
 
-  // the blade lights the ground around him in its own colour
-  const light = new THREE.PointLight(0x8a5cff, 0, 4.5, 2);
+  // the blade lights the ground around him (and his own edges) in its own colour
+  const light = new THREE.PointLight(0xff6a24, 0, 4.5, 2);
   light.position.y = BLADE_ROOT - BLADE_LEN * 0.55;
   group.add(light);
   return { group, meshes, blade, gem, light };

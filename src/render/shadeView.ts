@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CFG } from '../config';
 import type { Shade, ShadeKind } from '../sim/world';
 import { CrawlerMesh, LanternMesh, type EnemyMesh } from './enemyViews';
+import { batchStatic } from './batch';
 import type { Particles } from './particles';
 import { rimify } from './rim';
 import { tatterTexture } from './textures';
@@ -102,6 +103,9 @@ class ShadeMesh {
         const c = m(claw, arm, 0.02, -1.0, (i - 1) * 0.045, false);
         c.rotation.z = (i - 1) * 0.28 + 0.35;
       }
+      // sleeve, forearm and claws never move against each other: one mesh per arm (14 draws a shade down to 6)
+      arm.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh));
+      batchStatic(arm);
       this.body.add(arm);
       this.arms.push(arm);
     }

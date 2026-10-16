@@ -99,7 +99,9 @@ export const HERO = {
     swingLife: 0.1, // the blade's sheath leaves a short crescent of afterglow behind a swing
     lowHp: 0.3, // below this fraction of health the aura gutters
   },
-  swordLight: 5, // violet light the blade casts on the ground around him
+  swordLight: 5, // light the blade casts on the ground (and his edges) around him
+  // the blade's look: 'ember' (blackened steel, molten edges), 'moonsteel' (pale steel, cold edges), 'violet'
+  swordPalette: 'ember' as 'ember' | 'moonsteel' | 'violet',
 } as const;
 
 export interface MoveSpec {

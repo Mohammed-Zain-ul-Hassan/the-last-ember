@@ -741,6 +741,9 @@ function update(now: number): void {
   hearth.update(dt, t, glow, smoke, stage.camera);
   levelView?.update(dt, t, stage.camera, world.shrines.map((s) => s.active), world.checkpointsLit);
   if (mode !== 'paused') {
+    // how lit he stands (the sim's light model, wall shadows included) and where the fire is: his edges answer it
+    knight.exposure = mode === 'title' || mode === 'intro' || mode === 'play' || mode === 'outro' || mode === 'lost' ? world.lightAt(world.knight.x) : 0.4;
+    hearth.light.getWorldPosition(knight.fireAt);
     knight.update(world.knight, dt, t, smoke, glow, stage.camera, knightDrawPos());
     const live = mode === 'play' || mode === 'outro' || mode === 'lost';
     shadeViews.update(live ? world.shades : [], dt, t, smoke, glow);

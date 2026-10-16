@@ -85,3 +85,23 @@ and definition; fluid movement and a real idle"
 - **Human checks Claude can't do:** whether the new idle and run *feel* right in the hand, and the aura's strength
   on a projector.
 
+
+## Round 5 (Day 2, main) — user: "sword angle off, I don't like how he holds it or its colour; refine the outline,
+how his colour changes in light, how he and the cape interact with objects (he should be in front); it lags with
+a few enemies"
+- **Lag:** profiled per subsystem (CPU was ~2 ms; the cost was GPU draw calls and overdraw). Static batching
+  (src/render/batch.ts), fewer shadow casters, a shorter hearth shadow range, the aura mask drawing only the knight,
+  a thinner ambient mist, one mesh per shade arm. Five-shade combat on an Intel UHD: 53 ms -> ~12 ms per frame
+  when the GPU is not throttling; draw calls 767 -> ~250.
+- **In front of props:** the knight is depth-pulled 3.5 m toward the camera (src/render/depth.ts): walls, steps,
+  grass and enemies at his side no longer cut into him; foreground silhouettes still pass in front. The cape folds
+  onto the floor instead of sinking into it.
+- **The hold:** his sword-arm elbow bent backward in every non-attack pose (a hyperextended joint). All poses now
+  flex it forward with the same blade directions; a gauntleted fist closes on the grip; the blade plane leans
+  less toward the camera so it reads in profile; at a run he drags the blade low behind him.
+- **Colour:** sword palettes in src/render/sword.ts, chosen by HERO.swordPalette: ember (default: blackened steel,
+  molten edges and runes, ember light and slash), moonsteel, violet. Every blade carries the fire in the torch phase.
+- **Light:** real scene lights paint only his edges, in their colour, scaled by the sim's light level at his feet:
+  warm on the fire side at the hearth, cold and black in a wall's shadow. Strong light burns his aura back and
+  flakes embers off him. The outline is now a crisp full-resolution line whose fire-facing side burns warm; holes
+  in his cape no longer get outlined.
