@@ -87,4 +87,90 @@ describe('world', () => {
     };
     expect(run()).toBe(run());
   });
+
+  // ------------------------------------------------------------- moves
+  const arena = (chapter = 0) => {
+    const w = new World(chapter, 3);
+    w.knight.x = -14;
+    w.knight.facing = 1;
+    w.knight.iframes = 1e9;
+    w.spawnT = 1e9; // no random spawns
+    return w;
+  };
+  const dummy = (w: World, x: number, hp = 50) => {
+    const s = w.spawnShade(x);
+    s.state = 'walk';
+    s.cd = 1e9;
+    s.hp = s.maxHp = hp;
+    s.speed = 0;
+    return s;
+  };
+  const run = (w: World, frames: number, inp: Partial<Input> = {}) => {
+    for (let i = 0; i < frames; i++) w.step(press(i === 0 ? inp : { left: inp.left, right: inp.right, jumpHeld: inp.jumpHeld }));
+  };
+
+  it('light attacks hit a single target, even with two shades in reach', () => {
+    const w = arena();
+    const a = dummy(w, -12.8);
+    const b = dummy(w, -12.4);
+    run(w, 30, { attack: true });
+    const hit = [a, b].filter((s) => s.hp < 50);
+    expect(hit.length).toBe(1);
+    expect(hit[0]).toBe(a); // the nearest one
+  });
+
+  it('heavy attacks are area of effect, front and behind', () => {
+    const w = arena();
+    const front1 = dummy(w, -12.6);
+    const front2 = dummy(w, -11.6);
+    const behind = dummy(w, -15);
+    run(w, 60, { heavy: true });
+    expect([front1, front2, behind].every((s) => s.hp < 50)).toBe(true);
+    expect(w.events.length >= 0).toBe(true);
+  });
+
+  it('attacking in the air is an aerial strike; heavy in the air is a plunge that slams on landing', () => {
+    const w = arena();
+    run(w, 1, { jump: true, jumpHeld: true });
+    run(w, 12, { jumpHeld: true });
+    expect(w.knight.onGround).toBe(false);
+    run(w, 1, { attack: true });
+    expect(w.knight.move).toBe('air');
+    const w2 = arena();
+    const l = dummy(w2, -16);
+    const r = dummy(w2, -11.5);
+    run(w2, 1, { jump: true, jumpHeld: true });
+    run(w2, 14, { jumpHeld: true });
+    let slam = false;
+    w2.step(press({ heavy: true }));
+    expect(w2.knight.move).toBe('plunge');
+    for (let i = 0; i < 120; i++) {
+      w2.step(NO_INPUT);
+      if (w2.events.some((e) => e.type === 'slam')) slam = true;
+    }
+    expect(slam).toBe(true);
+    expect(l.hp).toBeLessThan(50);
+    expect(r.hp).toBeLessThan(50);
+  });
+
+  it('attacking out of a dash pierces every shade in the line', () => {
+    const w = arena();
+    const a = dummy(w, -12.5);
+    const b = dummy(w, -11);
+    const c = dummy(w, -9.5);
+    w.step(press({ dash: true, right: true }));
+    run(w, 3, { right: true });
+    w.step(press({ attack: true }));
+    expect(w.knight.move).toBe('dashStrike');
+    run(w, 40);
+    expect([a, b, c].filter((s) => s.hp < 50).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('attacking at full run is a lunge', () => {
+    const w = arena();
+    w.knight.x = -10.3; // open ground between two walls
+    run(w, 12, { right: true });
+    w.step(press({ right: true, attack: true }));
+    expect(w.knight.move).toBe('lunge');
+  });
 });

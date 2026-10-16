@@ -16,6 +16,7 @@ export function playEvents(events: readonly GameEvent[], fx: FxTargets): void {
   for (const e of events) {
     switch (e.type) {
       case 'swing':
+        if (e.move === 'dashStrike') sfx('dash');
         sfx(e.heavy ? 'swingHeavy' : 'swing', e.combo);
         break;
       case 'hit': {
@@ -91,6 +92,25 @@ export function playEvents(events: readonly GameEvent[], fx: FxTargets): void {
         for (let i = 0; i < 20; i++)
           fx.smoke.emit({ x: e.x + e.facing * 2, y: e.y, vx: e.facing * 3, spread: 1.2, vy: 1, life: 1.3, size: 1.2, sizeEnd: 2.6, r: 0.05, g: 0.04, b: 0.04, alpha: 0.5, drag: 1.5 });
         break;
+      case 'slam': {
+        // shadow plunge: a shockwave ring racing out across the ground
+        sfx('hitHeavy');
+        if (e.fire) sfx('fireburst');
+        fx.rig.shake(0.75);
+        fx.rig.kick(1.1);
+        fx.flash(0.15, e.fire ? '#ff7a2f' : '#9a6bff');
+        const c = e.fire ? [4, 1.4, 0.3] : [1.4, 0.7, 3.6];
+        for (let i = 0; i < 90; i++) {
+          const a = (i / 90) * Math.PI * 2;
+          const v = 7 + Math.random() * 3;
+          fx.glow.emit({ x: e.x, y: e.y + 0.12, z: 0, vx: Math.cos(a) * v, vz: Math.sin(a) * v * 0.6, vy: 0.4, spread: 0.3, life: 0.45, size: 0.22, sizeEnd: 0.04, r: c[0], g: c[1], b: c[2], drag: 3 });
+        }
+        for (let i = 0; i < 26; i++) {
+          const a = Math.random() * Math.PI * 2;
+          fx.smoke.emit({ x: e.x + Math.cos(a) * 0.6, y: e.y + 0.15, z: Math.sin(a) * 0.4, vx: Math.cos(a) * 5, vy: 1.2, spread: 0.5, life: 0.9, size: 1.1, sizeEnd: 2.4, r: 0.04, g: 0.03, b: 0.06, alpha: 0.7, drag: 3 });
+        }
+        break;
+      }
       case 'bigSpawn':
         sfx('bigSpawn');
         fx.rig.shake(0.7);

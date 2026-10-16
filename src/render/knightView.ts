@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { CFG } from '../config';
-import type { Knight } from '../sim/world';
+import { CFG, type MoveSpec } from '../config';
+import type { Knight, Move } from '../sim/world';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Flame } from './flame';
 import type { Particles } from './particles';
@@ -423,16 +423,47 @@ export class KnightView {
       case 'attack':
       case 'heavy': {
         const heavy = k.state === 'heavy';
-        const sp = heavy ? CFG.heavy : CFG.combo[k.combo];
+        const sp: MoveSpec = k.move === 'light' ? CFG.combo[k.combo] : CFG[k.move];
         if (k.swingId !== this.lastSwing) {
           this.lastSwing = k.swingId;
-          this.swing = this.pickSwing(heavy, k.combo);
+          this.swing = this.pickSwing(k.move, k.combo);
         }
         const S = this.swing;
         const tt = k.stateT;
         p.armTilt = S.tilt;
         p.elbow = -0.08;
         p.swordRel = 0;
+        if (k.move === 'plunge') {
+          // hang with the blade raised, dive, then slam it down into the ground
+          if (k.slamT < 0) {
+            const diving = tt >= sp.windup;
+            p.arm = S.a0;
+            p.lean = diving ? 0.35 : -0.15;
+            p.th0 = 1.15;
+            p.th1 = -0.1;
+            p.kn0 = 1.6;
+            p.kn1 = 1.2;
+            p.offArm = 1.6;
+            p.head = diving ? 0.3 : -0.2;
+            this.trailTail = p.arm + p.elbow - Math.PI / 2;
+          } else {
+            const e = Math.min(1, k.slamT / 0.07);
+            const r = Math.min(1, k.slamT / sp.recover);
+            p.arm = S.a0 + (S.a1 - S.a0) * (1 - Math.pow(1 - e, 3));
+            p.lean = 0.55 * (1 - r * 0.6);
+            p.bob = -0.4 * (1 - r);
+            p.th0 = 1.0;
+            p.th1 = -0.7;
+            p.kn0 = 1.6;
+            p.kn1 = 1.5;
+            p.offArm = -0.4;
+            if (k.slamT < 0.12) this.trailFade = 1;
+          }
+          this.trailHead = p.arm + p.elbow - Math.PI / 2;
+          stiff = 1500;
+          zeta = 0.9;
+          break;
+        }
         if (tt < sp.windup) {
           const e = tt / sp.windup;
           const ee = 1 - (1 - e) * (1 - e);
@@ -467,6 +498,28 @@ export class KnightView {
           p.kn1 = 0.4 * (1 - e);
           p.offArm = -0.6 * (1 - e);
         }
+        if (k.move === 'air') {
+          // strike from a tuck, legs folded under him
+          p.th0 = 1.0;
+          p.th1 = -0.2;
+          p.kn0 = 1.5;
+          p.kn1 = 1.0;
+          p.bob = 0;
+        } else if (k.move === 'dashStrike') {
+          // a flat, low thrust: the whole body is the blade
+          p.lean = Math.max(p.lean, 0.7);
+          p.th0 = -0.35;
+          p.th1 = -0.95;
+          p.kn0 = 1.0;
+          p.kn1 = 0.8;
+          p.offArm = -1.1;
+          p.head = 0.3;
+        } else if (k.move === 'lunge') {
+          p.th0 = 1.0;
+          p.th1 = -0.9;
+          p.kn0 = 0.7;
+          p.kn1 = 0.2;
+        }
         const tip = p.arm + p.elbow - Math.PI / 2;
         if (tt < sp.windup) this.trailTail = tip; // the arc starts where the blade actually is at the top of the wind-up
         else if (tt < sp.windup + sp.active + 0.05) this.trailFade = 1;
@@ -498,14 +551,26 @@ export class KnightView {
     return { p, stiff, zeta };
   }
 
-  private pickSwing(heavy: boolean, combo: number): Swing {
+  private pickSwing(move: Move, combo: number): Swing {
     const j = (a: number) => (Math.random() - 0.5) * 2 * a;
-    if (heavy) return { ...HEAVY, tilt: HEAVY.tilt + j(0.15), a0: HEAVY.a0 + j(0.1) };
-    const pool = POOLS[Math.min(combo, POOLS.length - 1)].filter((i) => i !== this.lastVariant);
-    const i = pool[Math.floor(Math.random() * pool.length)];
-    this.lastVariant = i;
-    const v = VARIANTS[i];
-    return { ...v, a0: Math.min(4.5, v.a0 + j(0.2)), a1: v.a1 + j(0.2), tilt: v.tilt + j(0.22), twist: v.twist + j(0.1) };
+    switch (move) {
+      case 'heavy':
+        return { ...HEAVY, tilt: HEAVY.tilt + j(0.15), a0: HEAVY.a0 + j(0.1) };
+      case 'plunge':
+        return { a0: 4.4, a1: 0.05, tilt: 0.08, twist: 0.3, lean: 0.5 };
+      case 'lunge':
+        return { a0: 2.75 + j(0.1), a1: 1.5, tilt: 1.35 + j(0.1), twist: 0.55, lean: 0.55 };
+      case 'dashStrike':
+        return { a0: 2.35, a1: 1.45 + j(0.08), tilt: 1.42, twist: 0.7, lean: 0.8 };
+      default: {
+        const poolIdx = move === 'air' ? 0 : Math.min(combo, POOLS.length - 1);
+        const pool = POOLS[poolIdx].filter((i) => i !== this.lastVariant);
+        const i = pool[Math.floor(Math.random() * pool.length)];
+        this.lastVariant = i;
+        const v = VARIANTS[i];
+        return { ...v, a0: Math.min(4.5, v.a0 + j(0.2)), a1: v.a1 + j(0.2), tilt: v.tilt + j(0.22), twist: v.twist + j(0.1) };
+      }
+    }
   }
 
   update(k: Knight, dt: number, t: number, smoke: Particles, glow: Particles, camera: THREE.Camera): void {

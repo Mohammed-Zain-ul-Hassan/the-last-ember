@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { GameEvent, World } from '../sim/world';
+import type { GameEvent, Move, World } from '../sim/world';
 
 // World-anchored UI drawn as crisp DOM over the canvas: a health bar over every shade (with a trailing "chip" that
 // shows the damage just dealt), damage numbers bursting from their heads, the name of the person each shade once
@@ -13,6 +13,8 @@ const NAMES = [
   'Ser Edric', 'Maud', 'Osric', 'the bell-ringer', 'Tamsin', 'Garet', 'the ferryman', 'Elowen', 'Hob', 'Aldith',
   'the twins', 'Rook', 'Bertrand', 'the miller', 'Agnes', 'Wat', 'Isolde', 'the lamplighter', 'Piers', 'Nell',
 ];
+
+const TAGS: Record<Move, string> = { light: 'light', heavy: 'heavy', air: 'aerial', plunge: 'plunge', dashStrike: 'pierce', lunge: 'lunge' };
 
 interface Bar {
   el: HTMLDivElement;
@@ -52,14 +54,19 @@ export class WorldUi {
     return (big ? 1.65 : 1) * 2.2 + 0.25;
   }
 
-  /** Floating text at a world position. kind sets the style. */
-  pop(text: string, x: number, y: number, kind: string, z = 0): void {
+  /** Floating text at a world position. kind sets the style; tag adds a small label under it. */
+  pop(text: string, x: number, y: number, kind: string, z = 0, tag = ''): void {
     if (this.hidden) return;
     const p = this.project(x, y, z);
     if (!p.on) return;
     const el = document.createElement('div');
     el.className = `pop ${kind}`;
     el.textContent = text;
+    if (tag) {
+      const t = document.createElement('i');
+      t.textContent = tag;
+      el.appendChild(t);
+    }
     // stagger stacked numbers so rapid hits never print on top of each other
     this.stack = this.t - this.stackT < 0.35 ? this.stack + 1 : 0;
     this.stackT = this.t;
@@ -78,12 +85,14 @@ export class WorldUi {
         const bar = this.bars.get(e.id);
         if (bar) bar.lastHit = this.t;
         if (big) this.bossLastHit = this.t;
-        const kind = w.torch && e.heavy ? 'fire' : e.heavy ? 'heavy' : 'light';
-        this.pop(e.heavy ? `${e.dmg}!` : `${e.dmg}`, e.x, (s ? s.y : 0) + this.headY(big) + 0.1, kind, -0.2);
+        const kind = w.torch && e.heavy ? 'fire' : e.heavy ? 'heavy' : e.move === 'light' ? 'light' : 'skill';
+        this.pop(e.heavy ? `${e.dmg}!` : `${e.dmg}`, e.x, (s ? s.y : 0) + this.headY(big) + 0.1, kind, -0.2, TAGS[e.move]);
       } else if (e.type === 'kill') {
         const name = NAMES[this.nameIdx++ % NAMES.length];
         this.pop(e.big ? 'the Hollow Marshal is free' : name, e.x, e.y + 1.9, e.big ? 'soul big' : 'soul', -0.2);
         if (e.burned && !e.big) this.pop('burned away', e.x, e.y + 1.4, 'burn', -0.2);
+      } else if (e.type === 'move') {
+        this.pop(e.count >= 2 ? `${e.name} ×${e.count}` : e.name, e.x, e.y + 0.4, 'callout', 0);
       } else if (e.type === 'knightHurt') {
         this.pop('-1', e.x, e.y + 2.9, 'hurt', 0);
       }

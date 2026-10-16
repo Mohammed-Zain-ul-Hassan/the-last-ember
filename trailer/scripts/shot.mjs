@@ -32,6 +32,19 @@ const SCENES = {
     js: `G.skipTo(0); G.tick(16, 30); G.play(); G.tick(16.67, 150); G.world.shades.length = 0; G.world.knight.x = -9;
       G.rig.fitSpan = false; G.rig.snap({ yaw: 0.5, height: 2.4, dist: 11, lookY: 2.2, fov: 36 }); G.rig.x = -4; G.tick(0);`,
   },
+  plunge: {
+    q: 'seed=9&chapter=1',
+    js: `G.skipTo(1); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 150);
+      const w = G.world; w.shades.length = 0; w.knight.x = -4.2; w.knight.facing = 1;
+      for (const x of [-5.6, -3.2, -2.6]) { const s = w.spawnShade(x); s.state = 'walk'; s.cd = 99; s.hp = s.maxHp = 9; s.speed = 0; }
+      G.tick(16.67, 20);
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
+      G.tick(16.67, 16);
+      key('KeyK');
+      for (let i = 0; i < 60 && !w.events.some((e) => e.type === 'slam'); i++) G.tick(16.67);
+      dispatchEvent(new KeyboardEvent('keyup', { code: 'Space' }));
+      G.tick(16.67, 5);`,
+  },
   boss: {
     q: 'seed=8&chapter=4',
     js: `G.skipTo(4); G.tick(16, 30); G.play(); G.godMode = true; G.tick(16.67, 120);

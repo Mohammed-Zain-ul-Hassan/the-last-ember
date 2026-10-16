@@ -1,6 +1,6 @@
 // Pure 2D game simulation on the side-view plane (x right, y up, feet at y=0).
 // No three.js here: render reads this state, the demo bot drives it, vitest tests it.
-import { CFG } from '../config';
+import { CFG, type MoveSpec } from '../config';
 import { CHAPTERS, WALLS, type Chapter, type Wall } from '../data/chapters';
 import { lightAt, shadowIntervals, type Interval, type LightSrc } from './light';
 import { Rng } from './rng';
@@ -18,6 +18,8 @@ export interface Input {
 export const NO_INPUT: Input = { left: false, right: false, jumpHeld: false, jump: false, attack: false, heavy: false, dash: false };
 
 export type KnightState = 'idle' | 'run' | 'air' | 'attack' | 'heavy' | 'dash' | 'hurt' | 'dead';
+/** What the current attack is. Light/air/lunge/dashStrike run in state 'attack'; heavy/plunge in state 'heavy'. */
+export type Move = 'light' | 'heavy' | 'air' | 'plunge' | 'dashStrike' | 'lunge';
 
 export interface Knight {
   x: number;
@@ -30,7 +32,11 @@ export interface Knight {
   state: KnightState;
   stateT: number;
   combo: number; // 0..2 while attacking
+  move: Move;
   swingId: number;
+  sinceDash: number;
+  airHits: number;
+  slamT: number; // plunge: time since landing (-1 = still diving)
   bufferedAttack: boolean;
   coyote: number;
   jumpBuffer: number;
@@ -61,8 +67,10 @@ export interface Shade {
 }
 
 export type GameEvent =
-  | { type: 'swing'; x: number; y: number; facing: number; combo: number; heavy: boolean }
-  | { type: 'hit'; x: number; y: number; dmg: number; heavy: boolean; facing: number; id: number }
+  | { type: 'swing'; x: number; y: number; facing: number; combo: number; heavy: boolean; move: Move }
+  | { type: 'hit'; x: number; y: number; dmg: number; heavy: boolean; facing: number; id: number; move: Move }
+  | { type: 'slam'; x: number; y: number; r: number; fire: boolean }
+  | { type: 'move'; name: string; x: number; y: number; count: number }
   | { type: 'kill'; x: number; y: number; burned: boolean; big: boolean; id: number }
   | { type: 'spawn'; x: number }
   | { type: 'jump' | 'land' | 'dash'; x: number; y: number }
@@ -105,7 +113,7 @@ export class World {
     this.rng = new Rng(seed + this.chapterIndex * 7919);
     this.knight = {
       x: -2.2, y: 0, vx: 0, vy: 0, facing: 1, onGround: true, hp: CFG.knight.maxHp,
-      state: 'idle', stateT: 0, combo: 0, swingId: 0, bufferedAttack: false,
+      state: 'idle', stateT: 0, combo: 0, move: 'light', swingId: 0, sinceDash: 9, airHits: 0, slamT: -1, bufferedAttack: false,
       coyote: 0, jumpBuffer: 0, dashCd: 0, airDash: true, iframes: 0, hitThisSwing: new Set(),
     };
     this.light = { x: CFG.hearth.x, y: this.chapter.lightHeight, radius: this.chapter.lightRadius };
@@ -182,7 +190,8 @@ export class World {
     this.knight.stateT = 0;
   }
 
-  private stepKnight(inp: Input, dt: number): void {
+  private stepKnight(input: Input, dt: number): void {
+    let inp = input;
     const k = this.knight;
     const K = CFG.knight;
     k.stateT += dt;
@@ -212,15 +221,29 @@ export class World {
       this.events.push({ type: 'dash', x: k.x, y: k.y });
     }
 
-    // --- attacks
+    // --- attacks: the same two buttons become different moves depending on what he is doing
+    k.sinceDash += dt;
     if ((inp.attack || inp.heavy) && (k.state === 'attack' || k.state === 'heavy')) k.bufferedAttack = true;
-    if (!busy && inp.attack) this.startSwing(0, false);
-    else if (!busy && inp.heavy) this.startSwing(0, true);
+    const canAttack = !busy || (k.state === 'dash' && inp.attack);
+    // an aerial can be cancelled into a plunge once its blow has landed
+    const airSp = CFG.air;
+    if (inp.heavy && k.state === 'attack' && k.move === 'air' && k.stateT >= airSp.windup + airSp.active && !k.onGround && k.y > 0.8) {
+      this.startMove('plunge');
+      inp = { ...inp, heavy: false };
+    }
+    if (canAttack && inp.attack && (k.state === 'dash' || k.sinceDash < CFG.dashStrikeWindow)) this.startMove('dashStrike');
+    else if (canAttack && inp.attack) {
+      if (!k.onGround) {
+        if (k.airHits < CFG.airChain) this.startMove('air');
+      } else if (dir !== 0 && Math.abs(k.vx) > K.speed * 0.8) this.startMove('lunge');
+      else this.startMove('light', 0);
+    } else if (!busy && inp.heavy) this.startMove(!k.onGround && k.y > 0.8 ? 'plunge' : 'heavy');
 
     if (k.state === 'attack' || k.state === 'heavy') this.stepSwing(dt);
     else if (k.state === 'dash') {
       k.vy = 0;
       if (k.stateT >= K.dashTime) {
+        k.sinceDash = 0;
         k.vx = k.facing * K.speed;
         this.setKState(k.onGround ? 'run' : 'air');
       }
@@ -250,7 +273,10 @@ export class World {
       if (next !== k.state) this.setKState(next);
     }
 
-    this.integrateKnight(dt, k.state !== 'dash');
+    // dash strikes glide flat; air strikes hang for a moment
+    const glide = k.state === 'dash' || (k.move === 'dashStrike' && k.state === 'attack' && k.stateT < CFG.dashStrike.windup + CFG.dashStrike.active);
+    this.integrateKnight(dt, !glide);
+    if (k.onGround) k.airHits = 0;
   }
 
   private integrateKnight(dt: number, gravity: boolean): void {
@@ -291,14 +317,24 @@ export class World {
     if (!wasGround && k.onGround && k.state !== 'dead') this.events.push({ type: 'land', x: k.x, y: k.y });
   }
 
-  private startSwing(combo: number, heavy: boolean): void {
+  private spec(): MoveSpec {
     const k = this.knight;
+    return k.move === 'light' ? CFG.combo[k.combo] : CFG[k.move];
+  }
+
+  private startMove(move: Move, combo = 0): void {
+    const k = this.knight;
+    const heavy = move === 'heavy' || move === 'plunge';
     this.setKState(heavy ? 'heavy' : 'attack');
+    k.move = move;
     k.combo = combo;
     k.swingId++;
     k.bufferedAttack = false;
     k.hitThisSwing.clear();
-    this.events.push({ type: 'swing', x: k.x, y: k.y, facing: k.facing, combo, heavy });
+    k.slamT = -1;
+    if (move === 'air') k.airHits++;
+    if (move === 'dashStrike') k.sinceDash = 9;
+    this.events.push({ type: 'swing', x: k.x, y: k.y, facing: k.facing, combo, heavy, move });
   }
 
   /** Torch phase: the heavy strike throws a wave of fire. */
@@ -311,7 +347,7 @@ export class World {
       if (d < -0.5 || d > 4.2 || Math.abs(s.y - k.y) > 2) continue;
       s.hp -= 2;
       s.vx = k.facing * (s.big ? 3 : 9);
-      this.events.push({ type: 'hit', x: s.x, y: s.y + 1, dmg: 2, heavy: true, facing: k.facing, id: s.id });
+      this.events.push({ type: 'hit', x: s.x, y: s.y + 1, dmg: 2, heavy: true, facing: k.facing, id: s.id, move: 'heavy' });
       if (s.hp <= 0) this.killShade(s, true);
       else {
         s.state = 'stagger';
@@ -320,41 +356,99 @@ export class World {
     }
   }
 
+  private static readonly MOVE_NAMES: Partial<Record<Move, string>> = {
+    heavy: 'Cleave', plunge: 'Shadow Plunge', dashStrike: 'Piercing Step', lunge: 'Lunge', air: 'Aerial',
+  };
+
   private stepSwing(dt: number): void {
     const k = this.knight;
-    const heavy = k.state === 'heavy';
-    const sp = heavy ? CFG.heavy : CFG.combo[k.combo];
+    const sp = this.spec();
     const t = k.stateT;
-    if (k.onGround) k.vx *= Math.max(0, 1 - 12 * dt);
-    // lunge on the first active frame
+    if (k.move === 'plunge') return this.stepPlunge(dt, sp);
+    if (k.onGround && k.move !== 'dashStrike') k.vx *= Math.max(0, 1 - 12 * dt);
+    // first active frame: commit forward
     if (t - dt < sp.windup && t >= sp.windup) {
       k.vx = k.facing * sp.lunge;
-      if (heavy && this.torch) this.fireBurst();
+      if (k.move === 'heavy' && this.torch) this.fireBurst();
     }
-    if (t >= sp.windup && t < sp.windup + sp.active) this.applySwingHits(sp, heavy);
-    if (t >= sp.windup + sp.active + sp.recover) {
-      if (k.bufferedAttack && !heavy && k.combo < CFG.combo.length - 1) this.startSwing(k.combo + 1, false);
-      else this.setKState(k.onGround ? 'idle' : 'air');
-    } else if (t >= sp.windup + sp.active && k.bufferedAttack && !heavy && k.combo < CFG.combo.length - 1) {
-      // allow the next step to come out early once the active frames have passed
-      if (t >= sp.windup + sp.active + sp.recover * 0.45) this.startSwing(k.combo + 1, false);
+    if (k.move === 'air') {
+      k.vy = Math.max(k.vy, t < sp.windup + sp.active ? -1.5 : -6); // hang in the air while striking
+      if (k.onGround && t > sp.windup) return this.setKState('idle');
     }
+    if (k.move === 'dashStrike' && t >= sp.windup && t < sp.windup + sp.active) {
+      k.vx = k.facing * sp.lunge;
+      k.vy = 0;
+      k.iframes = Math.max(k.iframes, 0.05);
+    }
+    if (t >= sp.windup && t < sp.windup + sp.active) this.applyHits(sp, k.x);
+    // multi-hit callout once the active frames end
+    if (t - dt < sp.windup + sp.active && t >= sp.windup + sp.active) this.calloutMove();
+    const done = t >= sp.windup + sp.active + sp.recover;
+    const early = t >= sp.windup + sp.active + sp.recover * 0.45;
+    if (k.bufferedAttack && early) {
+      if (k.move === 'light' && k.combo < CFG.combo.length - 1) return this.startMove('light', k.combo + 1);
+      if (k.move === 'air' && !k.onGround && k.airHits < CFG.airChain) return this.startMove('air');
+    }
+    if (done) this.setKState(k.onGround ? 'idle' : 'air');
   }
 
-  private applySwingHits(sp: { dmg: number; reach: number; knock: number }, heavy: boolean): void {
+  /** Heavy in the air: hang, dive, and slam the ground in a ring. */
+  private stepPlunge(dt: number, sp: MoveSpec): void {
     const k = this.knight;
-    const x0 = k.facing > 0 ? k.x - 0.3 : k.x - sp.reach;
-    const x1 = k.facing > 0 ? k.x + sp.reach : k.x + 0.3;
-    for (const s of this.shades) {
-      if (s.state === 'dead' || k.hitThisSwing.has(s.id)) continue;
-      const hw = CFG.shade.w / 2;
-      if (s.x + hw < x0 || s.x - hw > x1) continue;
-      if (k.y > s.y + CFG.shade.h || k.y + CFG.knight.h < s.y) continue;
+    if (k.slamT < 0) {
+      if (k.stateT < sp.windup) {
+        k.vy = Math.max(k.vy, 1.5);
+        k.vx *= 0.85;
+      } else {
+        k.vy = -28;
+        k.vx = k.facing * 3;
+        k.iframes = Math.max(k.iframes, 0.08);
+      }
+      if (k.onGround && k.stateT > sp.windup * 0.5) {
+        k.slamT = 0;
+        k.vx = 0;
+        this.applyHits(sp, k.x);
+        this.events.push({ type: 'slam', x: k.x, y: k.y, r: sp.reach, fire: this.torch });
+        this.hitstop = Math.max(this.hitstop, CFG.hitstop.heavy);
+        this.calloutMove(true);
+      }
+      return;
+    }
+    k.slamT += dt;
+    k.vx *= 0.8;
+    if (k.slamT >= sp.recover) this.setKState('idle');
+  }
+
+  private calloutMove(always = false): void {
+    const k = this.knight;
+    const name = World.MOVE_NAMES[k.move];
+    const n = k.hitThisSwing.size;
+    if (!name || n === 0) return;
+    if (k.move === 'air' && k.airHits < CFG.airChain) return; // name a full aerial chain only
+    if (k.move === 'heavy' && n < 2 && !always) return; // a cleave is worth naming when it hits a crowd
+    this.events.push({ type: 'move', name, x: k.x, y: k.y + 2.6, count: n });
+  }
+
+  private applyHits(sp: MoveSpec, cx: number): void {
+    const k = this.knight;
+    const heavy = k.state === 'heavy';
+    // single-target moves only ever connect with one shade per swing
+    if (!sp.multi && k.hitThisSwing.size > 0) return;
+    const x0 = k.facing > 0 ? cx - sp.back : cx - sp.reach;
+    const x1 = k.facing > 0 ? cx + sp.reach : cx + sp.back;
+    const hw = CFG.shade.w / 2;
+    const inRange = this.shades.filter(
+      (s) => s.state !== 'dead' && !k.hitThisSwing.has(s.id) && s.x + hw >= x0 && s.x - hw <= x1 && !(k.y > s.y + CFG.shade.h * (s.big ? 1.65 : 1) || k.y + CFG.knight.h < s.y),
+    );
+    if (!inRange.length) return;
+    const targets = sp.multi ? inRange : [inRange.reduce((a, b) => (Math.abs(a.x - k.x) <= Math.abs(b.x - k.x) ? a : b))];
+    for (const s of targets) {
       k.hitThisSwing.add(s.id);
       s.hp -= sp.dmg;
-      s.vx = k.facing * sp.knock * (s.big ? 0.25 : 1);
-      s.facing = (-k.facing) as 1 | -1;
-      this.events.push({ type: 'hit', x: s.x, y: s.y + 1, dmg: sp.dmg, heavy, facing: k.facing, id: s.id });
+      const away = Math.sign(s.x - k.x) || k.facing;
+      s.vx = away * sp.knock * (s.big ? 0.25 : 1);
+      s.facing = (-away) as 1 | -1;
+      this.events.push({ type: 'hit', x: s.x, y: s.y + 1, dmg: sp.dmg, heavy, facing: away, id: s.id, move: k.move });
       if (s.hp <= 0) {
         this.killShade(s, false);
         this.hitstop = Math.max(this.hitstop, heavy ? CFG.hitstop.heavy : CFG.hitstop.kill);
