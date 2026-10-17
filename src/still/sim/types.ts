@@ -57,12 +57,14 @@ export interface FigureDef {
   ink: Plane; // where its frozen shadow lies
   clip?: Clip; // its last ten seconds: puzzle figures replay; Last Word figures only speak
   inkGone?: string; // its frozen shadow fades once this flag is set (the gate guards, once the gate is open)
+  lockFlag?: string; // set when it is first held at its true angle (the Heart's first plate)
+  hiddenUntil?: string; // not there at all until this flag (a Library page reveals its reader)
   stepIn?: Spot[];
   puzzle?: string; // the puzzle it belongs to (hints, fail counts)
   line?: string; // narrator line id when first found (e.g. gate.firstLit)
 }
 
-export type MechKind = 'portcullis' | 'gate' | 'shutter' | 'door' | 'lever' | 'bar';
+export type MechKind = 'portcullis' | 'gate' | 'shutter' | 'door' | 'lever' | 'bar' | 'shadowdoor';
 /** Something that opens when a flag is set; while shut, its solids block the way. */
 export interface MechDef {
   id: string;
@@ -75,6 +77,8 @@ export interface MechDef {
   opens: string; // the flag
   blocks: Solid[];
   frozenMsg?: string; // said when you try it in the present ("held in the same second as everything else")
+  highIn?: Rect; // a door of shadow: open only while the flame is held inside this area at least `minY` high
+  minY?: number;
 }
 
 export interface Brazier {
@@ -117,6 +121,7 @@ export interface WrongDef {
   speed: number; // m/s while unseen and unlit
   sprint: number; // m/s while the flame is low or out
   after?: string; // it starts hunting only once this flag is set
+  until?: string; // and is gone once this one is
 }
 
 export interface Gust {
@@ -139,12 +144,41 @@ export interface Plate {
   back?: boolean; // only counts while the flame is drawn back (the fifth plate: from within)
 }
 
+/** Figures that must be woken (or held at their angle) in one order; a wrong one starts it over. */
+export interface Sequence {
+  ids: string[];
+  flag: string;
+  on: 'wake' | 'lock';
+  puzzle?: string;
+}
+
+/** A page carved in relief on a lectern: lit from the side it says a lie; from directly above, the truth. */
+export interface Page {
+  id: string; // the flag set once it is read from above
+  x: number;
+  z: number;
+  y: number; // the reading surface's height
+  ry: number;
+  word: number; // the Last Word hidden in it
+  lie: string;
+  truth: string;
+}
+
+/** A floor where shadows are walls: inside `rect`, the casters' shadows cannot be walked into. */
+export interface Maze {
+  rect: Rect;
+  casters: Solid[];
+}
+
 /** What a district shows but does not simulate: vaults, arches, banners, rubble. */
 export type Decor =
   | { kind: 'vault'; x0: number; x1: number; z0: number; z1: number; y: number } // a barrel vault over a passage
   | { kind: 'arch'; x: number; z0: number; z1: number; y: number; thick: number } // an arch across the way at x
   | { kind: 'banner'; x: number; y: number; z: number; ry: number; len: number }
-  | { kind: 'rubble'; x: number; z: number; n: number; r: number };
+  | { kind: 'rubble'; x: number; z: number; n: number; r: number }
+  | { kind: 'shaft'; x0: number; x1: number; z0: number; z1: number } // a shaft of real light through a broken roof
+  | { kind: 'dial'; x: number; z: number; r: number } // a sundial's ring of hours on the floor
+  | { kind: 'roof'; x0: number; x1: number; z0: number; z1: number; y: number }; // a dark ceiling (render only)
 
 export interface District {
   id: string;
@@ -165,11 +199,15 @@ export interface District {
   zones: Zone[];
   plates: Plate[];
   gusts: Gust[];
+  sequences: Sequence[];
+  derive: { flag: string; all: string[] }[]; // a flag that sets itself once all of these are set
+  pages: Page[];
+  maze: Maze | null;
   wrong: WrongDef | null;
   exit: Rect;
   decor: Decor[];
   /** Narration tied to this district's moments (line ids). */
-  lines: { replayEnd?: string; stepIn?: string; wrongSeen?: string; brazier?: string; flags?: Record<string, string> };
+  lines: { replayEnd?: string; firstWake?: string; wrongLit?: string; stepIn?: string; wrongSeen?: string; brazier?: string; bridge?: string; caught?: string; flags?: Record<string, string> };
   enterLine?: string;
   rumble: number; // 0..1, the distant water
   sky: 'night' | 'deep' | 'interior';

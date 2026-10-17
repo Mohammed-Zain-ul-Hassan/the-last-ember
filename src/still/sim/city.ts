@@ -7,7 +7,7 @@ import { placeAt } from '../../sim/pose';
 import { bodyShadow, pointInPoly, solidShadow, type Pt } from './shadowcast';
 import { FLAME, flameState, flameTarget, litRangeFor, radiusFor } from './flame';
 import { buildGraph, steer, type WalkGraph } from './wrong';
-import { inRect, type District, type FigureDef, type Pit, type Plate, type Spot } from './types';
+import { inRect, type District, type FigureDef, type MechDef, type Pit, type Plate, type Spot } from './types';
 
 export const DT = 1 / 60;
 export const BODY = { r: 0.32, h: 1.8, speed: 4.3, backSpeed: 3.1, ghostSpeed: 4.0, accel: 12, gravity: -24 };
@@ -119,6 +119,7 @@ export type CityEvent =
   | { type: 'respawn' }
   | { type: 'wrongAppear' }
   | { type: 'wrongSeen' }
+  | { type: 'wrongLit' }
   | { type: 'wrongShift' }
   | { type: 'wrongGone' }
   | { type: 'wrongStep' }
@@ -130,6 +131,10 @@ export type CityEvent =
   | { type: 'line'; id: string }
   | { type: 'plate'; id: string }
   | { type: 'bridge'; on: boolean }
+  | { type: 'seqStep'; seq: number; n: number }
+  | { type: 'seqFail'; seq: number }
+  | { type: 'pageSide'; i: number }
+  | { type: 'pageRead'; i: number }
   | { type: 'exit' };
 
 export interface CityState {
@@ -157,6 +162,8 @@ export interface CityState {
   fails: Record<string, number>; // per puzzle: failed attempts (the hints read these)
   progress: Record<string, number>; // per puzzle: when it last moved forward
   caughtRun: number; // times caught without lighting it in between (a hint trigger)
+  seq: number[]; // progress through each sequence
+  pages: { side: boolean; held: number }[];
 }
 
 const vlen = (x: number, y: number, z: number) => Math.hypot(x, y, z);
@@ -206,6 +213,8 @@ export class City {
       fails: {},
       progress: {},
       caughtRun: 0,
+      seq: d.sequences.map(() => 0),
+      pages: d.pages.map(() => ({ side: false, held: 0 })),
     };
     for (const f of d.figures) if (f.word !== undefined && words[f.word]) this.s.figs[d.figures.indexOf(f)].found = true;
     if (d.wrong) this.graph = buildGraph(d.wrong.nodes, this.staticSolids);
@@ -217,13 +226,13 @@ export class City {
   // ------------------------------------------------------------------ queries
   /** Every solid in force now: the stones, the statues, and whatever mechanism is still shut. */
   get solids(): Solid[] {
-    const key = this.d.mechs.map((m) => (this.flag(m.opens) ? 1 : 0)).join('') + '|' + this.s.figs.map((f) => (f.state === 'frozen' ? 1 : 0)).join('');
+    const key = this.d.mechs.map((m) => (this.mechOpen(m) ? 1 : 0)).join('') + '|' + this.s.figs.map((f, i) => (f.state === 'frozen' && this.present(i) ? 1 : 0)).join('');
     if (key !== this.activeKey) {
       this.activeKey = key;
       this.active = [...this.staticSolids];
-      for (const m of this.d.mechs) if (!this.flag(m.opens)) this.active.push(...m.blocks);
+      for (const m of this.d.mechs) if (!this.mechOpen(m)) this.active.push(...m.blocks);
       this.s.figs.forEach((f, i) => {
-        if (f.state === 'frozen') this.active.push(this.figSolids[i]);
+        if (f.state === 'frozen' && this.present(i)) this.active.push(this.figSolids[i]);
       });
       this.stones = this.active.filter((x) => x.tag !== 'figure');
     }
@@ -235,6 +244,21 @@ export class City {
   private get stonesNow(): Solid[] {
     void this.solids;
     return this.stones;
+  }
+
+  /** Is a mechanism open? (a shadow door only while the flame is held high near it) */
+  mechOpen(m: MechDef): boolean {
+    if (m.highIn) {
+      const f = this.s.flame;
+      return this.lit && inRect(m.highIn, f.x, f.z) && f.y - Math.max(0, this.s.body.y) >= (m.minY ?? 2.8);
+    }
+    return this.flag(m.opens);
+  }
+
+  /** Is this figure in the world yet (some appear only when a page is read)? */
+  present(i: number): boolean {
+    const h = this.d.figures[i].hiddenUntil;
+    return !h || this.flag(h);
   }
 
   flag(id: string): boolean {
@@ -320,7 +344,9 @@ export class City {
     this.stepFigures(dt);
     if (!s.ghost && s.status === 'play') this.stepFocus(inp);
     this.stepZones();
+    this.stepPages(dt);
     this.stepPlates(dt);
+    this.stepDerive();
     this.stepGusts(dt);
     this.stepWrong(inp, dt);
     if (s.status === 'fall') {
@@ -373,7 +399,23 @@ export class City {
     const b = s.body;
     const falling = s.status === 'fall';
     const speed = falling ? 0.6 : inp.back ? BODY.backSpeed : BODY.speed;
+    const ox = b.x;
+    const oz = b.z;
     this.move(b, falling ? 0 : inp.mx, falling ? 0 : inp.mz, speed, dt);
+    // the maze: a shadow cannot be walked into (one that swept over him, he can walk out of)
+    if (this.d.maze) {
+      const polys = this.mazeShadows();
+      if (this.blockedByShadow(polys, b.x, b.z) && !this.blockedByShadow(polys, ox, oz)) {
+        if (!this.blockedByShadow(polys, b.x, oz)) b.z = oz;
+        else if (!this.blockedByShadow(polys, ox, b.z)) b.x = ox;
+        else {
+          b.x = ox;
+          b.z = oz;
+        }
+        b.vx *= 0.5;
+        b.vz *= 0.5;
+      }
+    }
     // he turns to face where he runs; standing, he turns slowly to where the flame is held
     const sp = Math.hypot(b.vx, b.vz);
     const want = sp > 0.6 ? Math.atan2(b.vz, b.vx) : inp.yaw;
@@ -485,7 +527,7 @@ export class City {
         }
         return;
       }
-      if (rt.state === 'ghost') return;
+      if (rt.state === 'ghost' || !this.present(i)) return;
       const h = def.h ?? 1.8;
       const cx = def.x;
       const cy = h * 0.62;
@@ -513,6 +555,10 @@ export class City {
       else rt.held = 0;
       const was = rt.locked;
       rt.locked = inside && rt.held >= ALIGN.hold;
+      if (rt.locked && !was) {
+        if (def.lockFlag) this.setFlag(def.lockFlag);
+        this.advance(def.id, 'lock');
+      }
       if (rt.locked && !was && !rt.found) {
         rt.found = true;
         if (def.word !== undefined) s.words[def.word] = true;
@@ -594,6 +640,7 @@ export class City {
         s.figs[focus.fig].state = 'replay';
         s.figs[focus.fig].t = 0;
         this.setFlag('woke:' + d.figures[focus.fig].id);
+        this.advance(d.figures[focus.fig].id, 'wake');
         s.stepArmed = false;
         this.events.push({ type: 'wake', fig: focus.fig });
         if (d.figures[focus.fig].puzzle) s.progress[d.figures[focus.fig].puzzle!] = s.t;
@@ -605,6 +652,72 @@ export class City {
         this.events.push({ type: 'riddle', i: focus.i });
         break;
     }
+  }
+
+  /** A figure woken (or held at its angle): the next in a sequence moves it on; any other one starts it over. */
+  private advance(id: string, on: 'wake' | 'lock'): void {
+    const s = this.s;
+    this.d.sequences.forEach((q, k) => {
+      if (q.on !== on || this.flag(q.flag) || !q.ids.includes(id)) return;
+      if (q.ids[s.seq[k]] === id) {
+        s.seq[k]++;
+        this.events.push({ type: 'seqStep', seq: k, n: s.seq[k] });
+        if (q.puzzle) s.progress[q.puzzle] = s.t;
+        if (s.seq[k] >= q.ids.length) this.setFlag(q.flag);
+      } else {
+        s.seq[k] = q.ids[0] === id ? 1 : 0;
+        if (q.puzzle) s.fails[q.puzzle] = (s.fails[q.puzzle] ?? 0) + 1;
+        this.events.push({ type: 'seqFail', seq: k });
+      }
+    });
+  }
+
+  private stepDerive(): void {
+    for (const dv of this.d.derive) if (!this.flag(dv.flag) && dv.all.every((f) => this.flag(f))) this.setFlag(dv.flag);
+  }
+
+  /** Pages: the flame directly over one reads the truth (and its Last Word); from the side, the lie. */
+  private stepPages(dt: number): void {
+    const s = this.s;
+    const f = s.flame;
+    this.d.pages.forEach((p, i) => {
+      const st = s.pages[i];
+      if (this.flag(p.id) || !this.lit) return;
+      const hd = Math.hypot(f.x - p.x, f.z - p.z);
+      const up = f.y - p.y;
+      if (hd > 3 || up <= 0) {
+        st.held = 0;
+        return;
+      }
+      const elev = Math.atan2(up, hd) * DEG;
+      if (elev > 66 && hd < 1.0) {
+        st.held += dt;
+        if (st.held > 0.5) {
+          this.setFlag(p.id);
+          s.words[p.word] = true;
+          s.progress['pages'] = s.t;
+          this.events.push({ type: 'pageRead', i });
+        }
+      } else {
+        st.held = 0;
+        if (elev < 48 && hd < 2.2 && !st.side) {
+          st.side = true;
+          this.events.push({ type: 'pageSide', i });
+        }
+      }
+    });
+  }
+
+  /** The shadow maze: where the flame throws a caster's shadow, the floor is a wall. */
+  mazeShadows(): Pt[][] {
+    const m = this.d.maze;
+    if (!m || !this.lit) return [];
+    return m.casters.map((c) => solidShadow(this.s.flame, c, 0, this.radius));
+  }
+  private blockedByShadow(polys: Pt[][], x: number, z: number): boolean {
+    const m = this.d.maze;
+    if (!m || !inRect(m.rect, x, z)) return false;
+    return polys.some((p) => p.length > 2 && pointInPoly(p, x, z));
   }
 
   private useBrazier(i: number): void {
@@ -789,6 +902,12 @@ export class City {
     const s = this.s;
     const w = s.wrong;
     if (!def || w.gone) return;
+    if (def.until && this.flag(def.until)) {
+      if (w.on) this.events.push({ type: 'wrongGone' });
+      w.on = false;
+      w.gone = true;
+      return;
+    }
     const b = s.body;
     if (!w.on) {
       const wake = def.mode === 'still' ? !!def.appear && inRect(def.appear, b.x, b.z) : !def.after || this.flag(def.after);
@@ -800,7 +919,9 @@ export class City {
     w.dist = Math.hypot(w.x - b.x, w.z - b.z);
     w.yaw = Math.atan2(b.z - w.z, b.x - w.x);
     w.seen = this.seen(inp, w.x, 1.1, w.z) || this.seen(inp, w.x, 1.75, w.z);
+    const wasLit = w.lit;
     w.lit = this.litAt(w.x, 1.1, w.z, litRangeFor(s.flame.vigor));
+    if (w.lit && !wasLit && w.seenOnce) this.events.push({ type: 'wrongLit' });
     if (w.seen && !w.seenOnce) {
       w.seenOnce = true;
       this.events.push({ type: 'wrongSeen' });

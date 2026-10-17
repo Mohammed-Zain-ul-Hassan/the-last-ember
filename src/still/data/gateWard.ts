@@ -191,6 +191,10 @@ export const GATE_WARD: District = {
   zones: [],
   plates: [],
   gusts: [],
+  sequences: [],
+  derive: [],
+  pages: [],
+  maze: null,
   wrong: {
     mode: 'still',
     spawn: [32.2, -2.2],
