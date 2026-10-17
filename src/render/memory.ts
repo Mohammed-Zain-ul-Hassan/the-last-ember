@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Flame } from './flame';
 import type { Particles } from './particles';
 import { glowTexture } from './textures';
+import { KNEEL, run, SIT, STAND, type Pose } from '../sim/pose';
 
 // Memories, played between the hours as shadow-puppet theatre: black silhouettes against the warm light the past
 // was lit by. One small stage far below the world (nothing else is in frame), jointed figures, a real flame,
@@ -11,26 +12,19 @@ const Y0 = -400; // the stage floor, far under the level
 export const MEMORY_TIME = 7.5;
 
 const INK = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
+const INK_2SIDED = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false, side: THREE.DoubleSide });
+
+/** How a figure is drawn: the theatre's flat ink by default; the Still City's frozen people are stone. */
+export interface FigureLook {
+  baseY?: number; // the floor it stands on (the theatre's stage floor by default)
+  mat?: THREE.Material;
+  matDouble?: THREE.Material; // robes and capes (two-sided)
+}
 
 // ---------------------------------------------------------------- figures
-type Kind = 'knight' | 'man' | 'woman' | 'child' | 'elder' | 'king' | 'guard' | 'shade';
+export type Kind = 'knight' | 'man' | 'woman' | 'child' | 'elder' | 'king' | 'guard' | 'shade';
 
-interface Pose {
-  y: number; // root drop (kneel, sit)
-  lean: number; // body forward (+) / back (-)
-  head: number; // nod down (+)
-  aF: number; // front shoulder: + raises forward
-  eF: number;
-  aB: number; // back shoulder
-  eB: number;
-  lF: number; // front hip: + swings the thigh forward
-  kF: number; // front knee: - bends the shin back
-  lB: number;
-  kB: number;
-}
-const STAND: Pose = { y: 0, lean: 0, head: 0, aF: 0.1, eF: 0.2, aB: -0.1, eB: 0.2, lF: 0.05, kF: -0.05, lB: -0.05, kB: -0.05 };
-
-class Figure {
+export class Figure {
   readonly root = new THREE.Group();
   private hips = new THREE.Group();
   private chest = new THREE.Group();
@@ -41,11 +35,19 @@ class Figure {
   pose: Pose = { ...STAND };
   readonly kind: Kind;
 
-  constructor(kind: Kind, x: number, facing: 1 | -1, h = 1.8) {
+  private mat: THREE.Material;
+  private matDouble: THREE.Material;
+  private baseY: number;
+
+  constructor(kind: Kind, x: number, facing: 1 | -1, h = 1.8, look: FigureLook = {}) {
     this.kind = kind;
+    this.baseY = look.baseY ?? Y0;
+    this.mat = look.mat ?? INK;
+    this.matDouble = look.matDouble ?? INK_2SIDED;
+    const mat = this.mat;
     const s = h / 1.8;
     const robed = kind === 'woman' || kind === 'elder' || kind === 'king' || kind === 'shade';
-    this.root.position.set(x, Y0, 0);
+    this.root.position.set(x, this.baseY, 0);
     this.root.scale.set(facing * s, s, s);
     this.hips.position.y = 0.92;
     this.root.add(this.hips);
@@ -60,52 +62,52 @@ class Figure {
         ),
         20,
       ),
-      INK,
+      mat,
     );
     torso.scale.z = 0.7;
     this.chest.add(torso);
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.12, 8), INK);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.12, 8), mat);
     neck.position.y = 0.68;
     this.chest.add(neck);
     // head, in profile: a nose and a chin make it a face
     this.headG.position.y = 0.7;
     this.chest.add(this.headG);
     const hr = kind === 'child' ? 0.14 : 0.115;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(hr, 18, 14), INK);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(hr, 18, 14), mat);
     head.scale.set(1.05, 1.12, 1);
     head.position.y = hr * 0.9;
     this.headG.add(head);
     const armored = kind === 'knight' || kind === 'guard';
     if (!armored && kind !== 'shade') {
-      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.06, 6), INK);
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.06, 6), mat);
       nose.rotation.z = -Math.PI / 2;
       nose.position.set(hr + 0.02, hr * 0.9, 0);
       this.headG.add(nose);
-      const chin = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), INK);
+      const chin = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), mat);
       chin.position.set(hr * 0.6, hr * 0.25, 0);
       this.headG.add(chin);
     }
     if (female) {
-      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), INK);
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), mat);
       hair.scale.set(1, 1.6, 0.9);
       hair.position.set(-0.08, 0.04, 0);
       this.headG.add(hair);
-      const bun = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), INK);
+      const bun = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), mat);
       bun.position.set(-0.13, 0.2, 0);
       this.headG.add(bun);
     }
     if (kind === 'elder') {
-      const beard = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 8), INK);
+      const beard = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 8), mat);
       beard.rotation.z = Math.PI + 0.3;
       beard.position.set(0.07, -0.02, 0);
       this.headG.add(beard);
     }
     if (armored) {
-      const helm = new THREE.Mesh(new THREE.SphereGeometry(0.15, 18, 14), INK);
+      const helm = new THREE.Mesh(new THREE.SphereGeometry(0.15, 18, 14), mat);
       helm.scale.set(1.1, 1.15, 1);
       helm.position.y = hr * 0.95;
       this.headG.add(helm);
-      const visor = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 8), INK);
+      const visor = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 8), mat);
       visor.rotation.z = -Math.PI / 2;
       visor.position.set(0.17, hr * 0.8, 0);
       this.headG.add(visor);
@@ -113,26 +115,26 @@ class Figure {
       const curve = new THREE.CatmullRomCurve3([
         new THREE.Vector3(0.02, 0.27, 0), new THREE.Vector3(-0.12, 0.36, 0), new THREE.Vector3(-0.3, 0.3, 0), new THREE.Vector3(-0.42, 0.12, 0), new THREE.Vector3(-0.46, -0.05, 0),
       ]);
-      const plume = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, kind === 'knight' ? 0.035 : 0.025, 6), INK);
+      const plume = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, kind === 'knight' ? 0.035 : 0.025, 6), mat);
       this.headG.add(plume);
     }
     if (kind === 'king') {
       for (let i = -1; i <= 1; i++) {
-        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.13, 6), INK);
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.13, 6), mat);
         spike.position.set(i * 0.07, hr * 1.9 + 0.04, 0);
         this.headG.add(spike);
       }
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.06, 14), INK);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.06, 14), mat);
       band.position.y = hr * 1.75;
       this.headG.add(band);
     }
     if (kind === 'shade') {
       // a cowl that droops forward over a face that is not there
-      const hood = new THREE.Mesh(new THREE.SphereGeometry(0.14, 14, 10), INK);
+      const hood = new THREE.Mesh(new THREE.SphereGeometry(0.14, 14, 10), mat);
       hood.scale.set(1.2, 1.3, 1);
       hood.position.set(0.0, 0.1, 0);
       this.headG.add(hood);
-      const peak = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.36, 8), INK);
+      const peak = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.36, 8), mat);
       peak.rotation.z = -1.25;
       peak.position.set(0.19, 0.16, 0);
       this.headG.add(peak);
@@ -141,12 +143,12 @@ class Figure {
     const limb = (len: number, r: number) => {
       const g = new THREE.CapsuleGeometry(r, len, 4, 10);
       g.translate(0, -len / 2, 0);
-      return new THREE.Mesh(g, INK);
+      return new THREE.Mesh(g, mat);
     };
     for (const side of [1, -1]) {
       const sh = new THREE.Group();
       sh.position.set(0.0, 0.56, 0.13 * side);
-      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(armored ? 0.13 : 0.075, 12, 10), INK);
+      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(armored ? 0.13 : 0.075, 12, 10), mat);
       if (armored) shoulder.scale.set(1, 0.75, 1); // pauldrons
       sh.add(shoulder);
       sh.add(limb(0.28, kind === 'child' ? 0.04 : 0.05));
@@ -154,12 +156,12 @@ class Figure {
       el.position.y = -0.3;
       const fore = kind === 'shade' ? 0.5 : 0.26;
       el.add(limb(fore, kind === 'child' ? 0.035 : 0.042));
-      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), INK);
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), mat);
       hand.position.y = -fore - 0.04;
       el.add(hand);
       if (kind === 'shade') {
         for (let c = -1; c <= 1; c++) {
-          const claw = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.24, 5), INK);
+          const claw = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.24, 5), mat);
           claw.position.set(c * 0.035, -0.64, 0);
           claw.rotation.z = Math.PI + c * 0.35;
           el.add(claw);
@@ -181,13 +183,13 @@ class Figure {
         p.setY(i, p.getY(i) - (kind === 'shade' ? (i % 3) * 0.13 : Math.sin(i * 1.7) * 0.02));
       }
       g.translate(0, -0.42, 0);
-      const robe = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x000000, fog: false, side: THREE.DoubleSide }));
+      const robe = new THREE.Mesh(g, this.matDouble);
       robe.scale.z = 0.7;
       this.hips.add(robe);
     } else {
       if (armored) {
         // a short armoured skirt over the hips
-        const tasset = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.28, 14), INK);
+        const tasset = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.28, 14), mat);
         tasset.position.y = -0.06;
         tasset.scale.z = 0.7;
         this.hips.add(tasset);
@@ -199,7 +201,7 @@ class Figure {
         const kn = new THREE.Group();
         kn.position.y = -0.46;
         kn.add(limb(0.4, kind === 'child' ? 0.042 : 0.055));
-        const foot = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.14, 4, 8), INK);
+        const foot = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.14, 4, 8), mat);
         foot.rotation.z = Math.PI / 2;
         foot.position.set(0.06, -0.47, 0);
         kn.add(foot);
@@ -216,7 +218,7 @@ class Figure {
       shape.lineTo(0.3, -1.05);
       for (let i = 0; i <= 6; i++) shape.lineTo(0.3 - (i / 6) * 0.68, -1.05 - (i % 2 ? 0.1 : 0));
       shape.lineTo(-0.12, 0);
-      const cape = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshBasicMaterial({ color: 0x000000, fog: false, side: THREE.DoubleSide }));
+      const cape = new THREE.Mesh(new THREE.ShapeGeometry(shape), this.matDouble);
       cape.rotation.z = -0.22;
       cape.position.set(-0.12, 0.62, -0.05);
       this.chest.add(cape);
@@ -228,20 +230,21 @@ class Figure {
 
   /** A blade or a staff in the front hand. */
   hold(kind: 'sword' | 'staff' | 'spear'): THREE.Group {
+    const mat = this.mat;
     const g = new THREE.Group();
     if (kind === 'sword') {
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.05, 0.02), INK);
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.05, 0.02), mat);
       blade.position.y = -0.58;
-      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.04, 0.04), INK);
+      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.04, 0.04), mat);
       guard.position.y = -0.06;
       g.add(blade, guard);
     } else {
       const len = kind === 'spear' ? 2.3 : 1.7;
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, len, 6), INK);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, len, 6), mat);
       pole.position.y = kind === 'spear' ? 0.55 : 0.2;
       g.add(pole);
       if (kind === 'spear') {
-        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.25, 6), INK);
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.25, 6), mat);
         tip.position.y = 0.55 + len / 2 + 0.1;
         g.add(tip);
       }
@@ -253,7 +256,7 @@ class Figure {
   apply(p: Partial<Pose> = {}): void {
     const q = { ...STAND, ...p };
     this.pose = q;
-    this.root.position.y = Y0 + q.y * this.root.scale.y;
+    this.root.position.y = this.baseY + q.y * this.root.scale.y;
     this.chest.rotation.z = -q.lean;
     if (this.cape) this.cape.rotation.z = -0.22 - Math.max(0, q.lean) * 0.6 - (q.lF !== STAND.lF && q.y === 0 ? 0.3 : 0);
     this.headG.rotation.z = -q.head;
@@ -269,13 +272,6 @@ class Figure {
       this.legs[1].kn.rotation.z = q.kB;
     }
   }
-}
-
-const KNEEL: Partial<Pose> = { y: -0.42, lF: 1.45, kF: -1.45, lB: 0.05, kB: -1.5, lean: 0.05 };
-const SIT: Partial<Pose> = { y: -0.5, lF: 1.5, kF: -1.2, lB: 1.4, kB: -1.0, lean: 0.1 };
-function run(t: number, speed = 9): Partial<Pose> {
-  const s = Math.sin(t * speed);
-  return { lean: 0.35, lF: s * 0.9, kF: -0.3 - Math.max(0, -s) * 1.2, lB: -s * 0.9, kB: -0.3 - Math.max(0, s) * 1.2, aF: -s * 0.8, aB: s * 0.8, eF: 0.9, eB: 0.9, y: Math.abs(Math.cos(t * speed)) * 0.05 };
 }
 
 // ---------------------------------------------------------------- props
