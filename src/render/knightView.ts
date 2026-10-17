@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { CFG, HERO, type MoveSpec } from '../config';
-import type { Knight, KnightState, Move } from '../sim/world';
+import type { Knight, KnightState } from '../sim/world';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { AuraLayer, AuraSource } from './auraEffect';
 import { DEPTH, PULL_GLSL, pullForward } from './depth';
 import { Flame } from './flame';
@@ -52,28 +53,68 @@ const smooth = (x: number) => {
 /** 0 -> 1 -> 0 over len seconds, eased at both ends. */
 const env = (t: number, len: number, att = 0.25, rel = 0.35) => smooth(t / (len * att)) * (1 - smooth((t - len * (1 - rel)) / (len * rel)));
 
-// ---------------------------------------------------------------- slashes
-// Arm angle sweeps a0 -> a1 in the arm's plane; tilt rotates that plane (0 = vertical cleave, ~1.3 = horizontal).
-interface Swing {
-  a0: number;
-  a1: number;
-  tilt: number;
-  twist: number;
-  lean: number;
+// ---------------------------------------------------------------- cuts
+// The sword arm is a chain in one plane: the upper arm swings from hanging (0) forward (PI/2) and up over him (PI),
+// and `tilt` turns that plane about his forward axis: 0 is a vertical cut, positive tips it so low points to his
+// left and high to his right, negative the other way, ~1.25 is a flat sweep. The blade points along
+// arm + elbow + wrist.
+//
+// Every cut is authored like an action game's: a chambered wind-up (elbow folded, wrist cocked so the blade trails
+// the hand), a contact phase where the body unwinds first, the elbow extends and the wrist whips the blade through,
+// and a follow-through that carries on past the target. A step goes with every cut and the weight drops into it.
+// The combo is one flowing chain: each cut ends where the next begins.
+interface Cut {
+  tilt: number; // the cut's plane
+  a0: number; // the arm at the top of the wind-up (the chamber)
+  a1: number; // the arm at the end of contact
+  over: number; // follow-through: how far the arm carries on past a1
+  elbow0: number; // the chambered elbow; it straightens through contact
+  fold: number; // the elbow folds again as the blade wraps round him
+  wrist0: number; // cocked: the blade trails the hand...
+  wrist1: number; // ...then snaps past it at the end of contact
+  twist0: number; // the chest coils away...
+  twist1: number; // ...and unwinds a beat before the arm (hips, chest, arm, blade)
+  lean0: number;
+  lean1: number;
+  crouch: number; // loading the legs in the wind-up
+  drop: number; // the weight dropping into the blade at contact
+  step: 0 | 1; // the foot that steps in: 0 right, 1 left
+  stride: number;
+  sy0: number; // stretch at the top of a big wind-up...
+  sy1: number; // ...squash at the strike
+  off0: number; // the off arm reaches out in the wind-up...
+  off1: number; // ...and pulls back hard at contact (torque)
+  aim?: number; // a thrust: the blade holds this angle while the arm drives out
 }
-const VARIANTS: Swing[] = [
-  { a0: 3.8, a1: 0.35, tilt: 0.05, twist: 0.35, lean: 0.25 }, // overhead cleave
-  { a0: 3.5, a1: 0.5, tilt: 0.7, twist: 0.5, lean: 0.25 }, // diagonal down
-  { a0: 0.25, a1: 3.2, tilt: -0.55, twist: -0.35, lean: 0.08 }, // rising diagonal
-  { a0: 3.1, a1: 0.8, tilt: 1.3, twist: 0.8, lean: 0.15 }, // horizontal sweep
-  { a0: 0.7, a1: 3.4, tilt: 1.1, twist: -0.75, lean: 0.05 }, // backhand
+
+const CUT = (c: Partial<Cut> & Pick<Cut, 'tilt' | 'a0' | 'a1'>): Cut => ({
+  over: 0.35, elbow0: 0.6, fold: 0.45, wrist0: 0.55, wrist1: -0.2, twist0: -0.35, twist1: 0.4, lean0: 0.05, lean1: 0.3,
+  crouch: 0.04, drop: 0.08, step: 0, stride: 0.6, sy0: 1, sy1: 1, off0: 0.7, off1: -0.45, ...c,
+});
+
+/** The three-cut combo (and the aerial chain). */
+const COMBO: Cut[] = [
+  // I. the draw-cut: rising from his low guard, right hip to over his left shoulder
+  CUT({ tilt: -0.6, a0: 0.15, a1: 2.85, over: 0.4, elbow0: 0.35, fold: 0.3, wrist0: -0.55, wrist1: 0.25, twist0: -0.35, twist1: 0.45, lean0: 0.2, lean1: -0.04, drop: -0.03, step: 0, stride: 0.55, off0: 0.6, off1: -0.4 }),
+  // II. the backhand: back down the same line, left shoulder to right hip, stepping through with the other foot
+  CUT({ tilt: -0.6, a0: 3.3, a1: 0.3, over: 0.35, elbow0: 0.9, fold: 0.4, wrist0: 0.6, wrist1: -0.25, twist0: 0.5, twist1: -0.4, lean0: -0.05, lean1: 0.32, drop: 0.09, step: 1, stride: 0.65, off0: -0.3, off1: 0.5 }),
+  // III. the finisher: the blade circles up behind him and comes down through the centre line with all his weight
+  CUT({ tilt: 0.1, a0: 4.1, a1: 0.15, over: 0.3, elbow0: 1.0, fold: 0.35, wrist0: 0.7, wrist1: -0.3, twist0: -0.3, twist1: 0.25, lean0: -0.28, lean1: 0.5, crouch: 0.02, drop: 0.22, step: 0, stride: 0.85, sy0: 1.05, sy1: 0.93, off0: 1.1, off1: -0.65 }),
 ];
-const POOLS = [
-  [0, 1, 3],
-  [2, 4, 1],
-  [3, 1, 0],
-];
-const HEAVY: Swing = { a0: 4.45, a1: 0.05, tilt: 0.12, twist: 0.5, lean: 0.5 };
+/** Heavy: the cleave. Coiled hard to the right, it sweeps flat round two thirds of a circle. */
+const CLEAVE = CUT({ tilt: 1.2, a0: 3.75, a1: 0.1, over: 0.6, elbow0: 1.0, fold: 0.5, wrist0: 0.8, wrist1: -0.3, twist0: -0.85, twist1: 0.9, lean0: 0, lean1: 0.35, crouch: 0.12, drop: 0.22, step: 1, stride: 0.85, sy0: 1.02, sy1: 0.95, off0: 0.95, off1: -1.0 });
+/** The charged strike: released from high behind him, straight down into the ground. */
+const REND = CUT({ tilt: 0.1, a0: 3.9, a1: -0.1, over: 0.25, elbow0: 0.15, fold: 0.3, wrist0: 0.2, wrist1: -0.3, twist0: -0.5, twist1: 0.6, lean0: -0.2, lean1: 0.62, crouch: 0.05, drop: 0.3, step: 0, stride: 1.1, sy0: 1.04, sy1: 0.9, off0: 1.2, off1: -0.8 });
+/** Heavy in the air: hang with the blade raised, dive, slam. */
+const PLUNGE = CUT({ tilt: 0.08, a0: 4.4, a1: 0.05, over: 0, elbow0: 0.3, wrist0: 0.3, wrist1: -0.2, twist0: -0.2, twist1: 0.3, lean0: -0.15, lean1: 0.55 });
+/** Attack while running: a lunging thrust, the off arm flung back for balance. */
+const LUNGE = CUT({ tilt: 1.3, a0: 2.35, a1: 1.45, over: 0.1, elbow0: 1.9, fold: 0.15, twist0: -0.5, twist1: 0.35, lean0: 0.2, lean1: 0.6, drop: 0.12, step: 0, stride: 1.1, off0: 0.3, off1: -0.95, aim: 1.5 });
+/** Attack out of a dash: the whole body behind the point. */
+const PIERCE = CUT({ tilt: 1.35, a0: 2.3, a1: 1.5, over: 0.08, elbow0: 1.8, fold: 0.1, twist0: -0.45, twist1: 0.3, lean0: 0.45, lean1: 0.8, drop: 0.16, step: 0, stride: 1.2, off0: -0.6, off1: -1.1, aim: 1.52 });
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+/** Contact timing: the blade is already moving fast on the first frame and still accelerating into the middle. */
+const whip = (e: number) => 0.35 * smooth(e) + 0.65 * (1 - Math.pow(1 - Math.max(0, Math.min(1, e)), 3));
 
 const TRAIL_VERT = /* glsl */ `
   uniform float uDepthPull;
@@ -92,9 +133,9 @@ const TRAIL_FRAG = /* glsl */ `
     float s = (a - uTail) / (uHead - uTail);
     if (s < 0.0 || s > 1.0) discard;
     float r = (length(vP) - 0.8) / 1.75;
-    float edge = smoothstep(0.0, 0.6, r) * smoothstep(1.0, 0.88, r);
-    float core = smoothstep(0.82, 0.97, r) * smoothstep(1.0, 0.97, r);
-    float alpha = (pow(s, 2.4) * edge * 0.75 + core * pow(s, 6.0) * 1.5) * uOpacity;
+    float edge = smoothstep(0.3, 0.85, r) * smoothstep(1.0, 0.9, r);
+    float core = smoothstep(0.84, 0.97, r) * smoothstep(1.0, 0.97, r);
+    float alpha = (pow(s, 3.0) * edge * 0.5 + core * pow(s, 5.0) * 1.4) * uOpacity;
     gl_FragColor = vec4(uColor * alpha, 1.0);
   }`;
 
@@ -111,7 +152,7 @@ const GAIN: Pose = {
   lean: 1, bob: 1.15, twist: 0.85, arm: 0.75, armTilt: 0.8, elbow: 0.6, swordRel: 0.48, swordRoll: 0.45, head: 0.5, headYaw: 0.35,
   th0: 1.3, th1: 1.3, kn0: 1.3, kn1: 1.3, offArm: 0.55, offElbow: 0.5, sy: 1.6, breath: 0.6,
 };
-/** During a swing the sword arm must hit its marks exactly, so it springs at full stiffness. */
+/** During a cut the sword arm follows it exactly (see target()). */
 const SWING_KEYS = new Set<Key>(['arm', 'armTilt', 'elbow', 'swordRel', 'swordRoll']);
 
 // Arm angles: arm swings the upper arm forward from hanging, elbow flexes the forearm forward (never backward, an
@@ -179,12 +220,12 @@ export class KnightView {
   private trailTail = 0;
   private trailFade = 0;
   private lastSwing = -1;
-  private swing: Swing = VARIANTS[0];
-  private lastVariant = -1;
+  private cut: Cut = COMBO[0];
+  private from = { arm: 0, elbow: 0, wrist: 0, tilt: 0 }; // where the arm was when this cut began
   private phase = 0;
   private capeVx = 0;
   private capeVy = 0;
-  private eyes: THREE.Mesh;
+  private eyes!: THREE.Mesh;
   private kneelK = 0;
   private cur: Pose = { ...REST };
   private vel: Pose = Object.fromEntries(KEYS.map((k) => [k, 0])) as Pose;
@@ -274,20 +315,7 @@ export class KnightView {
     }
     this.head.position.set(0.03, 0.98, 0);
     this.chest.add(this.head);
-    this.head.add(mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.42, 24), BODY, 0, 0.12, 0));
-    this.head.add(mesh(new THREE.ConeGeometry(0.155, 0.22, 24), BODY, 0, 0.44, 0));
-    this.head.add(mesh(new RoundedBoxGeometry(0.1, 0.06, 0.34, 2, 0.025), BODY, 0.14, 0.2, 0));
-    for (const s of [1, -1]) {
-      this.head.add(
-        mesh(
-          taperTube([new THREE.Vector3(0, 0.25, 0.12 * s), new THREE.Vector3(-0.12, 0.45, 0.22 * s), new THREE.Vector3(-0.42, 0.62, 0.26 * s), new THREE.Vector3(-0.78, 0.58, 0.2 * s), new THREE.Vector3(-1.02, 0.72, 0.14 * s)], 0.065),
-          BODY,
-        ),
-      );
-    }
-    this.eyes = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.03, 0.26), EYE);
-    this.eyes.position.set(0.18, 0.12, 0);
-    this.head.add(this.eyes);
+    this.buildHelm();
 
     const upper = limb(0.44, 0.1, 0.085);
     const fore = limb(0.42, 0.09, 0.075);
@@ -420,6 +448,80 @@ export class KnightView {
     this.setTorch(false);
   }
 
+  /**
+   * The helm, built for its silhouette (he is a shadow: the outline is all anyone sees). A pointed war-dome, a flared
+   * two-lame neck guard over the shoulders (the wide samurai line from behind), a swept fin crest, and two great
+   * crescent horns that rise out of his temples and hook forward. Under the brow: a faceplate with a ridge and two
+   * slanted slits of light.
+   */
+  private buildHelm(): void {
+    const h = new THREE.Group(); // built from pieces, then merged into one mesh (see below)
+    const V = (x: number, y: number, z = 0) => new THREE.Vector3(x, y, z);
+    const P = (r: number, y: number) => new THREE.Vector2(r, y);
+    // the dome, rising to a point
+    const dome = mesh(new THREE.LatheGeometry([P(0.001, 0.56), P(0.035, 0.545), P(0.09, 0.5), P(0.145, 0.42), P(0.183, 0.32), P(0.203, 0.2), P(0.198, 0.08), P(0.18, -0.03)], 28), BODY, 0, 0, 0);
+    dome.scale.set(1.08, 1, 0.94);
+    h.add(dome);
+    // the neck guard: two flared lames, open at the face (the face is +x, phi = PI/2 in a lathe)
+    const lame = (top: number, r0: number, r1: number, drop: number) =>
+      new THREE.LatheGeometry([P(r0, top), P((r0 + r1) / 2 + 0.01, top - drop * 0.5), P(r1, top - drop), P(r1 - 0.018, top - drop - 0.006), P(r0 - 0.02, top - 0.01)], 26, Math.PI / 2 + 0.8, Math.PI * 2 - 1.6);
+    h.add(mesh(lame(0.11, 0.19, 0.285, 0.17), BODY, -0.01, 0, 0));
+    h.add(mesh(lame(0.0, 0.25, 0.36, 0.17), BODY, -0.02, 0, 0));
+    // the faceplate, a ridge down its middle, a pointed chin
+    h.add(mesh(new RoundedBoxGeometry(0.09, 0.27, 0.29, 2, 0.03), BODY, 0.15, 0.1, 0));
+    const ridge = mesh(new RoundedBoxGeometry(0.05, 0.3, 0.035, 2, 0.015), BODY, 0.195, 0.08, 0, false);
+    ridge.rotation.z = -0.12;
+    h.add(ridge);
+    const chin = mesh(new THREE.ConeGeometry(0.06, 0.14, 4), BODY, 0.16, -0.07, 0, false);
+    chin.rotation.set(0, Math.PI / 4, Math.PI);
+    h.add(chin);
+    // a hard brow over the eyes, angled down to the centre (a scowl)
+    for (const s of [1, -1]) {
+      const brow = mesh(new RoundedBoxGeometry(0.06, 0.045, 0.16, 2, 0.015), BODY, 0.2, 0.215, 0.075 * s, false);
+      brow.rotation.x = 0.32 * s;
+      h.add(brow);
+    }
+    // the crest: a fin swept back off the crown
+    const fin = new THREE.Shape();
+    fin.moveTo(0.1, 0.42);
+    fin.quadraticCurveTo(0.03, 0.6, -0.25, 0.72);
+    fin.quadraticCurveTo(-0.14, 0.56, -0.17, 0.36);
+    fin.lineTo(0.1, 0.42);
+    const finGeo = new THREE.ExtrudeGeometry(fin, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 14 });
+    finGeo.translate(0, 0, -0.015);
+    h.add(mesh(finGeo, BODY));
+    // the horns: out of the temples, outward and up, hooking forward at the tips; thick at the root, needle-sharp
+    for (const s of [1, -1]) {
+      const pts = [V(0.03, 0.3, 0.13 * s), V(0.01, 0.35, 0.27 * s), V(-0.01, 0.47, 0.4 * s), V(0.03, 0.63, 0.47 * s), V(0.11, 0.79, 0.46 * s), V(0.22, 0.9, 0.39 * s)];
+      h.add(mesh(taperTube(pts, 0.072, 0.02, 32, 14, 1.6), BODY));
+      // a collar where each horn grows out of the helm
+      const collar = mesh(new THREE.TorusGeometry(0.062, 0.014, 8, 18), BODY, 0.028, 0.31, 0.15 * s, false);
+      collar.rotation.set(0, Math.PI / 2, 0.35 * s);
+      h.add(collar);
+    }
+    // two slanted slits of light, inner ends low: the eyes (one mesh: render reads its colour and position)
+    const slit = (s: number) => {
+      const g = new THREE.BoxGeometry(0.03, 0.024, 0.095);
+      g.rotateX(-0.3 * s);
+      g.translate(0, 0, 0.068 * s);
+      return g;
+    };
+    // one mesh for the whole helm: each piece would be drawn again in the aura mask and in every shadow map
+    h.updateMatrixWorld(true);
+    const parts = h.children.map((o) => {
+      const m = o as THREE.Mesh;
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      g.applyMatrix4(m.matrix);
+      for (const a of Object.keys(g.attributes)) if (a !== 'position' && a !== 'normal' && a !== 'uv') g.deleteAttribute(a);
+      g.clearGroups();
+      return g;
+    });
+    this.head.add(mesh(mergeGeometries(parts), BODY));
+    this.eyes = new THREE.Mesh(mergeGeometries([slit(1), slit(-1)]), EYE);
+    this.eyes.position.set(0.197, 0.165, 0);
+    this.head.add(this.eyes);
+  }
+
   setTorch(on: boolean): void {
     this.torchOn = on;
     for (const c of this.torch.children) c.visible = on;
@@ -444,10 +546,11 @@ export class KnightView {
   }
 
   /** Target pose for the current sim state. Springs do the rest. */
-  private target(k: Knight, t: number, dt: number): { p: Pose; stiff: number; zeta: number } {
+  private target(k: Knight, t: number, dt: number): { p: Pose; stiff: number; zeta: number; exact: boolean } {
     const p: Pose = { ...REST };
     let stiff = 170;
     let zeta = 0.62;
+    let exact = false; // the sword arm follows the cut exactly (no spring lag), so the blade is where the hit is
     const speed = Math.hypot(k.vx, k.vz);
     const b = this.breath; // -0.5 exhaled .. 0.5 inhaled
     // leaning into acceleration, back against braking
@@ -641,22 +744,45 @@ export class KnightView {
       }
       case 'attack':
       case 'heavy': {
-        const heavy = k.state === 'heavy';
         const sp: MoveSpec = k.move === 'light' ? CFG.combo[k.combo] : CFG[k.move];
         if (k.swingId !== this.lastSwing) {
+          // a new cut starts from wherever the arm really is (the last cut's follow-through, a guard, a charge)
           this.lastSwing = k.swingId;
-          this.swing = this.pickSwing(k.move, k.combo);
+          this.cut = this.pickCut(k);
+          this.from.arm = this.cur.arm;
+          this.from.elbow = this.cur.elbow;
+          this.from.wrist = this.cur.swordRel;
+          this.from.tilt = this.cur.armTilt;
         }
-        const S = this.swing;
+        const C = this.cut;
+        const F = this.from;
         const tt = k.stateT;
-        p.armTilt = S.tilt;
-        p.elbow = 0.06;
-        p.swordRel = 0;
+        const dir = Math.sign(C.a1 - C.a0) || -1;
+        exact = true;
+        // the stance under the cut: s 0 = his guard stance, 1 = the full stride, the stepping foot planted ahead
+        const legs = (s: number, lift = 0) => {
+          const a = s * C.stride;
+          const front = 0.38 + 0.55 * a;
+          const back = -0.32 - 0.45 * a;
+          const fk = 0.48 + 0.2 * a + lift;
+          const bk = 0.36 - 0.12 * a;
+          if (C.step === 0) [p.th0, p.kn0, p.th1, p.kn1] = [front, fk, back, bk];
+          else [p.th1, p.kn1, p.th0, p.kn0] = [front, fk, back, bk];
+        };
+        const head = () => {
+          // his eyes stay on what he is cutting: the head counters the chest's twist and lean
+          p.headYaw = -p.twist * 0.6;
+          p.head = -p.lean * 0.45;
+        };
         if (k.move === 'plunge') {
-          // hang with the blade raised, dive, then slam it down into the ground
           if (k.slamT < 0) {
+            // hang with the blade raised (gathered from wherever it was), then dive
             const diving = tt >= sp.windup;
-            p.arm = S.a0;
+            const e = smooth(tt / Math.max(0.01, sp.windup));
+            p.arm = lerp(F.arm, C.a0, e);
+            p.elbow = lerp(F.elbow, C.elbow0, e);
+            p.swordRel = lerp(F.wrist, C.wrist0, e);
+            p.armTilt = lerp(F.tilt, C.tilt, e);
             p.lean = diving ? 0.35 : -0.15;
             p.th0 = 1.15;
             p.th1 = -0.1;
@@ -664,13 +790,18 @@ export class KnightView {
             p.kn1 = 1.2;
             p.offArm = 1.6;
             p.head = diving ? 0.3 : -0.2;
-            this.trailTail = p.arm + p.elbow - Math.PI / 2;
+            this.trailTail = p.arm + p.elbow + p.swordRel - Math.PI / 2;
           } else {
             const e = Math.min(1, k.slamT / 0.07);
             const r = Math.min(1, k.slamT / sp.recover);
-            p.arm = S.a0 + (S.a1 - S.a0) * (1 - Math.pow(1 - e, 3));
+            const s = 1 - Math.pow(1 - e, 3);
+            p.arm = lerp(C.a0, C.a1, s);
+            p.elbow = lerp(C.elbow0, 0.05, s) + C.fold * smooth((k.slamT - 0.07) / 0.15);
+            p.swordRel = lerp(C.wrist0, C.wrist1, s);
+            p.armTilt = C.tilt;
             p.lean = 0.55 * (1 - r * 0.6);
             p.bob = -0.4 * (1 - r);
+            p.sy = 1 - 0.08 * (1 - smooth(k.slamT / 0.2));
             p.th0 = 1.0;
             p.th1 = -0.7;
             p.kn0 = 1.6;
@@ -678,73 +809,97 @@ export class KnightView {
             p.offArm = -0.4;
             if (k.slamT < 0.12) this.trailFade = 1;
           }
-          this.trailHead = p.arm + p.elbow - Math.PI / 2;
+          this.trailHead = p.arm + p.elbow + p.swordRel - Math.PI / 2;
           stiff = 1500;
           zeta = 0.9;
           break;
         }
+        const end = sp.windup + sp.active;
         if (tt < sp.windup) {
+          // anticipation: into the chamber, decelerating into it; the stepping foot lifts
           const e = tt / sp.windup;
           const ee = 1 - (1 - e) * (1 - e);
-          p.arm = REST.arm + (S.a0 - REST.arm) * ee;
-          p.lean = heavy ? -0.3 * e : -0.12 * e;
-          p.twist = -S.twist * ee;
-          p.th0 = heavy ? 0.6 * e : 0.35;
-          p.th1 = heavy ? -0.5 * e : -0.3;
-          p.kn0 = heavy ? 0.9 * e : 0.3;
-          p.kn1 = heavy ? 0.7 * e : 0.3;
-          p.offArm = 0.8 * ee;
-        } else if (tt < sp.windup + sp.active) {
+          p.arm = lerp(F.arm, C.a0, ee);
+          p.elbow = lerp(F.elbow, C.elbow0, ee);
+          p.swordRel = C.aim !== undefined ? lerp(F.wrist, C.aim - C.a0 - C.elbow0, ee) : lerp(F.wrist, C.wrist0, ee);
+          p.armTilt = lerp(F.tilt, C.tilt, smooth(e * 1.4));
+          // the core unwinds before the arm moves: its target flips in the last third of the wind-up
+          p.twist = e < 0.65 ? C.twist0 : C.twist1;
+          p.lean = C.lean0;
+          p.bob = -C.crouch;
+          p.sy = lerp(1, C.sy0, ee);
+          legs(0.3 * ee, 0.5 * Math.sin(Math.PI * Math.min(1, e * 1.2)));
+          p.offArm = C.off0;
+          p.offElbow = 0.85;
+        } else if (tt < end) {
+          // contact: hips and chest lead, the elbow straightens in the first half, the wrist whips the blade through
           const e = (tt - sp.windup) / sp.active;
-          p.arm = S.a0 + (S.a1 - S.a0) * (1 - Math.pow(1 - e, 3));
-          p.lean = S.lean;
-          p.twist = S.twist;
-          p.th0 = 0.75;
-          p.th1 = -0.6;
-          p.kn0 = 0.5;
-          p.kn1 = 0.4;
-          p.offArm = -0.6;
-          p.bob = heavy ? -0.18 : -0.06;
+          p.arm = lerp(C.a0, C.a1, whip(e));
+          p.elbow = 0.05 + (C.elbow0 - 0.05) * (1 - smooth(e / 0.45));
+          p.swordRel = C.aim !== undefined ? C.aim - p.arm - p.elbow : lerp(C.wrist0, C.wrist1, smooth((e - 0.1) / 0.6));
+          p.armTilt = C.tilt;
+          p.twist = C.twist1;
+          p.lean = C.lean1;
+          p.bob = -C.drop;
+          p.sy = C.sy1;
+          legs(1);
+          p.offArm = C.off1;
+          p.offElbow = 0.45;
         } else {
-          const e = Math.min(1, (tt - sp.windup - sp.active) / sp.recover);
-          p.arm = S.a1 + (REST.arm - S.a1) * e * e;
-          p.lean = S.lean * (1 - e);
-          p.twist = S.twist * (1 - e);
-          p.armTilt = S.tilt * (1 - e) + REST.armTilt * e;
-          p.th0 = 0.75 * (1 - e);
-          p.th1 = -0.6 * (1 - e);
-          p.kn0 = 0.5 * (1 - e);
-          p.kn1 = 0.4 * (1 - e);
-          p.offArm = -0.6 * (1 - e);
+          const r = (tt - end) / sp.recover;
+          if (r < 0.45) {
+            // follow-through: the blade carries on past the target and wraps round him, the body overshoots its unwind
+            const f = smooth(r / 0.45);
+            const fe = 1 - (1 - f) * (1 - f);
+            p.arm = C.a1 + dir * C.over * fe;
+            p.elbow = 0.05 + C.fold * fe;
+            p.swordRel = C.aim !== undefined ? C.aim - p.arm - p.elbow : C.wrist1 + dir * 0.25 * fe;
+            p.armTilt = C.tilt;
+            p.twist = C.twist1 * 1.12;
+            p.lean = C.lean1 * 0.9;
+            p.bob = -C.drop * (1 - 0.4 * f);
+            p.sy = lerp(C.sy1, 1, f);
+            legs(1);
+            p.offArm = C.off1;
+            p.offElbow = 0.5;
+          } else {
+            // released to the springs: the blade's momentum carries into them and he settles back into his guard
+            exact = false;
+            for (const key of KEYS) if (ON_GUARD[key] !== undefined) p[key] = ON_GUARD[key] as number;
+            legs(1 - smooth((r - 0.45) / 0.55));
+            p.sy = 1;
+            head();
+            stiff = 260;
+            zeta = 0.62;
+            break;
+          }
         }
+        head();
         if (k.move === 'air') {
-          // strike from a tuck, legs folded under him
+          // cutting from a tuck, legs folded under him
           p.th0 = 1.0;
           p.th1 = -0.2;
           p.kn0 = 1.5;
           p.kn1 = 1.0;
           p.bob = 0;
+          p.sy = 1;
         } else if (k.move === 'dashStrike') {
-          // a flat, low thrust: the whole body is the blade
-          p.lean = Math.max(p.lean, 0.7);
           p.th0 = -0.35;
           p.th1 = -0.95;
           p.kn0 = 1.0;
           p.kn1 = 0.8;
-          p.offArm = -1.1;
           p.head = 0.3;
-        } else if (k.move === 'lunge') {
-          p.th0 = 1.0;
-          p.th1 = -0.9;
-          p.kn0 = 0.7;
-          p.kn1 = 0.2;
         }
-        const tip = p.arm + p.elbow - Math.PI / 2;
-        if (tt < sp.windup) this.trailTail = tip; // the arc starts where the blade actually is at the top of the wind-up
-        else if (tt < sp.windup + sp.active + 0.05) this.trailFade = 1;
+        const tip = p.arm + p.elbow + p.swordRel - Math.PI / 2;
+        if (C.aim !== undefined) {
+          // a thrust has no arc to smear
+          this.trailTail = tip;
+          this.trailFade = 0;
+        } else if (tt < sp.windup) this.trailTail = tip; // the arc starts where the blade really is at the chamber
+        else if (tt < end + 0.03) this.trailFade = 1; // the smear is the contact; it fades through the follow-through
         this.trailHead = tip;
-        stiff = 1500;
-        zeta = 0.9;
+        stiff = 1100;
+        zeta = 0.82;
         break;
       }
     }
@@ -775,7 +930,7 @@ export class KnightView {
       p.head -= b * 0.035 * kk;
       p.offArm += b * 0.03 * kk;
     }
-    return { p, stiff, zeta };
+    return { p, stiff, zeta, exact };
   }
 
   /** Idle flourishes, layered over the stance once he has stood still a while. */
@@ -828,28 +983,25 @@ export class KnightView {
     return f;
   }
 
-  private pickSwing(move: Move, combo: number): Swing {
+  private pickCut(k: Knight): Cut {
+    // a touch of variety, never enough to break the chain from one cut into the next
     const j = (a: number) => (Math.random() - 0.5) * 2 * a;
-    switch (move) {
+    const vary = (c: Cut): Cut => ({ ...c, tilt: c.tilt + j(0.07), a1: c.a1 + j(0.08), over: c.over + j(0.06) });
+    switch (k.move) {
       case 'heavy':
-        return { ...HEAVY, tilt: HEAVY.tilt + j(0.15), a0: HEAVY.a0 + j(0.1) };
+        return vary(CLEAVE);
       case 'charged':
-        // released from high behind: the whole body brings the blade over and down into the ground
-        return { a0: 3.9, a1: -0.25 + j(0.08), tilt: 0.1 + j(0.05), twist: 0.8, lean: 0.75 };
+        return vary(REND);
       case 'plunge':
-        return { a0: 4.4, a1: 0.05, tilt: 0.08, twist: 0.3, lean: 0.5 };
+        return PLUNGE;
       case 'lunge':
-        return { a0: 2.75 + j(0.1), a1: 1.5, tilt: 1.35 + j(0.1), twist: 0.55, lean: 0.55 };
+        return LUNGE;
       case 'dashStrike':
-        return { a0: 2.35, a1: 1.45 + j(0.08), tilt: 1.42, twist: 0.7, lean: 0.8 };
-      default: {
-        const poolIdx = move === 'air' ? 0 : Math.min(combo, POOLS.length - 1);
-        const pool = POOLS[poolIdx].filter((i) => i !== this.lastVariant);
-        const i = pool[Math.floor(Math.random() * pool.length)];
-        this.lastVariant = i;
-        const v = VARIANTS[i];
-        return { ...v, a0: Math.min(4.5, v.a0 + j(0.2)), a1: v.a1 + j(0.2), tilt: v.tilt + j(0.22), twist: v.twist + j(0.1) };
-      }
+        return PIERCE;
+      case 'air':
+        return vary(COMBO[(Math.max(1, k.airHits) - 1) % COMBO.length]);
+      default:
+        return vary(COMBO[Math.min(k.combo, COMBO.length - 1)]);
     }
   }
 
@@ -951,12 +1103,18 @@ export class KnightView {
     this.spin.rotation.z = this.flipT < 1 ? -Math.PI * 2 * (1 - Math.pow(1 - this.flipT, 2.2)) : 0;
 
     // springs: semi-implicit Euler in small substeps so stiff springs stay stable at low frame rates
-    const { p, stiff, zeta } = this.target(k, t, dt);
+    const { p, stiff, zeta, exact } = this.target(k, t, dt);
     const n = Math.max(1, Math.ceil(dt / (1 / 120)));
     const h = dt / n;
-    const swinging = k.state === 'attack' || k.state === 'heavy';
     for (const key of KEYS) {
-      const ks = stiff * (swinging && SWING_KEYS.has(key) ? 1 : GAIN[key]);
+      if (exact && SWING_KEYS.has(key)) {
+        // the sword arm hits its marks exactly; its speed is kept, so when the springs take it back after the
+        // follow-through, the blade's momentum carries into them instead of stopping dead
+        if (dt > 0) this.vel[key] = Math.max(-30, Math.min(30, (p[key] - this.cur[key]) / dt));
+        this.cur[key] = p[key];
+        continue;
+      }
+      const ks = stiff * GAIN[key];
       const kd = 2 * Math.sqrt(ks) * zeta;
       let x = this.cur[key];
       let v = this.vel[key];
@@ -973,8 +1131,7 @@ export class KnightView {
       this.vel[key] = v;
     }
     const c = this.cur;
-    // during swings the arm must hit its marks exactly; springs only shape the rest of the body
-    const arm = swinging ? p.arm : c.arm;
+    const arm = c.arm;
 
     this.squash.scale.set(1 / Math.sqrt(c.sy), c.sy, 1 / Math.sqrt(c.sy));
     this.body.position.y = c.bob;

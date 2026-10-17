@@ -71,7 +71,7 @@ export function column(rTop: number, rBottom: number, h: number, seed = 1, flute
 }
 
 /** A tube along a curve that tapers toward its end (horns, quillons). end = radius left at the tip, as a fraction. */
-export function taperTube(points: THREE.Vector3[], r: number, end = 0.05, tub = 24, rad = 12): THREE.BufferGeometry {
+export function taperTube(points: THREE.Vector3[], r: number, end = 0.05, tub = 24, rad = 12, sharp = 1): THREE.BufferGeometry {
   const curve = new THREE.CatmullRomCurve3(points);
   const g = new THREE.TubeGeometry(curve, tub, r, rad, false);
   const pos = g.attributes.position as THREE.BufferAttribute;
@@ -79,7 +79,8 @@ export function taperTube(points: THREE.Vector3[], r: number, end = 0.05, tub = 
   const p = new THREE.Vector3();
   for (let i = 0; i <= tub; i++) {
     curve.getPointAt(i / tub, c);
-    const s = 1 - (i / tub) * (1 - end);
+    // sharp > 1 keeps it thick longer and sharpens it at the end (a horn), 1 is a straight taper
+    const s = end + (1 - end) * (1 - Math.pow(i / tub, sharp));
     for (let j = 0; j <= rad; j++) {
       const idx = i * (rad + 1) + j;
       p.fromBufferAttribute(pos, idx).sub(c).multiplyScalar(s).add(c);
