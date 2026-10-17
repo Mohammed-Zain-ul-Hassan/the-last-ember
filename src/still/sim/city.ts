@@ -7,6 +7,7 @@ import { placeAt } from '../../sim/pose';
 import { bodyShadow, pointInPoly, solidShadow, type Pt } from './shadowcast';
 import { FLAME, flameState, flameTarget, litRangeFor, radiusFor } from './flame';
 import { buildGraph, steer, type WalkGraph } from './wrong';
+import { DIFFICULTY, type StillDifficulty } from '../../config';
 import { inRect, type District, type FigureDef, type MechDef, type Pit, type Plate, type Spot } from './types';
 
 export const DT = 1 / 60;
@@ -14,7 +15,7 @@ export const DT = 1 / 60;
 // walks, drawn back (Shift: the flame sheltered behind him) he runs, which is how the chases are played
 export const BODY = { r: 0.32, h: 1.8, careful: 2.2, speed: 3.5, run: 5.6, ghostSpeed: 3.8, accel: 12, gravity: -24 };
 export const ASH = { start: 5, max: 5, wake: 1, stepIn: 2, rewind: 1 };
-const ALIGN = { tol: 12, exit: 4, hold: 0.4, size: 30, feel: 35 };
+const ALIGN = { tol: 12, exit: 4, size: 30, feel: 35 }; // the hold time and a tolerance scale come from the difficulty
 const REACH = 1.8; // how close he must be to a brazier, torch or lever to use it
 const STEP_HOLD = 0.6; // hold E this long to step into a replay
 const REWIND_HOLD = 0.35;
@@ -187,8 +188,12 @@ export class City {
   private historyT = 0;
   private checkpoint: CityState;
 
-  constructor(d: District, words: boolean[], ash = ASH.start) {
+  /** Easy or Hard (src/config.ts DIFFICULTY): read every step, so a change in the pause menu holds at once. */
+  diff: StillDifficulty;
+
+  constructor(d: District, words: boolean[], ash = ASH.start, diff: StillDifficulty = DIFFICULTY.easy.still) {
     this.d = d;
+    this.diff = diff;
     this.staticSolids = d.solids.slice();
     // every statue is solid where it stands while it is frozen (one living again has left its place)
     this.figSolids = d.figures.map((f) => cyl(f.x, f.z, 0.3 * ((f.h ?? 1.8) / 1.8), f.h ?? 1.8, 0, 'figure'));
@@ -472,7 +477,7 @@ export class City {
         f.vigor = 1;
         this.events.push({ type: 'relit' });
       }
-    } else if (f.vigor > 0) f.vigor = Math.min(1, f.vigor + FLAME.regen * dt);
+    } else if (f.vigor > 0) f.vigor = Math.min(1, f.vigor + FLAME.regen * this.diff.regen * dt);
     const after = flameState(f.vigor);
     if (after !== before && after === 'low') this.events.push({ type: 'flameLow' });
     if (after !== before && after === 'out') this.events.push({ type: 'flameOut' });
@@ -563,14 +568,14 @@ export class City {
       // lit: in reach, and nothing between the flame and him (a point just short of his chest, so he is not his own wall)
       const k = Math.max(0, 1 - 0.4 / Math.max(0.4, df));
       const lit = this.lit && df < R && firstHit(this.stonesNow, f.x, f.y, f.z, f.x - vfx * k, f.y - vfy * k, f.z - vfz * k, true) >= 1;
-      const tol = def.tol ?? ALIGN.tol;
+      const tol = (def.tol ?? ALIGN.tol) * this.diff.alignTol;
       rt.delta = lit ? delta : 180;
       rt.align = lit ? Math.max(0, 1 - delta / ALIGN.feel) : 0;
       const inside = lit && delta < (rt.locked ? tol + ALIGN.exit : tol);
       if (inside) rt.held += dt;
       else rt.held = 0;
       const was = rt.locked;
-      rt.locked = inside && rt.held >= ALIGN.hold;
+      rt.locked = inside && rt.held >= this.diff.alignHold;
       if (rt.locked && !was) {
         if (def.lockFlag) this.setFlag(def.lockFlag);
         this.advance(def.id, 'lock');
@@ -880,27 +885,28 @@ export class City {
     });
   }
 
-  /** Falling stones: one every period somewhere just ahead of him, warned by dust 0.9 s before it lands. */
+  /** Falling stones: one every period somewhere just ahead of him, warned by dust (1.2 s Easy, 0.7 s Hard) before it lands. */
   private stepDebris(): void {
     const s = this.s;
     (this.d.debris ?? []).forEach((db, i) => {
       const st = s.debris[i];
       if (!this.flag(db.after) || !inRect(db.rect, s.body.x, s.body.z)) return;
       if (st.next === 0) st.next = s.t + db.period;
-      if (!st.warned && s.t >= st.next - 0.9) {
+      if (!st.warned && s.t >= st.next - this.diff.stoneWarn) {
         // ahead of him, scattered (deterministic from the time, so a rewind replays it)
         const r = Math.sin(st.next * 12.9898) * 43758.5453;
         const f = r - Math.floor(r);
         // beside his line, not on it: a stone that lands where a steady runner will be is not a hazard, it is a tax
         const side = f < 0.5 ? -1 : 1;
-        st.x = Math.max(db.rect.x0, Math.min(db.rect.x1, s.body.x + s.body.vx * 0.9 + (f - 0.5) * 2));
-        st.z = Math.max(db.rect.z0, Math.min(db.rect.z1, s.body.z + s.body.vz * 0.9 + side * (1.2 + f * 0.6)));
+        const lead = this.diff.stoneWarn;
+        st.x = Math.max(db.rect.x0, Math.min(db.rect.x1, s.body.x + s.body.vx * lead + (f - 0.5) * 2));
+        st.z = Math.max(db.rect.z0, Math.min(db.rect.z1, s.body.z + s.body.vz * lead + side * (1.2 + f * 0.6)));
         st.warned = true;
         this.events.push({ type: 'debrisWarn', x: st.x, z: st.z });
       }
       if (s.t >= st.next) {
-        const hit = Math.hypot(s.body.x - st.x, s.body.z - st.z) < 0.95;
-        if (hit) this.hurtFlame(0.3);
+        const hit = Math.hypot(s.body.x - st.x, s.body.z - st.z) < 0.95 * this.diff.stoneReach;
+        if (hit) this.hurtFlame(0.3 * this.diff.hazard);
         this.events.push({ type: 'debris', x: st.x, z: st.z, hit });
         st.next = s.t + db.period;
         st.warned = false;
@@ -922,7 +928,7 @@ export class City {
         s.gusts[i] = s.t + g.period;
         const hit = inRect(g.rect, s.body.x, s.body.z) && !s.ghost;
         // drawn back behind his body, the flame is sheltered
-        if (hit) this.hurtFlame(s.flame.back ? 0.12 : 0.55);
+        if (hit) this.hurtFlame((s.flame.back ? 0.12 : 0.55) * this.diff.hazard);
         this.events.push({ type: 'gust', i, hit });
       }
     });
@@ -997,7 +1003,7 @@ export class City {
     }
     if (!w.tgt) return;
     const sprint = flameState(s.flame.vigor) !== 'steady';
-    const v = sprint ? def.sprint : def.speed;
+    const v = (sprint ? def.sprint : def.speed) * this.diff.wrongSpeed;
     const dx = w.tgt[0] - w.x;
     const dz = w.tgt[1] - w.z;
     const dl = Math.hypot(dx, dz);
@@ -1023,9 +1029,9 @@ export class City {
     const w = s.wrong;
     s.caughtRun++;
     this.events.push({ type: 'caught', n: s.caughtRun });
-    this.hurtFlame(0.35);
-    // never fatal in the first two districts: it costs Ash and puts him back a few metres
-    if (s.ash <= 0 && this.d.index >= 2) {
+    this.hurtFlame(this.diff.wrongTouch);
+    // never fatal in the first two districts (nor ever on Easy): it costs Ash and puts him back a few metres
+    if (s.ash <= 0 && this.d.index >= 2 && this.diff.caughtFatal) {
       this.die('caught');
       return;
     }

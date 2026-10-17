@@ -13,10 +13,11 @@ import { HEART_D } from './data/heart';
 import { HEART_SCRIPT } from './scripts/heart';
 import { WORDS_BY_DISTRICT } from '../data/stillCity';
 import type { District } from './sim/types';
+import { DIFFICULTY, type StillDifficulty } from '../config';
 
 /** Play a district by script through the sim; report where it got to. */
-export function play(d: District, script: Goal[], maxS = 600, words = new Array(36).fill(false)): { city: City; bot: Bot; t: number } {
-  const city = new City(d, words);
+export function play(d: District, script: Goal[], maxS = 600, words = new Array(36).fill(false), diff: StillDifficulty = DIFFICULTY.easy.still): { city: City; bot: Bot; t: number } {
+  const city = new City(d, words, undefined, diff);
   const bot = new Bot(script, d.start.yaw);
   let t = 0;
   while (t < maxS && city.s.status !== 'exit') {
@@ -75,5 +76,32 @@ describe('every district, played start to finish by its script', () => {
     const { city } = play(MARKET, [{ rest: true }, { go: [31, 0] }, ...naive], 200);
     // the shutter is shut: he never even reaches the canal without the scales
     expect(city.s.body.x).toBeLessThan(32);
+  });
+});
+
+describe('Hard: strict, and still passable', () => {
+  const hard = DIFFICULTY.hard.still;
+  for (const [d, script] of [...RUNS, [HEART_D, HEART_SCRIPT] as [District, Goal[]]])
+    it(`${d.name}: played through on Hard, never dying`, () => {
+      const { city, bot } = play(d, script, 600, undefined, hard);
+      expect(bot.log).toEqual([]);
+      expect(city.s.status === 'exit' || city.flag('heart')).toBe(true);
+      expect(city.s.deaths).toBe(0);
+    });
+
+  it('the quick (main path) scripts play every district through on Hard', () => {
+    for (const [d, script] of [...RUNS, [HEART_D, HEART_SCRIPT] as [District, Goal[]]]) {
+      const { city, bot } = play(d, quickScript(script, d.figures, ['old', 'dancer', 'twin']), 600, undefined, hard);
+      expect(bot.log).toEqual([]);
+      expect(city.s.status === 'exit' || city.flag('heart')).toBe(true);
+    }
+  });
+
+  it("Hard's numbers are stricter than Easy's", () => {
+    // the base true-angle tolerance is 12 degrees: Easy widens it past 14, Hard narrows it under 8
+    expect(12 * DIFFICULTY.easy.still.alignTol).toBeGreaterThan(14);
+    expect(12 * hard.alignTol).toBeLessThan(8);
+    expect(hard.alignHold).toBeGreaterThan(DIFFICULTY.easy.still.alignHold);
+    expect(hard.wrongSpeed).toBeGreaterThan(DIFFICULTY.easy.still.wrongSpeed);
   });
 });

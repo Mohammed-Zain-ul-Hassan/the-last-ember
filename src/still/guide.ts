@@ -196,6 +196,7 @@ export class Guide {
     else if (dy > 0.2) this.coach = 'raise the flame: look up ↑';
     else if (off > 0.35) this.coach = 'step into the middle of the ring';
     else this.coach = 'hold it there…';
+    if (!c.diff.coach) this.coach = null; // Hard: the ring shows where, the player finds the angle
   }
 
   update(dt: number, t: number, c: City, flame: THREE.Vector3, hud: StillHud, glow: Particles, active: boolean): void {
@@ -213,9 +214,12 @@ export class Guide {
     }
     this.asked = Math.max(0, this.asked - dt);
     this.onStep = key === this.objKey ? this.onStep + dt : 0;
-    // Guided: always. Gentle: when asked (H), or after a minute stuck on the step. Off: never.
-    const show = active && !!ob && (save.hints === 'guided' || (save.hints === 'gentle' && (this.asked > 0 || this.onStep > 60)));
-    this.drawTrail(c, t, show && !c.s.ghost ? this.target(c) : null);
+    // Guided: always. Gentle: when asked (H), or after a minute stuck on the step. Off: never. Hard plays Guided as
+    // Gentle (and waits longer), and never lays the ember trail.
+    const d = c.diff;
+    const gentle = save.hints === 'gentle' || !d.trail;
+    const show = active && !!ob && save.hints !== 'off' && (!gentle || this.asked > 0 || this.onStep > 60 * d.hintDelay);
+    this.drawTrail(c, t, show && d.trail && !c.s.ghost ? this.target(c) : null);
     this.drawStand(c, t, show ? ob!.o : null);
     const leads = show && !c.s.ghost;
     const to = leads ? this.target(c) : null;

@@ -38,8 +38,9 @@ interface Puzzle {
   next: Record<'stuck' | 'failed' | 'riddle', number>;
 }
 
-const COOLDOWN = 90;
-const STUCK = 180;
+// base timings, scaled by the difficulty (Easy sooner, Hard much later; H always answers at once)
+const COOLDOWN_S = 90;
+const STUCK_S = 180;
 
 export class Hints {
   private t = 0;
@@ -62,11 +63,21 @@ export class Hints {
     this.cues = cues;
   }
 
+  private get delay(): number {
+    return this.city().diff.hintDelay;
+  }
+  private get cooldown(): number {
+    return COOLDOWN_S * this.delay;
+  }
+  private get stuckAfter(): number {
+    return STUCK_S * this.delay;
+  }
+
   private get p(): Puzzle {
     const k = this.puzzleKey();
     let p = this.puzzles.get(k);
     if (!p) {
-      p = { since: this.t, fails: 0, riddleReads: 0, tier: { stuck: 0, failed: 0, riddle: 0 }, next: { stuck: this.t + STUCK, failed: 0, riddle: 0 } };
+      p = { since: this.t, fails: 0, riddleReads: 0, tier: { stuck: 0, failed: 0, riddle: 0 }, next: { stuck: this.t + this.stuckAfter, failed: 0, riddle: 0 } };
       this.puzzles.set(k, p);
     }
     return p;
@@ -85,7 +96,7 @@ export class Hints {
     p.fails = 0;
     p.riddleReads = 0;
     p.tier = { stuck: 0, failed: 0, riddle: 0 };
-    p.next = { stuck: this.t + STUCK, failed: 0, riddle: 0 };
+    p.next = { stuck: this.t + this.stuckAfter, failed: 0, riddle: 0 };
   }
   failed(): void {
     this.p.fails++;
@@ -196,7 +207,7 @@ export class Hints {
     const p = this.p;
     if (!condition || this.t < p.next[trig] || p.tier[trig] >= this.maxTier) return;
     p.tier[trig]++;
-    p.next[trig] = this.t + COOLDOWN;
+    p.next[trig] = this.t + this.cooldown;
     this.give(trig, p.tier[trig]);
   }
 
@@ -208,7 +219,7 @@ export class Hints {
     }
     if (this.t < this.globalNext[trig] || this.globalTier[trig] >= this.maxTier) return;
     this.globalTier[trig]++;
-    this.globalNext[trig] = this.t + COOLDOWN;
+    this.globalNext[trig] = this.t + this.cooldown;
     this.give(trig, this.globalTier[trig]);
   }
 
@@ -217,9 +228,9 @@ export class Hints {
     if (this.maxTier === 0 || !this.calm) return;
     const c = this.city();
     const p = this.p;
-    this.bumpPuzzle('failed', p.fails >= 3);
+    this.bumpPuzzle('failed', p.fails >= (this.delay > 1 ? 5 : 3));
     this.bumpPuzzle('riddle', p.riddleReads >= 2 && this.t - p.since > 60);
-    this.bumpPuzzle('stuck', this.t - p.since >= STUCK);
+    this.bumpPuzzle('stuck', this.t - p.since >= this.stuckAfter);
     this.bumpGlobal('ash', c.s.ash <= 1);
     this.bumpGlobal('caught', c.s.caughtRun >= 2);
     this.bumpGlobal('word', this.nearWord() >= 0 && this.t - p.since > 120);
@@ -239,7 +250,7 @@ export class Hints {
     const p = this.p;
     if (p.tier.stuck < this.maxTier) {
       p.tier.stuck++;
-      p.next.stuck = this.t + COOLDOWN;
+      p.next.stuck = this.t + this.cooldown;
       this.give('stuck', p.tier.stuck);
     } else this.speak(list[this.askN++ % Math.max(1, list.length)], 1);
   }

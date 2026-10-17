@@ -811,3 +811,34 @@
 #sc .align {
   bottom: 25vh;
 }
+#sc-title .diff {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 16px 26px;
+  max-width: 560px;
+}
+#sc-title .diff button {
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  color: #ece3d2;
+  background: rgba(10, 8, 12, 0.5);
+  border: 1px solid rgba(236, 227, 210, 0.25);
+  border-radius: 3px;
+  padding: 8px 22px;
+  cursor: pointer;
+}
+#sc-title .diff button.sel {
+  border-color: #ffa34a;
+  color: #ffd9a8;
+  box-shadow: 0 0 14px rgba(255, 122, 26, 0.35);
+}
+#sc-title .dnote {
+  flex-basis: 100%;
+  text-align: center;
+  font-style: italic;
+  font-size: 16px;
+  opacity: 0.7;
+}

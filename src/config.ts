@@ -101,3 +101,29 @@ export interface MoveSpec {
   multi: boolean;
 }
 export type ComboStep = (typeof CFG.combo)[number];
+
+// Difficulty: one setting for the whole game, stored by src/difficulty.ts. Easy gives the player some leverage, Hard
+// is strict. Each act reads its own section (`still` is the Still City; the hearth act adds `hearth` here when the
+// two are merged). Multipliers are against the act's own base tunables.
+export interface StillDifficulty {
+  alignTol: number; // x the true-angle tolerance (degrees; base 12, or the figure's own)
+  alignHold: number; // seconds the angle must be held to lock (base 0.4)
+  wrongSpeed: number; // x the Wrong Shadow's walk and sprint
+  wrongTouch: number; // vigor its touch takes from the flame
+  caughtFatal: boolean; // with no Ash left, being caught ends the run (from the third district on)
+  hazard: number; // x what gusts and falling stones take from the flame
+  stoneReach: number; // x a falling stone's hit radius (base 0.95 m)
+  stoneWarn: number; // seconds of dust before a stone lands
+  regen: number; // x how fast the flame recovers
+  hintDelay: number; // x the time before the flame's hints climb a tier (stuck 180 s, between tiers 90 s)
+  trail: boolean; // the ember trail to the next place
+  coach: boolean; // the flame's coaching at a true angle (turn, raise, lower, hold)
+}
+export const DIFFICULTY: Record<'easy' | 'hard', { still: StillDifficulty }> = {
+  easy: {
+    still: { alignTol: 1.4, alignHold: 0.25, wrongSpeed: 0.8, wrongTouch: 0.25, caughtFatal: false, hazard: 0.65, stoneReach: 0.8, stoneWarn: 1.2, regen: 1.5, hintDelay: 0.55, trail: true, coach: true },
+  },
+  hard: {
+    still: { alignTol: 0.65, alignHold: 0.6, wrongSpeed: 1.2, wrongTouch: 0.45, caughtFatal: true, hazard: 1.3, stoneReach: 1.1, stoneWarn: 0.7, regen: 0.6, hintDelay: 3, trail: false, coach: false },
+  },
+};

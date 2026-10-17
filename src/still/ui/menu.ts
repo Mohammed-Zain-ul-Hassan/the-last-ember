@@ -1,7 +1,8 @@
 import { LAST_WORDS, WORDS_BY_DISTRICT } from '../../data/stillCity';
 import { persist, save, type HintMode } from '../save';
+import { DIFFICULTY_NOTE, getDifficulty, setDifficulty, type Difficulty } from '../../difficulty';
 
-// The pause menu: resume, the hint setting (Off / Gentle / Guided, default Guided, changeable at any time), the
+// The pause menu: resume, the difficulty (Easy / Hard, shared with the hearth act), the hint setting (Off / Gentle / Guided, default Guided, changeable at any time), the
 // journal of Last Words, the controls, sound, and a way back to the last brazier.
 
 const DISTRICTS = ['The Gate Ward', 'The Market of Weights', 'The Temple of Hours', 'The Library of Whispers', 'The Heart'];
@@ -55,6 +56,15 @@ export class StillMenu {
     this.root.appendChild(p);
     p.insertAdjacentHTML('beforeend', '<h2>THE STILL CITY</h2>');
     this.button(p, 'Resume', () => this.hooks.resume()).focus();
+    p.insertAdjacentHTML('beforeend', `<div class="label">DIFFICULTY</div><div class="note">${DIFFICULTY_NOTE[getDifficulty()]}</div>`);
+    const rd = document.createElement('div');
+    rd.className = 'row';
+    p.appendChild(rd);
+    for (const [d, label] of [['easy', 'Easy'], ['hard', 'Hard']] as [Difficulty, string][])
+      this.button(rd, label, () => {
+        setDifficulty(d);
+        this.main();
+      }, getDifficulty() === d ? 'sel' : '');
     p.insertAdjacentHTML('beforeend', '<div class="label">HINTS</div><div class="note">The flame whispers when you are stuck. Gentle: only a glow or a flicker. Guided: all three tiers.</div>');
     const row = document.createElement('div');
     row.className = 'row';

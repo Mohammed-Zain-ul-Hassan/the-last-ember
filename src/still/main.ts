@@ -39,6 +39,8 @@ import { Narrative } from './narrative/narrative';
 import { bus } from './narrative/bus';
 import { startRecording, type Recording } from './record';
 import { initCursor, requestLock, wantCursorHidden } from '../ui/cursor';
+import { DIFFICULTY } from '../config';
+import { DIFFICULTY_NOTE, getDifficulty, onDifficulty, setDifficulty, type Difficulty } from '../difficulty';
 
 // The Still City. You carry the only fire left in a city that froze mid-breath four thousand years ago. Your flame
 // wakes the dead for ten seconds at a time, and something that moves only when unseen follows you.
@@ -219,7 +221,7 @@ function load(i: number, ash?: number): void {
   dview?.dispose();
   figs?.group.removeFromParent();
   const d = DISTRICTS[i];
-  city = new City(d, save.words, ash);
+  city = new City(d, save.words, ash, DIFFICULTY[getDifficulty()].still);
   // rain in the open districts: streaks, splashes, the far veil, and wet stone with ripples in the puddles
   rain.on = !!d.rain;
   rain.setShelters(d.decor.filter((dc) => dc.kind === 'vault' || dc.kind === 'roof').map((dc) => dc as { x0: number; z0: number; x1: number; z1: number; y: number }));
@@ -276,9 +278,22 @@ function setPaused(on: boolean): void {
 
 const title = document.createElement('div');
 title.id = 'sc-title';
-title.innerHTML = `<h1>THE STILL CITY</h1><p>Carry it carefully. It is all the time that is left.</p><div class="begin">CLICK TO BEGIN</div>
+title.innerHTML = `<h1>THE STILL CITY</h1><p>Carry it carefully. It is all the time that is left.</p>
+  <div class="diff"><button data-d="easy">EASY</button><button data-d="hard">HARD</button><div class="dnote"></div></div><div class="begin">CLICK TO BEGIN</div>
   <div class="keys">WASD walk &nbsp;·&nbsp; move the mouse to look and aim the flame &nbsp;·&nbsp; E wake &nbsp;·&nbsp; Shift draw the flame back &nbsp;·&nbsp; Esc pause</div>`;
 document.body.appendChild(title);
+// the difficulty, chosen here or in the pause menu (shared with the hearth act; src/difficulty.ts)
+function showDifficulty(): void {
+  const d = getDifficulty();
+  title.querySelectorAll<HTMLButtonElement>('.diff button').forEach((b) => b.classList.toggle('sel', b.dataset.d === d));
+  title.querySelector('.dnote')!.textContent = DIFFICULTY_NOTE[d];
+}
+title.querySelectorAll<HTMLButtonElement>('.diff button').forEach((b) => b.addEventListener('click', () => setDifficulty(b.dataset.d as Difficulty)));
+onDifficulty((d) => {
+  if (city) city.diff = DIFFICULTY[d].still; // a change mid-district holds at once
+  showDifficulty();
+});
+showDifficulty();
 
 const TITLE_SHOT: Shot = { yaw: -0.9, height: 1.6, dist: 6.2, lookY: 1.8, fov: 40 };
 
@@ -376,7 +391,7 @@ initCursor(
 );
 // a click anywhere starts it (the title lies over the canvas)
 document.addEventListener('pointerdown', (e) => {
-  if ((e.target as HTMLElement).closest('#sc-menu, #sc-choice, #sc-credits')) return;
+  if ((e.target as HTMLElement).closest('#sc-menu, #sc-choice, #sc-credits, #sc-title .diff')) return;
   if (cine) endCine();
   else if (mode === 'title' && !REC) begin();
   audio.initAudio();
