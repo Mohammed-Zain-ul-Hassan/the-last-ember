@@ -1,7 +1,7 @@
 // The cursor during play: hidden, and the pointer locked to the game so the view turns without limit. Esc (which
 // the browser itself uses to release the lock) brings it back with the pause menu. Locking needs a recent click or
 // key, so the request is made on the first frame of play after one; where the lock is not allowed (some embedded
-// frames), the cursor is still hidden and the plain-movement look with screen-edge turning does the work.
+// frames), the cursor is still hidden and plain movement still looks.
 
 let lastGesture = -1e9;
 let triedFor = -1; // the gesture the last lock request was made for (one request per click or key, never a stream)
