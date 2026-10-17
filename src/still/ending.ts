@@ -17,6 +17,7 @@ export type Choice = 'keep' | 'letGo' | 'door';
 
 export interface EndingCtx {
   hud: StillHud;
+  speak: (line: Line, priority: number) => void;
   rig: CameraRig;
   scene: THREE.Object3D;
   centre: THREE.Vector3;
@@ -119,7 +120,7 @@ export class Ending {
     const yaw = Math.atan2(b.z - c.centre.z, b.x - c.centre.x);
     c.placeWrong(c.centre.x + Math.cos(yaw) * 0.2 - Math.sin(yaw) * 0.9, c.centre.z + Math.sin(yaw) * 0.2 + Math.cos(yaw) * 0.9, yaw + 0.6, 'reach');
     c.hud.prompt(null);
-    c.hud.say(WRONG.door);
+    c.speak(WRONG.door, 3);
     const shot: Shot = { yaw: -yaw + Math.PI / 2 + 0.9, height: 2.0, dist: 6.5, lookY: 1.5, fov: 40 };
     c.rig.target.copy(c.centre);
     c.rig.go(shot, 3);
@@ -132,7 +133,7 @@ export class Ending {
     this.wordPrompt = false;
     this.ctx.hud.prompt(null);
     audio.cue('found');
-    this.ctx.hud.say(wordLine(PEOPLE_WORDS));
+    this.ctx.speak(wordLine(PEOPLE_WORDS), 3);
     this.t = 0;
   }
 
@@ -190,7 +191,7 @@ export class Ending {
     }
     if (this.phase === 'choose' && c.autoChoose && this.t > 3.5) this.choose(this.doorOpen ? 'door' : 'keep');
     if (this.phase !== 'play') return;
-    while (this.queue.length && this.queue[0].at <= this.t) c.hud.say(this.queue.shift()!.line);
+    while (this.queue.length && this.queue[0].at <= this.t) c.speak(this.queue.shift()!.line, 3);
     const t = this.t;
     const centre = c.centre;
     if (this.choice === 'keep') {

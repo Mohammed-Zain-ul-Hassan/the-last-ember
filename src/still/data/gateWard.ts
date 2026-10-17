@@ -219,6 +219,12 @@ export const GATE_WARD: District = {
   ],
   lines: { replayEnd: 'gate.replayEnds', stepIn: 'gate.stepIn', wrongSeen: 'gate.wrongSeen', flags: { bar: 'gate.opens' } },
   rumble: 0.1,
+  rain: true,
+  intro: [
+    { at: [-6, 0, 0], yaw: -2.2, height: 6.5, dist: 9, lookY: 1.5, fov: 50, dur: 3.4 },
+    { at: [24.6, 0, 0.6], yaw: -1.57, height: 2.2, dist: 6, lookY: 1.7, fov: 46, dur: 3.4 },
+    { at: [56, 0, 0], yaw: -1.4, height: 3, dist: 9, lookY: 2.6, fov: 48, dur: 3.2 },
+  ],
   sky: 'night',
 };
 

@@ -10,6 +10,7 @@ export interface MenuHooks {
   resume(): void;
   lastBrazier(): void;
   mute(on: boolean): void;
+  captions(): void;
 }
 
 export class StillMenu {
@@ -64,6 +65,28 @@ export class StillMenu {
         persist();
         this.main();
       }, save.hints === mode ? 'sel' : '');
+    p.insertAdjacentHTML('beforeend', '<div class="label">CAPTIONS</div>');
+    const c = save.captions;
+    const set = (fn: () => void) => () => {
+      fn();
+      persist();
+      this.hooks.captions();
+      this.main();
+    };
+    const r1 = document.createElement('div');
+    r1.className = 'row';
+    p.appendChild(r1);
+    this.button(r1, 'On', set(() => (c.on = true)), c.on ? 'sel' : '');
+    this.button(r1, 'Off', set(() => (c.on = false)), !c.on ? 'sel' : '');
+    this.button(r1, c.cues ? 'Sound cues: on' : 'Sound cues: off', set(() => (c.cues = !c.cues)));
+    const r2 = document.createElement('div');
+    r2.className = 'row';
+    p.appendChild(r2);
+    for (const [v, label] of [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']] as const) this.button(r2, label, set(() => (c.size = v)), c.size === v ? 'sel' : '');
+    const r3 = document.createElement('div');
+    r3.className = 'row';
+    p.appendChild(r3);
+    for (const [v, label] of [[0, 'No backing'], [0.45, 'Soft backing'], [0.75, 'Dark backing']] as const) this.button(r3, label, set(() => (c.bg = v)), Math.abs(c.bg - v) < 0.01 ? 'sel' : '');
     p.insertAdjacentHTML('beforeend', '<div class="label">&nbsp;</div>');
     this.button(p, 'Last Words', () => this.journal());
     this.button(p, 'Controls', () => this.controls());

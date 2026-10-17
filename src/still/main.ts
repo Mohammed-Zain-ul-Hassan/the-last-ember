@@ -8,7 +8,7 @@ import { Particles } from '../render/particles';
 import { Flame } from '../render/flame';
 import { glowTexture } from '../render/textures';
 import type { Knight } from '../sim/world';
-import { ENDINGS, FLAME, HINTS, LAST_WORDS, NARRATOR, PEOPLE_WORDS, PUZZLE_WHISPERS, RIDDLES, WRONG, wordLine, type Line } from '../data/stillCity';
+import { LAST_WORDS, PEOPLE_WORDS, RIDDLES } from '../data/stillCity';
 import { City, DT, type CityEvent, type StillInput } from './sim/city';
 import { flameState } from './sim/flame';
 import { BRAZIER_POOL, DistrictView, TORCH_LIGHTS } from './render/districtView';
@@ -29,6 +29,10 @@ import { HEART_SCRIPT } from './scripts/heart';
 import { HEART } from './data/heart';
 import { Ending } from './ending';
 import { Hints } from './hints';
+import { Guide } from './guide';
+import { Captions } from './ui/captions';
+import { Narrative } from './narrative/narrative';
+import { bus } from './narrative/bus';
 import { startRecording, type Recording } from './record';
 
 // The Still City. You carry the only fire left in a city that froze mid-breath four thousand years ago. Your flame
@@ -44,19 +48,6 @@ const REC = params.get('rec') === '1';
 let recording: Recording | null = null;
 const SCRIPTS = [GATE_SCRIPT, MARKET_SCRIPT, TEMPLE_SCRIPT, LIBRARY_SCRIPT, HEART_SCRIPT];
 let bot: Bot | null = null;
-
-// ------------------------------------------------------------------ lines by id
-const LINES = new Map<string, Line>();
-const collect = (v: unknown): void => {
-  if (!v || typeof v !== 'object') return;
-  if ('id' in v && 'voice' in v) {
-    LINES.set((v as Line).id, v as Line);
-    return;
-  }
-  for (const x of Object.values(v)) collect(x);
-};
-for (const src of [NARRATOR, FLAME, WRONG, HINTS, PUZZLE_WHISPERS, ENDINGS]) collect(src);
-const line = (id: string): Line | undefined => LINES.get(id);
 
 // ------------------------------------------------------------------ the stage
 const stage = new Stage(document.getElementById('app')!);
@@ -93,6 +84,9 @@ const flameAt = new THREE.Vector3();
 
 const hud = new StillHud();
 hud.show(false);
+// everything the player hears is captioned; the narrative engine speaks the lines beats.json ties to events
+const captions = new Captions();
+const narrative = new Narrative((l, pr) => captions.say(l, pr));
 const menu = new StillMenu({
   resume: () => setPaused(false),
   lastBrazier: () => {
@@ -101,6 +95,7 @@ const menu = new StillMenu({
     city.s.statusT = 1.6;
   },
   mute: (m) => audio.setMuted(m),
+  captions: () => captions.apply(),
 });
 audio.setMuted(save.muted);
 
@@ -112,8 +107,11 @@ let markerT = 0;
 const lean = { x: 0, z: 0, t: 0 };
 const embers = { x: 0, z: 0, t: 0 };
 let breezeT = 0;
-const hints = new Hints(hud, () => city, {
+const guide = new Guide(stage.world);
+const hints = new Hints((l, pr) => captions.say(l, pr), (txt) => captions.note(txt), () => city, () => `${DISTRICTS[di].id}:${guide.index}`, {
   glowFigure: (i, sec) => figs?.hint(i, sec),
+  ghostReplay: (i) => figs?.ghostReplay(i),
+  brightenRiddle: (sec) => dview?.brightenPlaques(sec),
   markAngle: (i, sec) => {
     const f = DISTRICTS[di].figures[i];
     marker.position.set(...f.light);
@@ -137,6 +135,7 @@ let rumbleK = 1;
 let bodyHidden = false;
 const ending = new Ending({
   hud,
+  speak: (l, pr) => captions.say(l, pr),
   rig,
   scene: stage.world,
   centre: new THREE.Vector3(HEART.x, 0, HEART.z),
@@ -198,6 +197,7 @@ function load(i: number, ash?: number): void {
   wrongView.mirror = d.wrong?.mode === 'face' || d.wrong?.mode === 'final';
   bot = BOT ? new Bot(SCRIPTS[i], d.start.yaw) : null;
   hints.reset();
+  humFor.clear();
   const dv = new DistrictView(d);
   const fv = new FigureViews(d);
   dview = dv;
@@ -218,13 +218,12 @@ function load(i: number, ash?: number): void {
 type Mode = 'title' | 'play' | 'pause' | 'transition' | 'ending';
 let mode: Mode = 'title';
 let t = 0;
-const said = new Set<string>();
-function sayOnce(id: string | undefined): void {
-  if (!id || said.has(id)) return;
-  const l = line(id);
-  if (!l) return;
-  said.add(id);
-  hud.say(l);
+const said = new Set<string>(); // one-time tutorial notes already shown
+function noteOnce(key: string, text: string, delay = 0): void {
+  if (said.has(key)) return;
+  said.add(key);
+  if (delay) setTimeout(() => captions.note(text), delay * 1000);
+  else captions.note(text);
 }
 
 function setPaused(on: boolean): void {
@@ -260,9 +259,10 @@ function begin(): void {
 
 function enterDistrict(first: boolean): void {
   const d = DISTRICTS[di];
-  if (first && di === 0) for (const l of NARRATOR.opening) hud.say(l);
+  bus.setDistrict(d.id);
+  if (first && di === 0) bus.emit({ type: 'start' });
+  bus.emit({ type: 'enter' });
   hud.card(['I', 'II', 'III', 'IV', 'V'][d.index] ?? '', d.name.toUpperCase(), d.sub, 6);
-  if (d.enterLine) sayOnce(d.enterLine);
   audio.cue('drip');
 }
 
@@ -290,7 +290,10 @@ document.addEventListener('pointerdown', (e) => {
 onKey((code) => {
   if (mode === 'title' && (code === 'Enter' || code === 'Space' || code === 'KeyE')) begin();
   if (code === 'Escape') setPaused(mode === 'play');
-  if (code === 'KeyH' && mode === 'play') hints.ask();
+  if (code === 'KeyH' && mode === 'play') {
+    hints.ask();
+    guide.ask();
+  }
   if (code === 'KeyJ' && mode === 'play') {
     mode = 'pause';
     menu.show('journal');
@@ -353,43 +356,61 @@ function flameLock(): void {
   lockT = 0.001;
 }
 
+// falling stones (the collapse, the Heart): seen dropping through the dust for the 0.9 s before they land
+const stones: { mesh: THREE.Mesh; x: number; z: number; t: number }[] = [];
+const STONE_MAT = new THREE.MeshStandardMaterial({ color: 0x3a3440, roughness: 0.9 });
+function dropStone(x: number, z: number): void {
+  const mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32 + Math.random() * 0.18, 0), STONE_MAT);
+  mesh.castShadow = true;
+  stage.world.add(mesh);
+  stones.push({ mesh, x, z, t: 0 });
+  for (let k = 0; k < 8; k++) smoke.emit({ x: x + (Math.random() - 0.5), y: 7 + Math.random() * 2, z: z + (Math.random() - 0.5), vy: -2.5, spread: 0.3, life: 1.3, size: 0.3, sizeEnd: 0.7, r: 0.1, g: 0.09, b: 0.09, alpha: 0.45, drag: 0.5 });
+}
+function updateStones(dt: number): void {
+  for (let i = stones.length - 1; i >= 0; i--) {
+    const st = stones[i];
+    st.t += dt;
+    const y = Math.max(0.25, 9 - 0.5 * 11 * st.t * st.t);
+    st.mesh.position.set(st.x, y, st.z);
+    st.mesh.rotation.x += dt * 3;
+    if (st.t > 3) {
+      st.mesh.removeFromParent();
+      st.mesh.geometry.dispose();
+      stones.splice(i, 1);
+    }
+  }
+}
+
 let stride = 0;
-let deathN = 0;
 function handle(e: CityEvent): void {
   const d = DISTRICTS[di];
   switch (e.type) {
     case 'found': {
       const f = d.figures[e.fig];
-      hints.progress();
       audio.cue('found');
+      hints.progress();
       if (f.word !== undefined) {
-        hud.say(wordLine(f.word));
         save.words[f.word] = true;
         persist();
+        narrative.say(`word.${f.word + 1}`, 2);
       }
-      sayOnce(f.line);
-      if (f.clip && !said.has('tut.wake')) {
-        said.add('tut.wake');
-        hud.note('His shadow is at its true angle. E wakes it, for 1 Ash.');
-      }
+      bus.emit({ type: 'shadowLit', fig: f.id, word: f.word });
+      if (f.clip) noteOnce('tut.wake', 'His shadow is at its true angle. E wakes it, for 1 Ash.', 1.5);
       break;
     }
     case 'wake':
       audio.cue('wake');
-      sayOnce(d.lines.firstWake);
       hints.progress();
-      if (d.figures[e.fig].stepIn && !said.has('tut.step')) {
-        said.add('tut.step');
-        setTimeout(() => hud.note('Hold E to step into his last ten seconds (2 Ash). Do what he did.'), 1800);
-      }
+      bus.emit({ type: 'wake', fig: d.figures[e.fig].id });
+      if (d.figures[e.fig].stepIn) noteOnce('tut.step', 'Hold E to step into his last ten seconds (2 Ash). Do what he did.', 1.8);
       break;
     case 'replayEnd':
       audio.cue('replayEnd');
-      sayOnce(d.lines.replayEnd);
+      bus.emit({ type: 'replayEnd', fig: d.figures[e.fig].id });
       break;
     case 'stepIn':
       audio.cue('stepIn');
-      sayOnce(d.lines.stepIn);
+      bus.emit({ type: 'stepIn', fig: d.figures[e.fig].id });
       break;
     case 'stepOut':
       audio.cue('stepOut');
@@ -398,7 +419,8 @@ function handle(e: CityEvent): void {
       if (e.ok) audio.cue('lever');
       else {
         audio.cue('barFail');
-        if (e.msg) hud.note(e.msg);
+        hints.failed();
+        if (e.msg) captions.note(e.msg, 2);
       }
       break;
     case 'seqStep':
@@ -407,66 +429,67 @@ function handle(e: CityEvent): void {
       break;
     case 'seqFail':
       audio.cue('barFail');
-      hud.note('The hours fall out of order. Begin again.');
+      captions.note('The hours fall out of order. Begin again.', 2);
       hints.failed();
       break;
     case 'pageSide': {
       const pg = d.pages[e.i];
       hud.riddle('a page, lit from the side', pg.lie);
-      sayOnce('library.side');
+      bus.emit({ type: 'pageSide', page: pg.id });
       break;
     }
     case 'pageRead': {
       const pg = d.pages[e.i];
       hud.riddle('the same page, lit from above', pg.truth);
       audio.cue('found');
-      sayOnce('library.above');
-      hud.say(wordLine(pg.word));
       save.words[pg.word] = true;
       persist();
+      bus.emit({ type: 'pageRead', page: pg.id });
+      narrative.say(`word.${pg.word + 1}`, 2, 2.5);
       hints.progress();
       break;
     }
     case 'wrongLit':
-      sayOnce(d.lines.wrongLit);
+      bus.emit({ type: 'wrongLit' });
       break;
     case 'flag': {
       if (e.id === 'heart') startEnding();
       hints.progress();
-      for (const m of d.mechs) if (m.opens === e.id && m.kind !== 'lever') audio.cue(m.kind === 'portcullis' ? 'portcullis' : 'gate');
-      const l = d.lines.flags?.[e.id];
-      if (l) setTimeout(() => sayOnce(l), 2200);
+      for (const m of d.mechs)
+        if (m.opens === e.id && m.kind !== 'lever') {
+          audio.cue(m.kind === 'portcullis' ? 'portcullis' : 'gate');
+          bus.emit({ type: 'mech', kind: m.kind, id: m.id });
+        }
+      bus.emit({ type: 'flag', id: e.id });
       break;
     }
     case 'brazier':
       audio.cue('brazier');
-      if (d.lines.brazier) sayOnce(d.lines.brazier);
-      if (e.first && !said.has('tut.brazier')) {
-        said.add('tut.brazier');
-        hud.note('Ash restored. If you fall, you wake here.');
-      }
+      bus.emit({ type: 'brazier', first: e.first, id: d.braziers[e.i].id });
+      if (e.first) noteOnce('tut.brazier', 'Ash restored. If you fall, you wake here.');
       break;
     case 'falseBrazier':
       audio.cue('falseBrazier');
-      sayOnce('temple.fellFalse');
+      bus.emit({ type: 'falseBrazier' });
       break;
     case 'relight':
       audio.cue('relight');
       break;
     case 'relit':
-      hud.say(FLAME.relit);
+      bus.emit({ type: 'relit' });
       break;
     case 'flameLow':
       audio.cue('flameLow');
-      hud.say(FLAME.low);
+      bus.emit({ type: 'flameLow' });
       break;
     case 'flameOut':
       audio.cue('flameOut');
-      hud.say(FLAME.out);
+      bus.emit({ type: 'flameOut' });
+      noteOnce('tut.out', 'The flame is out. Find a torch on the walls and relight it (E).', 2);
       break;
     case 'noAsh':
       audio.cue('noAsh');
-      hud.note(`Not enough Ash (${e.need} needed). Rest at a brazier.`);
+      captions.note(`Not enough Ash (${e.need} needed). Rest at a brazier.`, 2);
       break;
     case 'rewind':
       audio.cue('rewind');
@@ -474,65 +497,81 @@ function handle(e: CityEvent): void {
       break;
     case 'fall':
       audio.cue('fall');
-      if (city.s.ash >= 1) hud.note('Hold R to rewind.');
+      if (city.s.ash >= 1) captions.note('Hold R to rewind.', 3);
       break;
-    case 'dead': {
+    case 'dead':
       audio.cue('death');
-      deathN++;
-      const v = deathN >= 6 ? 3 : (deathN - 1) % 3;
-      hud.say(NARRATOR.death[v]);
+      bus.emit({ type: 'death', cause: e.cause });
+      hints.failed();
       hud.veil(true);
       break;
-    }
     case 'respawn':
       hud.veil(false);
-      bot?.restart();
       rig.follow(0.6);
+      bot?.restart();
       break;
     case 'wrongSeen':
       audio.cue('wrongSeen');
-      sayOnce(d.lines.wrongSeen);
+      bus.emit({ type: 'wrongSeen' });
       break;
     case 'wrongShift':
+      setTimeout(() => audio.cue('stepLate', 0.8), 180);
+      bus.emit({ type: 'wrongShift' });
+      break;
     case 'wrongStep':
       setTimeout(() => audio.cue('stepLate', 0.8), 180);
       break;
     case 'caught':
       audio.cue('caught');
       rig.shake(0.6);
-      if (d.lines.caught) hud.say(line(d.lines.caught)!);
+      bus.emit({ type: 'caught', n: e.n });
       hints.caught();
+      noteOnce('tut.caught', 'It moves only when it is unseen and unlit. Turn the light on it: right click (Flame Lock).', 1);
       break;
     case 'gustWarn':
       audio.cue('gustWarn');
+      bus.emit({ type: 'gustWarn' });
+      noteOnce('tut.gust', 'Wind. Draw the flame back (Shift) to shelter it.');
       break;
     case 'gust':
       audio.cue('gust');
       if (e.hit) rig.shake(0.25);
       break;
+    case 'debrisWarn':
+      audio.cue('drip');
+      bus.emit({ type: 'debrisWarn' });
+      dropStone(e.x, e.z);
+      break;
+    case 'debris':
+      audio.cue('collapse', 0.5);
+      for (let k = 0; k < 14; k++)
+        smoke.emit({ x: e.x + (Math.random() - 0.5) * 0.8, y: 0.2, z: e.z + (Math.random() - 0.5) * 0.8, vx: (Math.random() - 0.5) * 3, vz: (Math.random() - 0.5) * 3, vy: 1 + Math.random(), spread: 0.3, life: 1.2, size: 0.6, sizeEnd: 1.4, r: 0.09, g: 0.08, b: 0.08, alpha: 0.5, drag: 2 });
+      if (e.hit) rig.shake(0.4);
+      break;
     case 'riddle': {
       const r = d.riddles[e.i];
       const rd = r.text ? { where: 'an inscription', text: r.text } : RIDDLES[r.id as keyof typeof RIDDLES];
       hud.riddle(rd.where, rd.text);
-      hints.riddleRead(r.puzzle);
       audio.cue('riddle');
+      bus.emit({ type: 'riddleRead', id: r.id });
+      hints.riddleRead(r.puzzle);
       break;
     }
     case 'frozenTry': {
       const m = d.mechs[e.mech];
-      if (m.frozenMsg) hud.note(m.frozenMsg);
+      if (m.frozenMsg) captions.note(m.frozenMsg, 2);
       audio.cue('noAsh');
       break;
     }
     case 'line':
-      sayOnce(e.id);
+      bus.emit({ type: 'line', id: e.id });
       break;
     case 'plate':
       audio.cue('plate');
       break;
     case 'bridge':
       audio.cue(e.on ? 'bridgeOn' : 'bridgeOff');
-      if (e.on) sayOnce(d.lines.bridge);
+      bus.emit({ type: 'bridge', on: e.on });
       break;
     case 'exit':
       nextDistrict();
@@ -674,6 +713,7 @@ function frame(now: number): void {
   if (DISTRICTS[di].id === 'heart' && city.flag('plates') && mode !== 'ending') rig.shake(dt * 0.25);
   glow.update(dt, t);
   smoke.update(dt, t);
+  updateStones(dt);
 
   // the camera follows him, or the ghost he has stepped into
   const g = s.ghost;
@@ -693,6 +733,9 @@ function frame(now: number): void {
 
   // HUD
   hud.update(dt);
+  captions.update(dt);
+  narrative.update(dt);
+  guide.update(dt, t, city, flameAt, hud, glow, mode === 'play');
   if (mode === 'play' || mode === 'pause') drawHud();
   audioBeds();
 
@@ -707,6 +750,10 @@ function frame(now: number): void {
   }
 }
 
+const humFor = new Set<number>();
+let wasClose = false;
+let wasBehind = false;
+let dripT = -99;
 function drawHud(): void {
   const s = city.s;
   hud.setAsh(s.ash);
@@ -749,6 +796,27 @@ function drawHud(): void {
   const close = w.on && !w.gone && w.dist < 6 && !w.seen && DISTRICTS[di].wrong?.mode !== 'still';
   const near = city.nearestAlign();
   hud.mood(close ? 0.8 : breezeT > 0 ? Math.min(1, breezeT) * 0.5 : 0, near ? near.align * near.align * 0.8 : 0);
+  // the warmth ring: how near the flame is to the true angle of the shadow in front of him
+  const ring = mode === 'play' && s.status === 'play' && !s.ghost && near && near.align > 0.12 && !s.figs[near.fig].locked ? near.align : null;
+  hud.align(ring);
+  if (ring !== null && ring > 0.55 && !humFor.has(near!.fig)) {
+    humFor.add(near!.fig);
+    bus.emit({ type: 'aligning' });
+  }
+  // sound cues the captions name: the silence when it is close, its breath behind him, water before an action beat
+  if (mode === 'play') {
+    if (close && !wasClose) bus.emit({ type: 'silence' });
+    wasClose = close;
+    const behind = w.on && !w.gone && !w.seen && w.dist < 7 && DISTRICTS[di].wrong?.mode !== 'still';
+    if (behind && !wasBehind) bus.emit({ type: 'breath' });
+    wasBehind = behind;
+    for (const [dx, dz] of DISTRICTS[di].drips ?? [])
+      if (Math.hypot(dx - s.body.x, dz - s.body.z) < 9 && t - dripT > 7) {
+        dripT = t;
+        audio.cue('drip');
+        bus.emit({ type: 'drip' });
+      }
+  }
 }
 
 function audioBeds(): void {

@@ -152,5 +152,12 @@ export const TEMPLE: District = {
   ],
   lines: { firstWake: 'temple.priest', caught: 'wrong.notYet', flags: { vault: 'temple.vault' } },
   rumble: 0.45,
+  intro: [
+    { at: [26, 0, 0], yaw: -2.0, height: 7, dist: 9, lookY: 0.5, fov: 52, dur: 3.4 },
+    { at: [51, 0, 0], yaw: -1.2, height: 5, dist: 8, lookY: 0.5, fov: 50, dur: 3.2 },
+    { at: [73, 0, 0], yaw: -1.57, height: 3, dist: 9, lookY: 2, fov: 50, dur: 3 },
+  ],
+  debris: [{ after: 'hunt', rect: { x0: 62, z0: -9, x1: 85, z1: 9 }, period: 4.5 }],
+  drips: [[58, 0], [61, 0]],
   sky: 'interior',
 };

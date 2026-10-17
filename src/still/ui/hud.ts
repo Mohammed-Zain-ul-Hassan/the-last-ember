@@ -45,6 +45,12 @@ export class StillHud {
   private cold: HTMLElement;
   private warmEl: HTMLElement;
   private lastAsh = -1;
+  private objEl: HTMLElement;
+  private objText = '';
+  private ring: HTMLElement;
+  private ringArc: SVGCircleElement;
+  private ringLabel: HTMLElement;
+  private bars: HTMLElement;
   private promptKeyText = '';
 
   constructor() {
@@ -75,6 +81,11 @@ export class StillHud {
     this.cardEl = el('div', 'card', this.root);
     this.riddleEl = el('div', 'riddle', this.root);
     this.veilEl = el('div', 'veil', this.root);
+    this.objEl = el('div', 'objective', this.root);
+    this.ring = el('div', 'align', this.root, '<svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" class="bg"/><circle cx="22" cy="22" r="18" class="fg"/></svg><span></span>');
+    this.ringArc = this.ring.querySelector('.fg') as SVGCircleElement;
+    this.ringLabel = this.ring.querySelector('span')!;
+    this.bars = el('div', 'bars', this.root, '<i></i><i></i>');
   }
 
   show(on: boolean): void {
@@ -170,6 +181,34 @@ export class StillHud {
     if (k === null) return;
     this.timerFill.style.transform = `scaleX(${Math.max(0, Math.min(1, k))})`;
     if (this.timerLabel.textContent !== label) this.timerLabel.textContent = label;
+  }
+
+  /** The quiet line that says what to do next (empty hides it). */
+  objective(text: string): void {
+    if (text === this.objText) return;
+    this.objText = text;
+    this.objEl.classList.remove('on');
+    setTimeout(() => {
+      if (this.objText !== text) return;
+      this.objEl.textContent = text;
+      if (text) this.objEl.classList.add('on');
+    }, 500);
+  }
+
+  /** The warmth ring: how near the flame is to a shadow's true angle (null hides it). */
+  align(k: number | null): void {
+    this.ring.classList.toggle('on', k !== null);
+    if (k === null) return;
+    const c = 2 * Math.PI * 18;
+    this.ringArc.style.strokeDasharray = `${c * k} ${c}`;
+    const label = k > 0.93 ? 'there' : k > 0.75 ? 'almost' : k > 0.45 ? 'closer' : 'his shadow stirs';
+    if (this.ringLabel.textContent !== label) this.ringLabel.textContent = label;
+    this.ring.style.setProperty('--warm', String(k));
+  }
+
+  /** Letterbox bars for the director's shots. */
+  letterbox(on: boolean): void {
+    this.bars.classList.toggle('on', on);
   }
 
   /** A pale flash (a rewind). */

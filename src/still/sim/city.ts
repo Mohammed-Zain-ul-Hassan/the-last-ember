@@ -10,7 +10,9 @@ import { buildGraph, steer, type WalkGraph } from './wrong';
 import { inRect, type District, type FigureDef, type MechDef, type Pit, type Plate, type Spot } from './types';
 
 export const DT = 1 / 60;
-export const BODY = { r: 0.32, h: 1.8, speed: 4.3, backSpeed: 3.1, ghostSpeed: 4.0, accel: 12, gravity: -24 };
+// how the flame he carries sets his pace: held low he goes carefully (a low light, eyes on the ground), held up he
+// walks, drawn back (Shift: the flame sheltered behind him) he runs, which is how the chases are played
+export const BODY = { r: 0.32, h: 1.8, careful: 2.4, speed: 4.3, run: 5.4, ghostSpeed: 4.0, accel: 12, gravity: -24 };
 export const ASH = { start: 5, max: 5, wake: 1, stepIn: 2, rewind: 1 };
 const ALIGN = { tol: 12, exit: 4, hold: 0.4, size: 30, feel: 35 };
 const REACH = 1.8; // how close he must be to a brazier, torch or lever to use it
@@ -135,6 +137,8 @@ export type CityEvent =
   | { type: 'seqFail'; seq: number }
   | { type: 'pageSide'; i: number }
   | { type: 'pageRead'; i: number }
+  | { type: 'debrisWarn'; x: number; z: number }
+  | { type: 'debris'; x: number; z: number; hit: boolean }
   | { type: 'exit' };
 
 export interface CityState {
@@ -163,6 +167,7 @@ export interface CityState {
   progress: Record<string, number>; // per puzzle: when it last moved forward
   caughtRun: number; // times caught without lighting it in between (a hint trigger)
   seq: number[]; // progress through each sequence
+  debris: { next: number; warned: boolean; x: number; z: number }[];
   pages: { side: boolean; held: number }[];
 }
 
@@ -214,6 +219,7 @@ export class City {
       progress: {},
       caughtRun: 0,
       seq: d.sequences.map(() => 0),
+      debris: (d.debris ?? []).map(() => ({ next: 0, warned: false, x: 0, z: 0 })),
       pages: d.pages.map(() => ({ side: false, held: 0 })),
     };
     for (const f of d.figures) if (f.word !== undefined && words[f.word]) this.s.figs[d.figures.indexOf(f)].found = true;
@@ -348,6 +354,7 @@ export class City {
     this.stepPlates(dt);
     this.stepDerive();
     this.stepGusts(dt);
+    this.stepDebris();
     this.stepWrong(inp, dt);
     if (s.status === 'fall') {
       s.statusT += dt;
@@ -398,7 +405,9 @@ export class City {
     const s = this.s;
     const b = s.body;
     const falling = s.status === 'fall';
-    const speed = falling ? 0.6 : inp.back ? BODY.backSpeed : BODY.speed;
+    const held = s.flame.y - Math.max(0, b.y); // how high the flame is in his hand
+    const k = Math.max(0, Math.min(1, (held - 1.35) / 0.6));
+    const speed = falling ? 0.6 : inp.back ? BODY.run : BODY.careful + (BODY.speed - BODY.careful) * k;
     const ox = b.x;
     const oz = b.z;
     this.move(b, falling ? 0 : inp.mx, falling ? 0 : inp.mz, speed, dt);
@@ -564,6 +573,7 @@ export class City {
         rt.found = true;
         if (def.word !== undefined) s.words[def.word] = true;
         this.events.push({ type: 'found', fig: i });
+        this.setFlag('found:' + def.id);
         if (def.puzzle) s.progress[def.puzzle] = s.t;
       }
     });
@@ -651,6 +661,7 @@ export class City {
         break;
       case 'riddle':
         this.events.push({ type: 'riddle', i: focus.i });
+        this.setFlag('read:' + d.riddles[focus.i].id);
         break;
     }
   }
@@ -734,6 +745,7 @@ export class City {
     }
     const first = !s.braziers[i];
     s.braziers[i] = true;
+    this.setFlag('rest:' + br.id);
     s.ash = Math.max(s.ash, ASH.max);
     s.flame.vigor = 1;
     s.flame.relight = 0;
@@ -858,6 +870,34 @@ export class City {
       if (s.plates[i] >= (p.hold ?? 0.6)) {
         this.setFlag(p.id);
         this.events.push({ type: 'plate', id: p.id });
+      }
+    });
+  }
+
+  /** Falling stones: one every period somewhere just ahead of him, warned by dust 0.9 s before it lands. */
+  private stepDebris(): void {
+    const s = this.s;
+    (this.d.debris ?? []).forEach((db, i) => {
+      const st = s.debris[i];
+      if (!this.flag(db.after) || !inRect(db.rect, s.body.x, s.body.z)) return;
+      if (st.next === 0) st.next = s.t + db.period;
+      if (!st.warned && s.t >= st.next - 0.9) {
+        // ahead of him, scattered (deterministic from the time, so a rewind replays it)
+        const r = Math.sin(st.next * 12.9898) * 43758.5453;
+        const f = r - Math.floor(r);
+        // beside his line, not on it: a stone that lands where a steady runner will be is not a hazard, it is a tax
+        const side = f < 0.5 ? -1 : 1;
+        st.x = Math.max(db.rect.x0, Math.min(db.rect.x1, s.body.x + s.body.vx * 0.9 + (f - 0.5) * 2));
+        st.z = Math.max(db.rect.z0, Math.min(db.rect.z1, s.body.z + s.body.vz * 0.9 + side * (1.2 + f * 0.6)));
+        st.warned = true;
+        this.events.push({ type: 'debrisWarn', x: st.x, z: st.z });
+      }
+      if (s.t >= st.next) {
+        const hit = Math.hypot(s.body.x - st.x, s.body.z - st.z) < 0.95;
+        if (hit) this.hurtFlame(0.3);
+        this.events.push({ type: 'debris', x: st.x, z: st.z, hit });
+        st.next = s.t + db.period;
+        st.warned = false;
       }
     });
   }

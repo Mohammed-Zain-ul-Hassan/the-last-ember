@@ -1,0 +1,580 @@
+{
+  "open.1": {
+    "voice": "narrator",
+    "text": "The fire has burned since the day everything stopped. No one remembers who lit it."
+  },
+  "open.2": {
+    "voice": "narrator",
+    "text": "Carry it carefully. It is all the time that is left."
+  },
+  "gate.firstLit": {
+    "voice": "narrator",
+    "text": "He is still reaching for the lever. He has been reaching for four thousand years."
+  },
+  "gate.replayEnds": {
+    "voice": "narrator",
+    "text": "The light moves on. So does he, back into the wall."
+  },
+  "gate.stepIn": {
+    "voice": "narrator",
+    "text": "Do what he did. Only what he did."
+  },
+  "gate.opens": {
+    "voice": "narrator",
+    "text": "The city lets you in. It is not sure why."
+  },
+  "gate.wrongSeen": {
+    "voice": "narrator",
+    "text": "That one was not here before."
+  },
+  "market.enter": {
+    "voice": "narrator",
+    "text": "They were haggling when it happened. Listen. You can almost hear it."
+  },
+  "market.balanced": {
+    "voice": "narrator",
+    "text": "A fair weight, at last."
+  },
+  "market.bridge": {
+    "voice": "narrator",
+    "text": "A poor man's shadow, carrying you. He would have liked that."
+  },
+  "market.collapse": {
+    "voice": "narrator",
+    "text": "Run. The city remembers how to fall."
+  },
+  "market.brazier": {
+    "voice": "narrator",
+    "text": "Rest. The fire needs it more than you."
+  },
+  "temple.enter": {
+    "voice": "narrator",
+    "text": "They prayed for more time. They were given exactly this."
+  },
+  "temple.priest": {
+    "voice": "narrator",
+    "text": "One begged. One ran. One only waited."
+  },
+  "temple.vault": {
+    "voice": "narrator",
+    "text": "The hours were never lost. Only held."
+  },
+  "temple.nearFalse": {
+    "voice": "narrator",
+    "text": "The flame looks warm. Look closer."
+  },
+  "temple.fellFalse": {
+    "voice": "narrator",
+    "text": "Not all fires are kind."
+  },
+  "library.enter": {
+    "voice": "narrator",
+    "text": "They wrote it down so no one would forget. Then everyone forgot to read."
+  },
+  "library.side": {
+    "voice": "narrator",
+    "text": "A comfortable lie."
+  },
+  "library.above": {
+    "voice": "narrator",
+    "text": "There it is. Plainly. Someone lit this fire on purpose."
+  },
+  "library.face": {
+    "voice": "narrator",
+    "text": "You have seen that face before. In every still water."
+  },
+  "heart.enter": {
+    "voice": "narrator",
+    "text": "Every shadow in the city is looking at you. Not at the fire. At you."
+  },
+  "heart.plate": {
+    "voice": "narrator",
+    "text": "One lesson remembered."
+  },
+  "heart.fifth": {
+    "voice": "narrator",
+    "text": "The last angle is the one you cast yourself."
+  },
+  "heart.rumble": {
+    "voice": "narrator",
+    "text": "Do you hear it? It has been waiting a very long time."
+  },
+  "death.1": {
+    "voice": "narrator",
+    "text": "The flame returns to the wall. The wall remembers you now."
+  },
+  "death.2": {
+    "voice": "narrator",
+    "text": "Again. The city is patient."
+  },
+  "death.3": {
+    "voice": "narrator",
+    "text": "You are not the first to try."
+  },
+  "death.4": {
+    "voice": "narrator",
+    "text": "You are the first to try this long."
+  },
+  "flame.low": {
+    "voice": "flame",
+    "text": "I am fading. Be quick."
+  },
+  "flame.out": {
+    "voice": "flame",
+    "text": "Dark. Find a torch. Please."
+  },
+  "flame.relit": {
+    "voice": "flame",
+    "text": "Thank you. I was afraid."
+  },
+  "wrong.notYet": {
+    "voice": "wrong",
+    "text": "Not yet. Not yet. Not yet."
+  },
+  "wrong.face": {
+    "voice": "wrong",
+    "text": "You have always known my face."
+  },
+  "wrong.kinder": {
+    "voice": "wrong",
+    "text": "It is kinder to look away."
+  },
+  "wrong.knows": {
+    "voice": "wrong",
+    "text": "I know where it goes. I have always known."
+  },
+  "wrong.door": {
+    "voice": "wrong",
+    "text": "Hold the door. Please. Just a little longer."
+  },
+  "hint.stuck.1": {
+    "voice": "flame",
+    "text": "Something here is waiting to be seen."
+  },
+  "hint.stuck.2": {
+    "voice": "flame",
+    "text": "Turn the light. Slowly. Let it tell you."
+  },
+  "hint.stuck.3": {
+    "voice": "flame",
+    "text": "Watch. I will show you once."
+  },
+  "hint.failed.1": {
+    "voice": "flame",
+    "text": "Not quite. Close, though."
+  },
+  "hint.failed.2": {
+    "voice": "flame",
+    "text": "Lower me. Or higher. Feel where I want to go."
+  },
+  "hint.failed.3": {
+    "voice": "flame",
+    "text": "There. That angle. Hold me there."
+  },
+  "hint.ash.1": {
+    "voice": "flame",
+    "text": "I am running thin. We should rest."
+  },
+  "hint.ash.2": {
+    "voice": "flame",
+    "text": "There is a brazier ahead. I can feel its warmth."
+  },
+  "hint.ash.3": {
+    "voice": "flame",
+    "text": "Follow the embers. They lead home."
+  },
+  "hint.caught.1": {
+    "voice": "flame",
+    "text": "Cold air. Something is behind us."
+  },
+  "hint.caught.2": {
+    "voice": "flame",
+    "text": "It moves when you stop looking. Look back."
+  },
+  "hint.caught.3": {
+    "voice": "flame",
+    "text": "There. That is where it stands."
+  },
+  "hint.word.1": {
+    "voice": "flame",
+    "text": "Someone left something here."
+  },
+  "hint.word.2": {
+    "voice": "flame",
+    "text": "Closer. Do you hear it humming?"
+  },
+  "hint.word.3": {
+    "voice": "flame",
+    "text": "Right there. In the corner. A last word."
+  },
+  "hint.riddle.1": {
+    "voice": "flame",
+    "text": "Read it again. Slowly."
+  },
+  "hint.riddle.2": {
+    "voice": "flame",
+    "text": "The answer is in the words, not the wall."
+  },
+  "hint.riddle.3": {
+    "voice": "flame",
+    "text": "The answer is what follows you."
+  },
+  "pz.gate.1": {
+    "voice": "flame",
+    "text": "The guard faces away from where the light should fall. Try the other side."
+  },
+  "pz.gate.2": {
+    "voice": "flame",
+    "text": "He reaches for something behind the pillar."
+  },
+  "pz.market.1": {
+    "voice": "flame",
+    "text": "A low sun makes long shadows. Remember that."
+  },
+  "pz.market.2": {
+    "voice": "flame",
+    "text": "The scale only needs a smaller shadow on one side."
+  },
+  "pz.temple.1": {
+    "voice": "flame",
+    "text": "The priests did not die together. Who was first?"
+  },
+  "pz.temple.2": {
+    "voice": "flame",
+    "text": "One of them is not praying. He is only looking up."
+  },
+  "pz.library.1": {
+    "voice": "flame",
+    "text": "Read from the side, it lies. Try from above."
+  },
+  "pz.library.2": {
+    "voice": "flame",
+    "text": "Seven pages. Seven small truths."
+  },
+  "pz.heart.1": {
+    "voice": "flame",
+    "text": "Four plates, four lessons. The fifth is missing, and it is closer than you think."
+  },
+  "pz.heart.2": {
+    "voice": "flame",
+    "text": "Hold me close. Let your own shadow fall."
+  },
+  "end.keep.1": {
+    "voice": "narrator",
+    "text": "The fire settles. The city goes quiet again."
+  },
+  "end.keep.2": {
+    "voice": "narrator",
+    "text": "Safe. Whole. Still. This is a kind of mercy."
+  },
+  "end.keep.3": {
+    "voice": "narrator",
+    "text": "Somewhere, a shadow reaches for a door, and does not reach it."
+  },
+  "end.letGo.1": {
+    "voice": "narrator",
+    "text": "The dark arrives. Then, for the first time in four thousand years, footsteps."
+  },
+  "end.letGo.2": {
+    "voice": "narrator",
+    "text": "They are alive. They are looking at you. They are smiling."
+  },
+  "end.letGo.3": {
+    "voice": "narrator",
+    "text": "Then the sound of water. It does not stop."
+  },
+  "end.door.1": {
+    "voice": "narrator",
+    "text": "They heard you. Every last word, all of them, at once."
+  },
+  "end.door.2": {
+    "voice": "narrator",
+    "text": "For one second the city moves, and one second is enough."
+  },
+  "end.door.3": {
+    "voice": "narrator",
+    "text": "The door holds. The shadow holds it. It knew it would."
+  },
+  "end.door.4": {
+    "voice": "narrator",
+    "text": "The fire has burned for four thousand years. Now it can finally go out."
+  },
+  "word.1": {
+    "voice": "word",
+    "who": "the lever guard",
+    "text": "Tell my wife the gate is open."
+  },
+  "word.2": {
+    "voice": "word",
+    "who": "the second guard",
+    "text": "Did you hear that? Like rain, but under the floor."
+  },
+  "word.3": {
+    "voice": "word",
+    "who": "the gate boy",
+    "text": "I only wanted to see the market."
+  },
+  "word.4": {
+    "voice": "word",
+    "who": "the watch captain",
+    "text": "Close it behind us. Close it now."
+  },
+  "word.5": {
+    "voice": "word",
+    "who": "the old gatekeeper",
+    "text": "I have never once been late."
+  },
+  "word.6": {
+    "voice": "word",
+    "who": "the fishmonger",
+    "text": "Fresh this morning. Ask anyone."
+  },
+  "word.7": {
+    "voice": "word",
+    "who": "the beggar",
+    "text": "A coin for the road. Or for the river."
+  },
+  "word.8": {
+    "voice": "word",
+    "who": "the baker",
+    "text": "The bread will be warm. Wait for me."
+  },
+  "word.9": {
+    "voice": "word",
+    "who": "a child with a toy",
+    "text": "Mama, the ground is wet."
+  },
+  "word.10": {
+    "voice": "word",
+    "who": "the scale merchant",
+    "text": "A fair weight. I swear it on my name."
+  },
+  "word.11": {
+    "voice": "word",
+    "who": "the coin changer",
+    "text": "Count it twice. Count it again."
+  },
+  "word.12": {
+    "voice": "word",
+    "who": "the water-seller",
+    "text": "The wells are rising. Has anyone noticed?"
+  },
+  "word.13": {
+    "voice": "word",
+    "who": "the idle priest",
+    "text": "There is still time. There is always time."
+  },
+  "word.14": {
+    "voice": "word",
+    "who": "the fleeing priest",
+    "text": "Run. Leave the bells, leave everything."
+  },
+  "word.15": {
+    "voice": "word",
+    "who": "the praying priest",
+    "text": "Give us one more hour. Just one."
+  },
+  "word.16": {
+    "voice": "word",
+    "who": "the priest looking up",
+    "text": "The light is changing. Something is lighting the sky."
+  },
+  "word.17": {
+    "voice": "word",
+    "who": "the bell-ringer",
+    "text": "I rang it as loud as I could."
+  },
+  "word.18": {
+    "voice": "word",
+    "who": "the acolyte",
+    "text": "Who is that, standing in the doorway?"
+  },
+  "word.19": {
+    "voice": "word",
+    "who": "the high priest",
+    "text": "If someone lights a fire, let it burn."
+  },
+  "word.20": {
+    "voice": "word",
+    "who": "the scribe",
+    "text": "I wrote it all down, in case we forgot."
+  },
+  "word.21": {
+    "voice": "word",
+    "who": "the archivist",
+    "text": "The east stair is the only way up.",
+    "clue": true
+  },
+  "word.22": {
+    "voice": "word",
+    "who": "the student",
+    "text": "We were warned. We thought it was a story."
+  },
+  "word.23": {
+    "voice": "word",
+    "who": "the librarian",
+    "text": "Take the book. Leave me the lamp."
+  },
+  "word.24": {
+    "voice": "word",
+    "who": "the mapmaker",
+    "text": "The water comes from the west. Draw it.",
+    "clue": true
+  },
+  "word.25": {
+    "voice": "word",
+    "who": "the poet",
+    "text": "Someone will read this, one day."
+  },
+  "word.26": {
+    "voice": "word",
+    "who": "a child reader",
+    "text": "Is that you? Why do you look so tired?"
+  },
+  "word.27": {
+    "voice": "word",
+    "who": "a mother with a child",
+    "text": "Hold my hand. Don't let go this time."
+  },
+  "word.28": {
+    "voice": "word",
+    "who": "the soldier",
+    "text": "I will hold the door.",
+    "clue": true
+  },
+  "word.29": {
+    "voice": "word",
+    "who": "the old man",
+    "text": "We were saved once, before. By someone stubborn."
+  },
+  "word.30": {
+    "voice": "word",
+    "who": "the dancer",
+    "text": "Stay with me. Just one more song."
+  },
+  "word.31": {
+    "voice": "word",
+    "who": "a twin",
+    "text": "Look. The fire is the same shape as you."
+  },
+  "word.32": {
+    "voice": "word",
+    "who": "the carpenter",
+    "text": "I built the stairs. Nobody ever used them.",
+    "clue": true
+  },
+  "word.33": {
+    "voice": "word",
+    "who": "the baker's wife",
+    "text": "Did you save the bread?"
+  },
+  "word.34": {
+    "voice": "word",
+    "who": "the beggar's friend",
+    "text": "He said a river was coming. Nobody listened."
+  },
+  "word.35": {
+    "voice": "word",
+    "who": "the priest",
+    "text": "The hour is one second long. Use it.",
+    "clue": true
+  },
+  "word.36": {
+    "voice": "word",
+    "who": "the Wrong Shadow",
+    "text": "I lit it. Forgive me. I would do it again."
+  },
+  "riddle.gate": {
+    "voice": "inscription",
+    "who": "carved above the gate",
+    "text": "What follows the light, yet leads the way?"
+  },
+  "riddle.market": {
+    "voice": "inscription",
+    "who": "on a coin-stall sign",
+    "text": "The poor man's shadow is longer at dusk than the king's at noon."
+  },
+  "riddle.temple": {
+    "voice": "inscription",
+    "who": "on the vault",
+    "text": "One hour wasted, one feared, one begged for, one never seen."
+  },
+  "riddle.library": {
+    "voice": "inscription",
+    "who": "above the door",
+    "text": "Read me from the side and I'm a lie, from above and I'm the end."
+  },
+  "riddle.heart": {
+    "voice": "inscription",
+    "who": "on the center floor",
+    "text": "I am the one who is missing, and the one who stayed."
+  },
+  "cue.musicStops": {
+    "voice": "cue",
+    "text": "[the music stops]"
+  },
+  "cue.lateStep": {
+    "voice": "cue",
+    "text": "[a footstep, half a beat late]"
+  },
+  "cue.breath": {
+    "voice": "cue",
+    "text": "[a low breath, behind you]"
+  },
+  "cue.drip": {
+    "voice": "cue",
+    "text": "[water dripping, somewhere close]"
+  },
+  "cue.rumble": {
+    "voice": "cue",
+    "text": "[water rumbling, far below]"
+  },
+  "cue.rumbleNear": {
+    "voice": "cue",
+    "text": "[the water roars; the floor trembles]"
+  },
+  "cue.coldHum": {
+    "voice": "cue",
+    "text": "[a cold, hollow hum]"
+  },
+  "cue.crackle": {
+    "voice": "cue",
+    "text": "[a warm crackle]"
+  },
+  "cue.wind": {
+    "voice": "cue",
+    "text": "[wind rising]"
+  },
+  "cue.stone": {
+    "voice": "cue",
+    "text": "[stone cracking overhead]"
+  },
+  "cue.bell": {
+    "voice": "cue",
+    "text": "[a bell, far off]"
+  },
+  "cue.chains": {
+    "voice": "cue",
+    "text": "[chains; iron grinding upward]"
+  },
+  "cue.gate": {
+    "voice": "cue",
+    "text": "[the gate groans open]"
+  },
+  "cue.hum": {
+    "voice": "cue",
+    "text": "[a low hum, rising]"
+  },
+  "cue.water": {
+    "voice": "cue",
+    "text": "[water, rushing, not stopping]"
+  },
+  "cue.footsteps": {
+    "voice": "cue",
+    "text": "[footsteps, everywhere at once]"
+  },
+  "cue.collapse": {
+    "voice": "cue",
+    "text": "[the street giving way]"
+  }
+}

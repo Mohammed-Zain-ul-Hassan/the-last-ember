@@ -741,7 +741,7 @@ export class DistrictView {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 });
+    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, emissive: new THREE.Color(1, 0.75, 0.45), emissiveMap: tex, emissiveIntensity: 0 });
     const m = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), mat);
     m.position.set(x, y, z);
     m.rotation.y = ry;
@@ -854,6 +854,12 @@ export class DistrictView {
       pv.lie.material.opacity = 1 - pv.k * 0.9;
       pv.truth.material.emissiveIntensity = read ? 0.25 + 0.1 * Math.sin(t * 2 + pv.i) : 0;
     }
+    this.plaqueGlow = Math.max(0, this.plaqueGlow - dt);
+    for (const pl of this.plaques) {
+      const m = pl.material as THREE.MeshStandardMaterial;
+      if (!m.emissive) continue;
+      m.emissiveIntensity = Math.min(1, this.plaqueGlow) * (0.45 + 0.15 * Math.sin(t * 4));
+    }
     // a pit that opens: its slabs fall
     for (const p of this.pitSlabs) {
       const pit = this.d.pits[p.pit];
@@ -863,6 +869,12 @@ export class DistrictView {
       p.mesh.rotation.x += dt * 1.3;
       p.mesh.visible = p.mesh.position.y > -12;
     }
+  }
+
+  private plaqueGlow = 0;
+  /** A hint: the inscriptions brighten for a while (the riddle's first tier). */
+  brightenPlaques(seconds: number): void {
+    this.plaqueGlow = Math.max(this.plaqueGlow, seconds);
   }
 
   dispose(): void {

@@ -1,77 +1,98 @@
 import { HINTS, PUZZLE_WHISPERS, type HintTrigger, type Line } from '../data/stillCity';
 import type { City } from './sim/city';
-import type { StillHud } from './ui/hud';
 import { save } from './save';
 
-// The conditional hints. The flame gives every hint, a whisper and a small cue, and hints climb three tiers only
-// while the player is stuck: 1 nudge (a cue only, and a whisper), 2 guide, 3 reveal. A 90-second cooldown separates
-// tiers; progress on a puzzle resets its tier; never during a chase. Off / Gentle (tier 1 only) / Guided (all).
+// The conditional hints (docs/still-city-design.md, "Conditional hint system"): one state machine per puzzle, plus
+// the triggers that are not about a puzzle (Ash, being caught, a Last Word near). The flame gives every hint: a
+// whisper and a small cue. Tiers climb only while the player is stuck: 1 nudge, 2 guide, 3 reveal; 90 s between
+// tiers; progress on a puzzle resets its tiers; never during a chase. Off / Gentle (tier 1 only) / Guided (all).
 //
-//   stuck in one place 3 min     nearest unheard shadow glows · flame leans toward the key figure · its true angle marked
-//   same puzzle failed 3 times   key shadow pulses            · flame trembles toward the angle  · angle marker for 5 s
-//   Ash at 1 or less             a brazier glints             · its direction whispered          · a path of embers to it
-//   caught twice in a row        a cold breeze from it        · the flame flares at his back     · its outline glows 3 s
-//   a Last Word within 10 m      the hum rises (always on)    · the hum pulses faster (always)   · its shadow shimmers once
-//   riddle read twice, no help   the inscription brightens    · a key word whispered             · the plain answer
+//   trigger                       tier 1 nudge                  tier 2 guide                       tier 3 reveal
+//   in one room 3 min, no progress the nearest unlit shadow glows the flame leans to the key shadow   a ghost replay of it
+//   same puzzle failed 3 times    the key shadow pulses once    the flame trembles to the angle    angle marker for 5 s
+//   Ash at 1 or less              a brazier glints              its direction whispered            a path of embers to it
+//   caught twice in a row         a cold breeze from it         the flame flares at his back       its outline glows 3 s
+//   a Last Word within 10 m       the hum rises when facing it  the hum pulses faster (always on)  its shadow shimmers
+//   riddle read twice, no help    the inscription brightens     a key word whispered               the plain answer
 
 export interface HintCues {
   glowFigure: (fig: number, seconds: number) => void;
+  ghostReplay: (fig: number) => void;
   markAngle: (fig: number, seconds: number) => void;
   leanFlame: (x: number, z: number, seconds: number) => void;
   emberPath: (x: number, z: number, seconds: number) => void;
   outlineWrong: (seconds: number) => void;
   coldBreeze: (seconds: number) => void;
   glintBrazier: (i: number, seconds: number) => void;
+  brightenRiddle: (seconds: number) => void;
+}
+
+/** One puzzle's hint state. */
+interface Puzzle {
+  since: number; // when it last moved forward (or began)
+  fails: number;
+  riddleReads: number;
+  tier: Record<'stuck' | 'failed' | 'riddle', number>;
+  next: Record<'stuck' | 'failed' | 'riddle', number>;
 }
 
 const COOLDOWN = 90;
 const STUCK = 180;
 
 export class Hints {
-  private tier: Record<HintTrigger, number> = { stuck: 0, failed: 0, ash: 0, caught: 0, word: 0, riddle: 0 };
-  private next: Record<HintTrigger, number> = { stuck: STUCK, failed: 0, ash: 0, caught: 0, word: 0, riddle: 0 };
   private t = 0;
-  private lastProgress = 0;
-  private fails = 0;
-  private riddleReads = 0;
+  private puzzles = new Map<string, Puzzle>();
+  private globalTier: Record<'ash' | 'caught' | 'word', number> = { ash: 0, caught: 0, word: 0 };
+  private globalNext: Record<'ash' | 'caught' | 'word', number> = { ash: 0, caught: 0, word: 0 };
   private askN = 0;
-  private hud: StillHud;
+  private speak: (l: Line, priority: number) => void;
+  private note: (text: string) => void;
   private cues: HintCues;
   private city: () => City;
+  /** The puzzle in front of him (the guide's current objective) and the figure it turns on. */
+  private puzzleKey: () => string;
 
-  constructor(hud: StillHud, city: () => City, cues: HintCues) {
-    this.hud = hud;
+  constructor(speak: (l: Line, priority: number) => void, note: (text: string) => void, city: () => City, puzzleKey: () => string, cues: HintCues) {
+    this.speak = speak;
+    this.note = note;
     this.city = city;
+    this.puzzleKey = puzzleKey;
     this.cues = cues;
   }
 
-  reset(): void {
-    this.t = 0;
-    this.lastProgress = 0;
-    this.fails = 0;
-    this.riddleReads = 0;
-    for (const k of Object.keys(this.tier) as HintTrigger[]) {
-      this.tier[k] = 0;
-      this.next[k] = k === 'stuck' ? STUCK : 0;
+  private get p(): Puzzle {
+    const k = this.puzzleKey();
+    let p = this.puzzles.get(k);
+    if (!p) {
+      p = { since: this.t, fails: 0, riddleReads: 0, tier: { stuck: 0, failed: 0, riddle: 0 }, next: { stuck: this.t + STUCK, failed: 0, riddle: 0 } };
+      this.puzzles.set(k, p);
     }
+    return p;
   }
 
-  /** Progress resets the puzzle hints (and the stuck clock). */
+  reset(): void {
+    this.globalTier = { ash: 0, caught: 0, word: 0 };
+    this.globalNext = { ash: 0, caught: 0, word: 0 };
+    this.askN = 0;
+  }
+
+  /** Progress on the puzzle in front of him resets its tiers. */
   progress(): void {
-    this.lastProgress = this.t;
-    this.tier.stuck = this.tier.failed = this.tier.riddle = 0;
-    this.next.stuck = this.t + STUCK;
-    this.fails = 0;
-    this.riddleReads = 0;
+    const p = this.p;
+    p.since = this.t;
+    p.fails = 0;
+    p.riddleReads = 0;
+    p.tier = { stuck: 0, failed: 0, riddle: 0 };
+    p.next = { stuck: this.t + STUCK, failed: 0, riddle: 0 };
   }
   failed(): void {
-    this.fails++;
+    this.p.fails++;
   }
   caught(): void {
-    /* read from the sim's caughtRun */
+    /* the sim counts it (caughtRun) */
   }
   riddleRead(_puzzle?: string): void {
-    this.riddleReads++;
+    this.p.riddleReads++;
   }
 
   private get maxTier(): number {
@@ -85,21 +106,48 @@ export class Hints {
     return !(w.on && !w.gone && w.dist < 9) && !c.flag('collapse') && c.s.status === 'play' && !c.s.ghost;
   }
 
+  /** The figure the current puzzle turns on: the nearest one not yet woken (or not yet found). */
+  private keyFigure(): number {
+    const c = this.city();
+    const b = c.s.body;
+    let best = -1;
+    let bd = Infinity;
+    c.d.figures.forEach((f, i) => {
+      const rt = c.s.figs[i];
+      if (!c.present(i) || (f.clip ? rt.woke : rt.found)) return;
+      const dd = Math.hypot(f.x - b.x, f.z - b.z);
+      if (dd < bd) {
+        bd = dd;
+        best = i;
+      }
+    });
+    return best;
+  }
+
+  private nearWord(): number {
+    const c = this.city();
+    const b = c.s.body;
+    return c.d.figures.findIndex((f, i) => f.word !== undefined && !c.s.words[f.word] && c.present(i) && !f.clip && Math.hypot(f.x - b.x, f.z - b.z) < 10);
+  }
+
   private give(trig: HintTrigger, tier: number): void {
     const c = this.city();
     const d = c.d;
-    const line: Line = HINTS[trig][tier - 1];
-    this.hud.say(line);
+    this.speak(HINTS[trig][tier - 1], 1);
     const key = this.keyFigure();
+    const f = key >= 0 ? d.figures[key] : null;
     switch (trig) {
       case 'stuck':
         if (tier === 1 && key >= 0) this.cues.glowFigure(key, 6);
-        if (tier === 2 && key >= 0) this.cues.leanFlame(d.figures[key].x, d.figures[key].z, 5);
-        if (tier === 3 && key >= 0) this.cues.markAngle(key, 8);
+        if (tier === 2 && f) this.cues.leanFlame(f.x, f.z, 5);
+        if (tier === 3 && key >= 0) {
+          if (f?.clip) this.cues.ghostReplay(key);
+          this.cues.markAngle(key, 8);
+        }
         break;
       case 'failed':
         if (tier === 1 && key >= 0) this.cues.glowFigure(key, 2);
-        if (tier === 2 && key >= 0) this.cues.leanFlame(d.figures[key].light[0], d.figures[key].light[2], 5);
+        if (tier === 2 && f) this.cues.leanFlame(f.light[0], f.light[2], 5);
         if (tier === 3 && key >= 0) this.cues.markAngle(key, 5);
         break;
       case 'ash': {
@@ -129,67 +177,60 @@ export class Hints {
         }
         break;
       case 'riddle':
+        if (tier === 1) this.cues.brightenRiddle(6);
         break;
     }
   }
 
-  /** The figure the current puzzle turns on: the nearest one not yet woken (or not yet found). */
-  private keyFigure(): number {
-    const c = this.city();
-    const b = c.s.body;
-    let best = -1;
-    let bd = Infinity;
-    c.d.figures.forEach((f, i) => {
-      const rt = c.s.figs[i];
-      if (!c.present(i) || (f.clip ? rt.woke : rt.found)) return;
-      const dd = Math.hypot(f.x - b.x, f.z - b.z);
-      if (dd < bd) {
-        bd = dd;
-        best = i;
-      }
-    });
-    return best;
+  private bumpPuzzle(trig: 'stuck' | 'failed' | 'riddle', condition: boolean): void {
+    const p = this.p;
+    if (!condition || this.t < p.next[trig] || p.tier[trig] >= this.maxTier) return;
+    p.tier[trig]++;
+    p.next[trig] = this.t + COOLDOWN;
+    this.give(trig, p.tier[trig]);
   }
 
-  private nearWord(): number {
-    const c = this.city();
-    const b = c.s.body;
-    return c.d.figures.findIndex((f, i) => f.word !== undefined && !c.s.words[f.word] && c.present(i) && Math.hypot(f.x - b.x, f.z - b.z) < 10);
-  }
-
-  private bump(trig: HintTrigger, condition: boolean): void {
-    if (!condition || this.t < this.next[trig] || this.tier[trig] >= this.maxTier) return;
-    this.tier[trig]++;
-    this.next[trig] = this.t + COOLDOWN;
-    this.give(trig, this.tier[trig]);
+  private bumpGlobal(trig: 'ash' | 'caught' | 'word', condition: boolean): void {
+    if (!condition) {
+      // the condition passed: its hints start over next time
+      if (this.globalTier[trig] && this.t > this.globalNext[trig]) this.globalTier[trig] = 0;
+      return;
+    }
+    if (this.t < this.globalNext[trig] || this.globalTier[trig] >= this.maxTier) return;
+    this.globalTier[trig]++;
+    this.globalNext[trig] = this.t + COOLDOWN;
+    this.give(trig, this.globalTier[trig]);
   }
 
   update(dt: number): void {
     this.t += dt;
     if (this.maxTier === 0 || !this.calm) return;
     const c = this.city();
-    this.bump('failed', this.fails >= 3);
-    this.bump('ash', c.s.ash <= 1);
-    this.bump('caught', c.s.caughtRun >= 2);
-    this.bump('riddle', this.riddleReads >= 2 && this.t - this.lastProgress > 60);
-    this.bump('word', this.nearWord() >= 0 && this.t - this.lastProgress > 120);
-    this.bump('stuck', this.t - this.lastProgress >= STUCK);
+    const p = this.p;
+    this.bumpPuzzle('failed', p.fails >= 3);
+    this.bumpPuzzle('riddle', p.riddleReads >= 2 && this.t - p.since > 60);
+    this.bumpPuzzle('stuck', this.t - p.since >= STUCK);
+    this.bumpGlobal('ash', c.s.ash <= 1);
+    this.bumpGlobal('caught', c.s.caughtRun >= 2);
+    this.bumpGlobal('word', this.nearWord() >= 0 && this.t - p.since > 120);
   }
 
-  /** H: ask the flame. It answers with the district's own puzzle whispers, then the next stuck tier. */
+  /** H: ask the flame. It answers with the district's own puzzle whispers first, then the next tier. */
   ask(): void {
     if (save.hints === 'off') {
-      this.hud.note('Hints are off (Esc to change).');
+      this.note('Hints are off (Esc to change).');
       return;
     }
     const list = PUZZLE_WHISPERS[this.city().d.id] ?? [];
     if (this.askN < list.length) {
-      this.hud.say(list[this.askN++]);
+      this.speak(list[this.askN++], 1);
       return;
     }
-    if (this.tier.stuck < this.maxTier) {
-      this.tier.stuck++;
-      this.give('stuck', this.tier.stuck);
-    } else this.hud.say(list[this.askN++ % Math.max(1, list.length)]);
+    const p = this.p;
+    if (p.tier.stuck < this.maxTier) {
+      p.tier.stuck++;
+      p.next.stuck = this.t + COOLDOWN;
+      this.give('stuck', p.tier.stuck);
+    } else this.speak(list[this.askN++ % Math.max(1, list.length)], 1);
   }
 }

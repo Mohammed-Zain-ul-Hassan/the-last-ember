@@ -4,7 +4,7 @@ import { Figure, type FigureLook, type Kind } from '../../render/memory';
 import { rimify } from '../../render/rim';
 import { surface } from '../../render/surface';
 import { glowTexture } from '../../render/textures';
-import { poseAt, run, STAND, type Pose } from '../../sim/pose';
+import { placeAt, poseAt, run, STAND, type Pose } from '../../sim/pose';
 import type { City } from '../sim/city';
 import type { District, FigureDef, Plane } from '../sim/types';
 
@@ -22,6 +22,9 @@ const STATUE: FigureLook = {
   matDouble: surface(rimify(new THREE.MeshStandardMaterial({ color: 0x4c4752, roughness: 0.92, side: THREE.DoubleSide }), 0.55, 'scstatue2'), 'stone'),
 };
 const EMBER = new THREE.Color(1.6, 0.55, 0.18);
+/** The tier-3 hint's ghost replay: the solution shown once, from a distance, pale and cold. */
+const GHOST_MAT = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.35, 0.55, 1.4), transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending });
+const GHOST: FigureLook = { baseY: 0, mat: GHOST_MAT, matDouble: GHOST_MAT };
 const REPLAY: FigureLook = {
   baseY: 0,
   mat: rimify(new THREE.MeshStandardMaterial({ color: 0x2a1408, emissive: EMBER, emissiveIntensity: 0.55, roughness: 0.7 }), 1.3, 'screplay'),
@@ -91,6 +94,18 @@ export class FigureViews {
     this.hintT[i] = Math.max(this.hintT[i] ?? 0, seconds);
   }
 
+  private ghost: { fig: Figure; i: number; t: number } | null = null;
+  /** A hint (tier 3): the figure's last ten seconds played once as a pale ghost, free, changing nothing. */
+  ghostReplay(i: number): void {
+    const it = this.items[i];
+    if (!it?.def.clip) return;
+    if (this.ghost) this.ghost.fig.root.removeFromParent();
+    const fig = new Figure(it.def.kind as Kind, 0, 1, it.def.h ?? 1.8, GHOST);
+    fig.root.userData.dynamic = true;
+    this.group.add(fig.root);
+    this.ghost = { fig, i, t: 0 };
+  }
+
   /** The let-go ending: every statue lives again (k 0..1). */
   wakeAll(k: number): void {
     this.woken = k;
@@ -139,6 +154,20 @@ export class FigureViews {
 
   update(dt: number, t: number, city: City): void {
     const s = city.s;
+    if (this.ghost) {
+      const g = this.ghost;
+      const def = this.items[g.i].def;
+      g.t += dt;
+      if (!def.clip || g.t > def.clip.len) {
+        g.fig.root.removeFromParent();
+        this.ghost = null;
+      } else {
+        const at = city.placeOf(g.i);
+        const p = def.clip.path ? placeAt(def.clip, g.t, { x: def.x, z: def.z, yaw: def.yaw }) : at;
+        this.place(g.fig, p.x, p.z, p.yaw);
+        g.fig.apply(poseAt(def.clip, g.t));
+      }
+    }
     this.items.forEach((it, i) => {
       const rt = s.figs[i];
       const def = it.def;

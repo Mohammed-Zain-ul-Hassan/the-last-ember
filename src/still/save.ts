@@ -4,6 +4,13 @@
 
 export type HintMode = 'off' | 'gentle' | 'guided';
 
+export interface CaptionSettings {
+  on: boolean;
+  size: 'small' | 'medium' | 'large';
+  bg: number; // backing opacity 0..0.8
+  cues: boolean; // sound-cue captions ([the music stops])
+}
+
 export interface StillSave {
   hints: HintMode;
   words: boolean[];
@@ -12,10 +19,20 @@ export interface StillSave {
   sens: number; // mouse look 0..1
   invertY: boolean;
   endings: string[];
+  captions: CaptionSettings;
 }
 
 const KEY = 'stillcity.v1';
-const DEFAULT: StillSave = { hints: 'guided', words: new Array(36).fill(false), reached: 0, muted: false, sens: 0.45, invertY: false, endings: [] };
+const DEFAULT: StillSave = {
+  hints: 'guided',
+  words: new Array(36).fill(false),
+  reached: 0,
+  muted: false,
+  sens: 0.45,
+  invertY: false,
+  endings: [],
+  captions: { on: true, size: 'medium', bg: 0.45, cues: true },
+};
 
 function load(): StillSave {
   try {
@@ -24,6 +41,7 @@ function load(): StillSave {
     const v = JSON.parse(raw) as Partial<StillSave>;
     const out = { ...structuredClone(DEFAULT), ...v };
     if (!Array.isArray(out.words) || out.words.length !== 36) out.words = new Array(36).fill(false);
+    out.captions = { ...DEFAULT.captions, ...(v.captions ?? {}) };
     return out;
   } catch {
     return structuredClone(DEFAULT);

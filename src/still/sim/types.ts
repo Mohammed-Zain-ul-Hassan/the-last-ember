@@ -182,6 +182,24 @@ export type Decor =
   | { kind: 'roof'; x0: number; x1: number; z0: number; z1: number; y: number } // a dark ceiling (render only)
   | { kind: 'plate'; x: number; z: number; s: number; flag: string }; // a stone plate that lights when its flag is set
 
+/** A camera framing for the director: the same fields as the camera rig's authored shots, around `at`. */
+export interface Frame {
+  at: [number, number, number];
+  yaw: number;
+  height: number;
+  dist: number;
+  lookY: number;
+  fov: number;
+  dur?: number; // seconds to hold (default 3.2)
+}
+
+/** Stones that fall while a flag is set: telegraphed by dust, they dim the flame of anyone under them. */
+export interface Debris {
+  after: string;
+  rect: Rect;
+  period: number;
+}
+
 export interface District {
   id: string;
   index: number; // 0..4
@@ -212,5 +230,9 @@ export interface District {
   lines: { replayEnd?: string; firstWake?: string; wrongLit?: string; stepIn?: string; wrongSeen?: string; brazier?: string; bridge?: string; caught?: string; flags?: Record<string, string> };
   enterLine?: string;
   rumble: number; // 0..1, the distant water
+  intro: Frame[]; // the district's opening flyover
+  debris?: Debris[];
+  drips?: [number, number][]; // faint water drips: the next action beat is close
+  rain?: boolean; // the rain that froze mid-fall (open-air districts)
   sky: 'night' | 'deep' | 'interior';
 }

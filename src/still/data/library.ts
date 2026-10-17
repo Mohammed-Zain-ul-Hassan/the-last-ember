@@ -100,6 +100,7 @@ export const LIBRARY: District = {
   braziers: [
     { id: 'door', x: 6, z: -6.6 },
     { id: 'stacks', x: 64.5, z: 6.4 },
+    { id: 'lit', x: 64.5, z: -6.4, false: true }, // the Wrong Shadow lit this one
   ],
   torches: [
     { id: 'l1', x: 5, y: 2.8, z: 7.95, ry: -Math.PI / 2 },
@@ -143,5 +144,11 @@ export const LIBRARY: District = {
   ],
   lines: { wrongSeen: 'library.face', wrongLit: 'wrong.kinder', caught: 'wrong.face' },
   rumble: 0.65,
+  intro: [
+    { at: [25, 0, 0], yaw: -1.9, height: 5, dist: 10, lookY: 1, fov: 52, dur: 3.4 },
+    { at: [52, 0, 0], yaw: -1.57, height: 7, dist: 9, lookY: 0, fov: 54, dur: 3.2 },
+    { at: [75, 0, 0], yaw: -1.3, height: 4, dist: 9, lookY: 2, fov: 50, dur: 3 },
+  ],
+  drips: [[62, 0], [64.5, 3]],
   sky: 'interior',
 };

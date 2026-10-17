@@ -122,5 +122,11 @@ export const HEART_D: District = {
   ],
   lines: { flags: { p1: 'heart.plate', p2: 'heart.plate', p3: 'heart.plate', p4: 'heart.plate', p5: 'heart.fifth', plates: 'heart.rumble' } },
   rumble: 1,
+  rain: true,
+  intro: [
+    { at: [HEART.x, 0, HEART.z], yaw: Math.PI, height: 12, dist: 14, lookY: 0, fov: 50, dur: 3.6 },
+    { at: [HEART.x, 0, HEART.z], yaw: Math.PI + 1.2, height: 5, dist: 9, lookY: 1, fov: 46, dur: 3.2 },
+  ],
+  debris: [{ after: 'plates', rect: { x0: HEART.x - 18, z0: -18, x1: HEART.x + 18, z1: 18 }, period: 3.2 }],
   sky: 'night',
 };

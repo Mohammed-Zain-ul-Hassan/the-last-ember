@@ -1,0 +1,66 @@
+{
+  "_about": "When each line plays. An event from the game (left) plays line ids (from lines.json). Optional: if (match fields of the event: district, id, fig, word...), once (default true: once per playthrough), variants (play one of the list in turn), delay (seconds), priority (0 cue, 1 whisper, 2 story, 3 action beat). Edit freely; no code changes needed.",
+  "beats": [
+    { "on": "start", "say": ["open.1", "open.2"], "priority": 2 },
+
+    { "on": "enter", "if": { "district": "market" }, "say": ["market.enter"], "delay": 1.5, "priority": 2 },
+    { "on": "enter", "if": { "district": "temple" }, "say": ["temple.enter"], "delay": 1.5, "priority": 2 },
+    { "on": "enter", "if": { "district": "library" }, "say": ["library.enter"], "delay": 1.5, "priority": 2 },
+    { "on": "enter", "if": { "district": "heart" }, "say": ["heart.enter"], "delay": 1.5, "priority": 2 },
+    { "on": "enter", "if": { "district": "temple" }, "say": ["cue.rumble"], "delay": 5, "priority": 0 },
+    { "on": "enter", "if": { "district": "library" }, "say": ["cue.rumble"], "delay": 5, "priority": 0 },
+    { "on": "enter", "if": { "district": "heart" }, "say": ["cue.rumbleNear"], "delay": 5, "priority": 0 },
+
+    { "on": "shadowLit", "if": { "fig": "lever" }, "say": ["gate.firstLit"], "delay": 3.5, "priority": 2 },
+    { "on": "replayEnd", "if": { "district": "gate" }, "say": ["gate.replayEnds"], "priority": 2 },
+    { "on": "stepIn", "if": { "district": "gate" }, "say": ["gate.stepIn"], "priority": 2 },
+    { "on": "flag", "if": { "id": "bar" }, "say": ["gate.opens"], "delay": 2.2, "priority": 2 },
+    { "on": "wrongSeen", "if": { "district": "gate" }, "say": ["gate.wrongSeen"], "priority": 2 },
+
+    { "on": "flag", "if": { "id": "scale1" }, "say": ["market.balanced"], "priority": 2 },
+    { "on": "flag", "if": { "id": "scale2" }, "say": ["market.balanced"], "once": false, "priority": 2 },
+    { "on": "flag", "if": { "id": "scale3" }, "say": ["market.balanced"], "once": false, "priority": 2 },
+    { "on": "bridge", "if": { "district": "market", "on": true }, "say": ["market.bridge"], "priority": 2 },
+    { "on": "flag", "if": { "id": "collapse" }, "say": ["cue.collapse", "market.collapse"], "priority": 3 },
+    { "on": "flag", "if": { "id": "rest:end" }, "say": ["market.brazier"], "priority": 2 },
+    { "on": "wrongShift", "say": ["cue.lateStep"], "priority": 0 },
+
+    { "on": "replayEnd", "if": { "district": "temple" }, "say": ["temple.priest"], "priority": 2 },
+    { "on": "flag", "if": { "id": "vault" }, "say": ["temple.vault"], "delay": 1.5, "priority": 2 },
+    { "on": "line", "if": { "id": "temple.nearFalse" }, "say": ["cue.coldHum", "temple.nearFalse"], "priority": 2 },
+    { "on": "falseBrazier", "say": ["temple.fellFalse"], "priority": 2 },
+    { "on": "caught", "if": { "district": "temple" }, "say": ["wrong.notYet"], "once": false, "priority": 3 },
+
+    { "on": "pageSide", "say": ["library.side"], "priority": 2 },
+    { "on": "pageRead", "say": ["library.above"], "priority": 2 },
+    { "on": "wrongSeen", "if": { "district": "library" }, "say": ["wrong.face", "library.face"], "priority": 3 },
+    { "on": "wrongLit", "if": { "district": "library" }, "say": ["wrong.kinder"], "priority": 3 },
+
+    { "on": "flag", "if": { "id": "p1" }, "say": ["heart.plate"], "once": false, "priority": 2 },
+    { "on": "flag", "if": { "id": "p2" }, "say": ["heart.plate"], "once": false, "priority": 2 },
+    { "on": "flag", "if": { "id": "p3" }, "say": ["heart.plate"], "once": false, "priority": 2 },
+    { "on": "flag", "if": { "id": "p4" }, "say": ["heart.plate"], "once": false, "priority": 2 },
+    { "on": "flag", "if": { "id": "p5" }, "say": ["heart.fifth"], "priority": 2 },
+    { "on": "flag", "if": { "id": "plates" }, "say": ["cue.rumbleNear", "heart.rumble"], "delay": 1.5, "priority": 3 },
+    { "on": "line", "if": { "id": "wrong.knows" }, "say": ["wrong.knows"], "priority": 3 },
+    { "on": "ending", "say": ["wrong.door"], "priority": 3 },
+
+    { "on": "death", "variants": ["death.1", "death.2", "death.3"], "after": { "count": 6, "say": "death.4" }, "once": false, "priority": 3 },
+    { "on": "flameLow", "say": ["flame.low"], "once": false, "cooldown": 20, "priority": 1 },
+    { "on": "flameOut", "say": ["flame.out"], "once": false, "cooldown": 10, "priority": 2 },
+    { "on": "relit", "say": ["flame.relit"], "once": false, "cooldown": 20, "priority": 1 },
+
+    { "on": "silence", "say": ["cue.musicStops"], "once": false, "cooldown": 12, "priority": 0 },
+    { "on": "breath", "say": ["cue.breath"], "once": false, "cooldown": 20, "priority": 0 },
+    { "on": "drip", "say": ["cue.drip"], "once": false, "cooldown": 15, "priority": 0 },
+    { "on": "wake", "say": ["cue.bell"], "once": false, "cooldown": 8, "priority": 0 },
+    { "on": "mech", "if": { "kind": "portcullis" }, "say": ["cue.chains"], "once": false, "priority": 0 },
+    { "on": "mech", "if": { "kind": "gate" }, "say": ["cue.gate"], "once": false, "priority": 0 },
+    { "on": "brazier", "if": { "first": true }, "say": ["cue.crackle"], "once": false, "cooldown": 10, "priority": 0 },
+    { "on": "gustWarn", "say": ["cue.wind"], "once": false, "cooldown": 8, "priority": 0 },
+    { "on": "debrisWarn", "say": ["cue.stone"], "once": false, "cooldown": 6, "priority": 0 },
+    { "on": "aligning", "say": ["cue.hum"], "once": false, "cooldown": 30, "priority": 0 },
+    { "on": "endingWater", "say": ["cue.water"], "once": false, "priority": 0 },
+    { "on": "endingSteps", "say": ["cue.footsteps"], "once": false, "priority": 0 }
+  ]
+}

@@ -148,6 +148,7 @@ export const MARKET: District = {
   riddles: [{ id: 'market', x: 34.6, y: 3.0, z: 7.95, ry: Math.PI, puzzle: 'canal' }],
   zones: [
     { rect: { x0: 0, z0: -8, x1: 7, z1: 8 }, line: 'market.enter' },
+    { rect: { x0: 46, z0: -8, x1: 48.5, z1: 8 }, flag: 'crossed' },
     { rect: { x0: 57, z0: -3.6, x1: 60, z1: 3.6 }, flag: 'collapse' },
     { rect: { x0: 86.5, z0: -8, x1: 93, z1: 8 }, line: 'market.brazier' },
   ],
@@ -177,6 +178,14 @@ export const MARKET: District = {
   ],
   lines: { bridge: 'market.bridge', flags: { scale1: 'market.balanced', scale2: 'market.balanced', scale3: 'market.balanced', collapse: 'market.collapse' } },
   rumble: 0.3,
+  rain: true,
+  intro: [
+    { at: [16, 0, 0], yaw: -2.0, height: 8, dist: 12, lookY: 1, fov: 52, dur: 3.4 },
+    { at: [41.5, 0, 0], yaw: -1.57, height: 4, dist: 7, lookY: -1, fov: 52, dur: 3.2 },
+    { at: [70, 0, 0], yaw: -1.57, height: 3, dist: 10, lookY: 1.5, fov: 48, dur: 3 },
+  ],
+  debris: [{ after: 'collapse', rect: { x0: 56, z0: -3.4, x1: 86, z1: 3.4 }, period: 2.4 }],
+  drips: [[52, 0], [55, 0]],
   sky: 'night',
 };
 
