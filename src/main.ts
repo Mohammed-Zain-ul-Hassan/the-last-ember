@@ -5,7 +5,6 @@ import { BackgroundMusic } from './fx/BackgroundMusic';
 import { VoiceLines } from './fx/VoiceLines';
 import { ChronoFX } from './fx/ChronoFX';
 import { Arena } from './world/Arena';
-import { BreadcrumbTrail } from './world/BreadcrumbTrail';
 import { RecallSystem } from './player/RecallSystem';
 import { PlayerController } from './player/PlayerController';
 import { CharacterRig } from './player/CharacterRig';
@@ -55,7 +54,6 @@ const worldColliders = arena.colliders;
 const enemies = new Enemies(scene);
 const wife = new FireWife(scene, arena.spawns.wife);
 const waves = new WaveDirector(enemies, wife, arena.spawns);
-const trail = new BreadcrumbTrail(scene);
 const recall = new RecallSystem();
 const sound = new SoundSynth();
 const music = new BackgroundMusic(sound);
@@ -384,7 +382,6 @@ function onResize(): void {
   camera.updateProjectionMatrix();
   orbit.setAspect(w / h);
   renderer.setSize(w, h);
-  trail.setViewport(h * renderer.getPixelRatio(), CAMERA.baseFov);
   character.setViewport(h * renderer.getPixelRatio(), CAMERA.baseFov);
   balls.setViewport(h * renderer.getPixelRatio(), CAMERA.baseFov);
 }
@@ -426,7 +423,6 @@ renderer.setAnimationLoop(() => {
 
   player.syncCamera(character.headBobY, character.headRoll);
   const viewCam = orbit.update(player, camera, dt);
-  trail.update(recall, simTime);
   // Sense of speed: the runner's view widens as sprint momentum builds (Skyrim's FOV stays fixed).
   const fast =
     player.profile === 'runner' && orbit.mode === 'fp'

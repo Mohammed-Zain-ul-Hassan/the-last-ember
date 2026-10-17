@@ -104,13 +104,6 @@ export const COLORS = {
   amber: 0xffd27a,
 } as const;
 
-export const TRAIL = {
-  heightOffset: 1.0,
-  halfWidth: 0.06,
-  particleEvery: 4,
-  particleSize: 0.22,
-} as const;
-
 export const CHARACTER = {
   /**
    * The runner "vessel" body: purple plate over black undersuit — shadow knight armour.
