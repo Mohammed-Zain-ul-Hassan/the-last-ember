@@ -40,6 +40,7 @@ import { bus } from './narrative/bus';
 import { startRecording, type Recording } from './record';
 import { initCursor, requestLock, wantCursorHidden } from '../ui/cursor';
 import { DIFFICULTY } from '../config';
+import { CHAPTERS } from '../data/chapters';
 import { DIFFICULTY_NOTE, getDifficulty, onDifficulty, setDifficulty, type Difficulty } from '../difficulty';
 
 // The Still City. You carry the only fire left in a city that froze mid-breath four thousand years ago. Your flame
@@ -187,6 +188,13 @@ const ending = new Ending({
   shake: (k) => rig.shake(k * 0.1),
   veil: (on) => hud.veil(on),
   autoChoose: BOT,
+  // The Last Ember: from the Heart the game goes on into Act II, the hearth at sunset (a recording, or ?endings=1,
+  // keeps the Still City's own three endings)
+  handoff: params.has('endings') || REC ? null : () => {
+    const q = new URLSearchParams({ from: 'still' });
+    for (const k of ['debug', 'seed']) if (params.has(k)) q.set(k, params.get(k) ?? '');
+    location.href = `classic.html?${q}`;
+  },
 });
 
 function startEnding(): void {
@@ -277,8 +285,8 @@ function setPaused(on: boolean): void {
 
 const title = document.createElement('div');
 title.id = 'sc-title';
-title.innerHTML = `<h1>THE STILL CITY</h1><p>Carry it carefully. It is all the time that is left.</p>
-  <div class="diff"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button><div class="dnote"></div></div><div class="begin">CLICK TO BEGIN</div>
+title.innerHTML = `<h1>THE LAST EMBER</h1><div class="acts">ACT I &nbsp;THE STILL CITY &nbsp;·&nbsp; ACT II &nbsp;THE HEARTH</div><p>Carry it carefully. It is all the time that is left.</p>
+  <div class="diff"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button><div class="dnote"></div></div><div class="begin">CLICK TO BEGIN</div><button class="chapbtn">CHAPTERS</button><div class="chap"></div>
   <div class="keys">WASD walk &nbsp;·&nbsp; move the mouse to look and aim the flame &nbsp;·&nbsp; E wake &nbsp;·&nbsp; Shift draw the flame back &nbsp;·&nbsp; Esc pause</div>`;
 document.body.appendChild(title);
 // the difficulty, chosen here or in the pause menu (shared with the hearth act; src/difficulty.ts)
@@ -293,6 +301,34 @@ onDifficulty((d) => {
   showDifficulty();
 });
 showDifficulty();
+// the chapter list: both acts, every place and every hour, open from the start (Act II lives on classic.html)
+{
+  const chap = title.querySelector<HTMLElement>('.chap')!;
+  const head = (text: string) => chap.insertAdjacentHTML('beforeend', `<div class="act">${text}</div>`);
+  const item = (n: string, name: string, go: () => void) => {
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="n">${n}</span>${name}`;
+    b.addEventListener('click', go);
+    chap.appendChild(b);
+  };
+  head('ACT I &nbsp;·&nbsp; THE STILL CITY');
+  DISTRICTS.forEach((d, i) =>
+    item(['I', 'II', 'III', 'IV', 'V'][i], d.name, () => {
+      if (mode !== 'title') return;
+      load(i);
+      begin();
+    }),
+  );
+  head('ACT II &nbsp;·&nbsp; THE HEARTH');
+  CHAPTERS.forEach((c, i) =>
+    item(c.clock, c.title, () => {
+      const q = new URLSearchParams({ from: 'chapters', chapter: String(i) });
+      for (const k of ['debug', 'seed']) if (params.has(k)) q.set(k, params.get(k) ?? '');
+      location.href = `classic.html?${q}`;
+    }),
+  );
+  title.querySelector('.chapbtn')!.addEventListener('click', () => title.classList.toggle('chapters'));
+}
 
 const TITLE_SHOT: Shot = { yaw: -0.9, height: 1.6, dist: 6.2, lookY: 1.8, fov: 40 };
 
@@ -390,7 +426,7 @@ initCursor(
 );
 // a click anywhere starts it (the title lies over the canvas)
 document.addEventListener('pointerdown', (e) => {
-  if ((e.target as HTMLElement).closest('#sc-menu, #sc-choice, #sc-credits, #sc-title .diff')) return;
+  if ((e.target as HTMLElement).closest('#sc-menu, #sc-choice, #sc-credits, #sc-title .diff, #sc-title .chapbtn, #sc-title .chap')) return;
   if (cine) endCine();
   else if (mode === 'title' && !REC) begin();
   audio.initAudio();
@@ -735,7 +771,7 @@ function frame(now: number): void {
   const [lx, ly] = takeLook();
   if (cine) updateCine(dt);
   // no cursor while the game is played (or a shot plays); paused, the title, the ending's choice and the credits show it
-  wantCursorHidden(!BOT && (mode === 'play' || !!cine) && !menu.open);
+  wantCursorHidden(!BOT && (mode === 'play' || !!cine) && !menu.open, mode === 'play' && !cine);
   if (mode === 'play' && !cine) {
     if (lockT > 0) {
       lockT = Math.min(1, lockT + dt / 0.28);
@@ -1046,4 +1082,4 @@ declare global {
     __still: unknown;
   }
 }
-window.__still = { get city() { return city; }, rig, stage, hud, load, knight, get mode() { return mode; } };
+window.__still = { get city() { return city; }, rig, stage, hud, load, knight, startEnding, get mode() { return mode; } };

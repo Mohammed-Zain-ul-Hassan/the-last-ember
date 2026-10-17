@@ -1,7 +1,7 @@
 // Pure 3D game simulation: the ground is the x/z plane, y is up, feet at y = 0 on open ground.
 // No three.js here: render reads this state, the demo bot drives it, vitest tests it.
 // Facing is an angle (yaw): forward is (cos yaw, sin yaw) on x/z. The renderer turns models with rotation.y = -yaw.
-import { CFG, type MoveSpec } from '../config';
+import { CFG, DIFFICULTY, type HearthDifficulty, type MoveSpec } from '../config';
 import { CHAPTERS, type Chapter } from '../data/chapters';
 import { LEVELS, type Level } from '../data/levels';
 import { angleDiff, clampToArea, firstHit, footR, inArea, overlaps, pushOut, STEP, type Solid } from './geom';
@@ -166,6 +166,8 @@ export interface WorldOpts {
   startY?: number; // e.g. standing on the gatehouse at dawn
   startZ?: number;
   checkpointsLit?: number;
+  /** Easy / Medium / Hard (src/config.ts DIFFICULTY); Medium when not given. */
+  diff?: HearthDifficulty;
 }
 
 const fwdX = (yaw: number) => Math.cos(yaw);
@@ -208,9 +210,22 @@ export class World {
   private solidR: number[]; // each solid's footprint radius, for cheap broad-phase tests
   private nextId = 1;
 
+  /** Easy / Medium / Hard: read on every blow (the hour itself is scaled when the world is made). */
+  diff: HearthDifficulty;
+
   constructor(chapterIndex = 0, seed = 1, opts: WorldOpts = {}) {
     this.chapterIndex = Math.max(0, Math.min(CHAPTERS.length - 1, chapterIndex));
-    this.chapter = CHAPTERS[this.chapterIndex];
+    this.diff = opts.diff ?? DIFFICULTY.medium.hearth;
+    // the hour, as hard as the difficulty makes it
+    const c = CHAPTERS[this.chapterIndex];
+    const d = this.diff;
+    this.chapter = {
+      ...c,
+      spawnEvery: [c.spawnEvery[0] * d.spawnGap, c.spawnEvery[1] * d.spawnGap],
+      maxShades: Math.max(2, c.maxShades + d.extraShades),
+      shadeHp: Math.max(1, Math.round(c.shadeHp * d.enemyHp)),
+      shadeSpeed: c.shadeSpeed * d.enemySpeed,
+    };
     this.rng = new Rng(seed + this.chapterIndex * 7919);
     this.level = LEVELS[this.chapter.level] ?? LEVELS.grounds;
     this.solids = this.level.solids;
@@ -806,6 +821,7 @@ export class World {
   private hurtKnight(fromX: number, fromZ: number, dmg: number = CFG.shade.knightDmg): void {
     const k = this.knight;
     if (k.iframes > 0 || k.state === 'dead') return;
+    dmg *= this.diff.knightDmg;
     const dealt = Math.min(dmg, Math.max(0, k.hp));
     k.hp -= dmg;
     k.iframes = CFG.knight.iframes;
@@ -1128,7 +1144,7 @@ export class World {
           if (s.big && s.enraged) this.marshalWaves(s);
           if (this.strikeLands(s, S.attackRange * reach + CFG.knight.r + 0.35, 1.6 * reach)) this.hurtKnight(s.x, s.z, s.big ? S.bigDmg : S.knightDmg);
         } else if (Math.hypot(this.hearthX - s.x, this.hearthZ - s.z) <= range + 0.3) {
-          this.hearthHp = Math.max(0, this.hearthHp - S.hearthDmg);
+          this.hearthHp = Math.max(0, this.hearthHp - S.hearthDmg * this.diff.hearthDmg);
           this.events.push({ type: 'hearthHurt', hp: this.hearthHp });
         }
       }

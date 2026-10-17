@@ -2,6 +2,7 @@
 // Mouse: click, drag sliders. Keyboard: up/down (W/S) to move, left/right (A/D) to change a value,
 // Enter/Space to choose, Esc to go back. The game's own key handler forwards keys here while a menu is open.
 import type { Quality, Settings } from '../settings';
+import { getDifficulty, setDifficulty, type Difficulty } from '../difficulty';
 
 export interface LevelInfo {
   roman: string;
@@ -32,6 +33,9 @@ type Screen = 'title' | 'pause' | 'settings' | 'levels' | 'controls';
 
 const QUALITY: Quality[] = ['auto', 'high', 'medium', 'low'];
 const QUALITY_NAME: Record<Quality, string> = { auto: 'Auto', high: 'High', medium: 'Medium', low: 'Low' };
+// the difficulty is one setting for both acts (src/difficulty.ts); Medium is the hearth as tuned
+const LEVELS_D: Difficulty[] = ['easy', 'medium', 'hard'];
+const DIFF_NAME: Record<Difficulty, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
 const CONTROLS: [string, string][] = [
   ['W  A  S  D', 'move  ·  relative to the camera  ·  or the arrows'],
@@ -133,6 +137,7 @@ export class Menu {
           cur.value = String(Math.max(0, Math.min(100, Number(cur.value) + d * 5)));
           this.slide(cur);
         } else if (cur?.dataset.act === 'quality') this.cycleQuality(d);
+        else if (cur?.dataset.act === 'difficulty') this.cycleDifficulty(d);
         else if (cur?.dataset.act === 'numbers' || cur?.dataset.act === 'invertY') this.act(cur);
         return true;
       }
@@ -193,6 +198,8 @@ export class Menu {
         return;
       case 'quality':
         return this.cycleQuality(1);
+      case 'difficulty':
+        return this.cycleDifficulty(1);
       case 'fullscreen':
         if (document.fullscreenElement) void document.exitFullscreen();
         else void document.documentElement.requestFullscreen?.().catch(() => undefined);
@@ -212,6 +219,12 @@ export class Menu {
         el.querySelector('b')!.textContent = 'Erased';
         return;
     }
+  }
+
+  private cycleDifficulty(d: number): void {
+    setDifficulty(LEVELS_D[(LEVELS_D.indexOf(getDifficulty()) + d + LEVELS_D.length) % LEVELS_D.length]);
+    const b = this.root.querySelector('[data-act="difficulty"] b');
+    if (b) b.textContent = DIFF_NAME[getDifficulty()];
   }
 
   private cycleQuality(d: number): void {
@@ -279,6 +292,7 @@ export class Menu {
           ${slider('shake', 'Screenshake', s.shake)}
           ${slider('flashes', 'Screen flashes', s.flashes)}
           ${toggle('numbers', 'Damage numbers', s.numbers ? 'On' : 'Off')}
+          ${toggle('difficulty', 'Difficulty', DIFF_NAME[getDifficulty()])}
           ${toggle('quality', 'Graphics quality', QUALITY_NAME[s.quality])}
           ${toggle('fullscreen', 'Fullscreen', document.fullscreenElement ? 'On' : 'Off')}
           <h3>Progress</h3>

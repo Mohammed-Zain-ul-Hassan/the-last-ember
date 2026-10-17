@@ -98,11 +98,14 @@ export function initCursor(target: HTMLElement, lost: () => void, label = 'Click
   });
 }
 
-/** Every frame: is the game being played right now (true hides the cursor and wants the lock), or is a menu up? */
-export function wantCursorHidden(on: boolean): void {
+/**
+ * Every frame: is the game being played right now (true hides the cursor and wants the lock), or is a menu up?
+ * ask: show the click prompt when unlocked (false during a cutscene: the cursor stays hidden, nothing nags).
+ */
+export function wantCursorHidden(on: boolean, ask = true): void {
   wanted = on;
   document.body.classList.toggle('nocursor', on);
   if (!on && document.pointerLockElement) document.exitPointerLock();
   // the prompt: in play, unlocked, and the lock still possible here (a frame that refuses it every time gets no nag)
-  prompt?.classList.toggle('on', on && !isLocked() && !!el?.requestPointerLock && failures < 6);
+  prompt?.classList.toggle('on', on && ask && !isLocked() && !!el?.requestPointerLock && failures < 6);
 }

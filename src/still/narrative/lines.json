@@ -299,6 +299,22 @@
     "voice": "narrator",
     "text": "The fire has burned for four thousand years. Now it can finally go out."
   },
+  "end.carry.1": {
+    "voice": "wrong",
+    "text": "It has your hands."
+  },
+  "end.carry.2": {
+    "voice": "narrator",
+    "text": "You lit this. You have been lighting it for four thousand years."
+  },
+  "end.carry.3": {
+    "voice": "wrong",
+    "text": "Carry it out. A held breath has to be held somewhere."
+  },
+  "end.carry.4": {
+    "voice": "narrator",
+    "text": "Past the walls, an old hearth is waiting. And the sun is waiting with it."
+  },
   "word.1": {
     "voice": "word",
     "who": "the lever guard",
