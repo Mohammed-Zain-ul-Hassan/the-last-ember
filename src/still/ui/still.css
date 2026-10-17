@@ -1,0 +1,499 @@
+/* The Still City's HUD: almost nothing on screen. The flame and Ash in a corner, a prompt when E does something,
+   and the voices as captions, each styled apart (the narrator, the flame close to the ear, the Wrong Shadow). */
+#sc {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  color: #e9e1d2;
+  z-index: 5;
+}
+#sc .vitals {
+  position: absolute;
+  left: 28px;
+  top: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: opacity 0.6s;
+}
+#sc .flame-ico {
+  width: 26px;
+  height: 38px;
+  position: relative;
+}
+#sc .flame-ico i {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 18px;
+  height: 30px;
+  transform-origin: 50% 100%;
+  background: radial-gradient(ellipse at 50% 80%, #fff3c0 0%, #ffb347 30%, #ff5a14 60%, rgba(255, 60, 0, 0) 72%);
+  border-radius: 50% 50% 45% 45% / 70% 70% 30% 30%;
+  filter: blur(0.4px) drop-shadow(0 0 8px rgba(255, 120, 40, 0.8));
+  translate: -50% 0;
+  animation: sc-flick 0.18s infinite alternate;
+}
+#sc .flame-ico.low i {
+  background: radial-gradient(ellipse at 50% 80%, #ffd28a 0%, #ff7a2a 40%, rgba(160, 40, 0, 0) 70%);
+  filter: drop-shadow(0 0 4px rgba(255, 90, 30, 0.6));
+}
+#sc .flame-ico.out i {
+  background: radial-gradient(ellipse at 50% 85%, #7a2a10 0%, rgba(60, 20, 10, 0) 55%);
+  filter: none;
+  animation: none;
+}
+@keyframes sc-flick {
+  from {
+    transform: scale(1, 1) skewX(-2deg);
+  }
+  to {
+    transform: scale(0.94, 1.05) skewX(2deg);
+  }
+}
+#sc .ash {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#sc .ash-label {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  opacity: 0.6;
+}
+#sc .pips {
+  display: flex;
+  gap: 6px;
+}
+#sc .pip {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 180, 110, 0.45);
+  transition: background 0.4s, box-shadow 0.4s, transform 0.3s;
+}
+#sc .pip.on {
+  background: radial-gradient(circle at 40% 35%, #ffe2a8, #ff8a2a 60%, #a33a0a);
+  box-shadow: 0 0 9px rgba(255, 130, 40, 0.75);
+}
+#sc .pip.spent {
+  transform: scale(1.5);
+  background: rgba(255, 200, 150, 0.25);
+}
+#sc .words {
+  position: absolute;
+  right: 28px;
+  top: 24px;
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  letter-spacing: 0.24em;
+  opacity: 0.55;
+  text-align: right;
+  transition: opacity 0.6s;
+}
+#sc .words b {
+  font-weight: 600;
+  color: #ffd9a0;
+}
+#sc .prompt {
+  position: absolute;
+  left: 50%;
+  bottom: 13%;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 21px;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transition: opacity 0.25s;
+  text-shadow: 0 1px 6px #000;
+  white-space: nowrap;
+}
+#sc .prompt.on {
+  opacity: 0.95;
+}
+#sc .key {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  min-width: 26px;
+  height: 26px;
+  border: 1px solid rgba(255, 220, 180, 0.7);
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  position: relative;
+  background: rgba(10, 6, 12, 0.5);
+}
+#sc .key .fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: rgba(255, 150, 60, 0.45);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+#sc .cost {
+  font-size: 15px;
+  opacity: 0.7;
+  font-style: italic;
+}
+#sc .captions {
+  position: absolute;
+  left: 50%;
+  bottom: 20%;
+  translate: -50% 0;
+  width: min(900px, 86vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+#sc .cap {
+  opacity: 0;
+  transition: opacity 0.9s, transform 0.9s;
+  transform: translateY(6px);
+  text-shadow: 0 1px 10px #000, 0 0 2px #000;
+}
+#sc .cap.on {
+  opacity: 1;
+  transform: none;
+}
+#sc .cap.narrator {
+  font-size: 27px;
+  font-style: italic;
+  color: #efe6d6;
+}
+#sc .cap.flame {
+  font-size: 21px;
+  color: #ffc98a;
+  letter-spacing: 0.02em;
+}
+#sc .cap.flame::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 10px;
+  vertical-align: middle;
+  background: #ff9a3a;
+  box-shadow: 0 0 8px #ff7a1a;
+}
+#sc .cap.wrong {
+  font-family: 'Cinzel', serif;
+  font-size: 19px;
+  letter-spacing: 0.3em;
+  color: #9aa6d8;
+  text-shadow: 0 0 12px rgba(80, 100, 200, 0.6), 0 1px 4px #000;
+}
+#sc .cap.word {
+  font-size: 25px;
+  color: #f6ead2;
+}
+#sc .cap.word .who {
+  display: block;
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  letter-spacing: 0.32em;
+  opacity: 0.6;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+#sc .cap.note {
+  font-size: 18px;
+  opacity: 0.8;
+  font-style: italic;
+  color: #cfc6b8;
+}
+#sc .card {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 62%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 1.4s;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0) 60%);
+}
+#sc .card.on {
+  opacity: 1;
+}
+#sc .card .num {
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  letter-spacing: 0.5em;
+  opacity: 0.6;
+}
+#sc .card .title {
+  font-family: 'Cinzel', serif;
+  font-size: 54px;
+  letter-spacing: 0.12em;
+  margin: 10px 0 6px;
+  color: #f3e7d0;
+  text-shadow: 0 0 24px rgba(255, 140, 60, 0.25);
+}
+#sc .card .sub {
+  font-size: 18px;
+  font-style: italic;
+  opacity: 0.7;
+  letter-spacing: 0.06em;
+}
+#sc .riddle {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  translate: -50% 0;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.6s;
+  width: min(760px, 86vw);
+}
+#sc .riddle.on {
+  opacity: 1;
+}
+#sc .riddle .where {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  opacity: 0.55;
+  text-transform: uppercase;
+}
+#sc .riddle .text {
+  font-size: 34px;
+  font-style: italic;
+  margin-top: 12px;
+  text-shadow: 0 2px 14px #000;
+}
+#sc .timer {
+  position: absolute;
+  left: 50%;
+  top: 22px;
+  translate: -50% 0;
+  width: 240px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+#sc .timer.on {
+  opacity: 1;
+}
+#sc .timer i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ff7a2a, #ffd9a0);
+  box-shadow: 0 0 8px #ff8a3a;
+  transform-origin: 0 50%;
+}
+#sc .timer span {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  opacity: 0.7;
+}
+#sc .veil {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  transition: opacity 1.2s;
+}
+#sc .veil.on {
+  opacity: 1;
+}
+#sc .vignette {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.5s;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 45%, rgba(30, 50, 110, 0.55) 100%);
+}
+#sc .warm {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 50%, rgba(255, 110, 30, 0.22) 100%);
+}
+
+/* pause, journal, title */
+#sc-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 3, 6, 0.82);
+  backdrop-filter: blur(3px);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  color: #e9e1d2;
+}
+#sc-menu.on {
+  display: flex;
+}
+#sc-menu .panel {
+  width: min(560px, 90vw);
+  max-height: 86vh;
+  overflow: auto;
+  text-align: center;
+}
+#sc-menu h2 {
+  font-family: 'Cinzel', serif;
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  font-size: 22px;
+  margin: 0 0 22px;
+}
+#sc-menu button {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  padding: 11px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 210, 170, 0.22);
+  color: inherit;
+  font: inherit;
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+#sc-menu button:hover,
+#sc-menu button:focus-visible {
+  background: rgba(255, 150, 70, 0.14);
+  outline: none;
+  border-color: rgba(255, 190, 130, 0.6);
+}
+#sc-menu .row {
+  display: flex;
+  gap: 8px;
+}
+#sc-menu .row button {
+  margin: 4px 0;
+  font-size: 17px;
+}
+#sc-menu .row button.sel {
+  background: rgba(255, 150, 70, 0.28);
+  border-color: rgba(255, 190, 130, 0.8);
+}
+#sc-menu .label {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  opacity: 0.6;
+  margin: 18px 0 4px;
+  text-align: left;
+}
+#sc-menu .note {
+  font-size: 15px;
+  font-style: italic;
+  opacity: 0.65;
+  text-align: left;
+  margin: 2px 0 8px;
+}
+#sc-menu .journal {
+  text-align: left;
+  font-size: 17px;
+}
+#sc-menu .journal .d {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  opacity: 0.6;
+  margin: 16px 0 6px;
+}
+#sc-menu .journal .w {
+  margin: 4px 0;
+}
+#sc-menu .journal .w.unk {
+  opacity: 0.3;
+}
+#sc-menu .journal .w .n {
+  display: inline-block;
+  width: 28px;
+  opacity: 0.5;
+  font-size: 14px;
+}
+#sc-menu .journal .w .who {
+  opacity: 0.6;
+  font-style: italic;
+}
+#sc-menu .keys {
+  text-align: left;
+  font-size: 17px;
+  line-height: 1.7;
+}
+#sc-menu .keys b {
+  font-family: 'Cinzel', serif;
+  font-weight: 400;
+  font-size: 13px;
+  display: inline-block;
+  min-width: 132px;
+  opacity: 0.75;
+}
+#sc-title {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 12vh;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  color: #ece3d2;
+  transition: opacity 1.6s;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 45%);
+}
+#sc-title.off {
+  opacity: 0;
+  pointer-events: none;
+}
+#sc-title h1 {
+  font-family: 'Cinzel', serif;
+  font-weight: 400;
+  font-size: clamp(40px, 7vw, 84px);
+  letter-spacing: 0.16em;
+  margin: 0;
+  text-shadow: 0 0 40px rgba(255, 140, 60, 0.3);
+}
+#sc-title p {
+  font-style: italic;
+  font-size: 21px;
+  opacity: 0.75;
+  margin: 10px 0 30px;
+}
+#sc-title .begin {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  letter-spacing: 0.4em;
+  opacity: 0.8;
+  animation: sc-breathe 2.6s ease-in-out infinite;
+}
+#sc-title .keys {
+  margin-top: 26px;
+  font-size: 15px;
+  opacity: 0.55;
+  letter-spacing: 0.03em;
+}
+@keyframes sc-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}

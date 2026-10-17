@@ -172,6 +172,8 @@ export class KnightView {
   private torchHalo: THREE.Sprite;
   private emberOrb: THREE.Sprite;
   torchOn = false;
+  /** The Still City: no sword; the off hand raised toward a flame held here (world space), or null. */
+  carry: THREE.Vector3 | null = null;
   readonly trailColor = new THREE.Color(1.6, 1.3, 3.4);
   private eyeWorld = new THREE.Vector3();
   private tmp = new THREE.Vector3();
@@ -689,7 +691,18 @@ export class KnightView {
     this.elbow.rotation.z = c.elbow;
     this.sword.rotation.z = c.swordRel;
     this.trail.rotation.x = c.armTilt;
-    if (this.torchOn) {
+    this.sword.visible = !this.carry;
+    if (this.carry) {
+      // aim the off arm at the flame, in his profile plane: 0 hangs, + swings forward (the chest's lean comes off)
+      this.offShoulder.rotation.z = 0;
+      this.root.updateWorldMatrix(true, true);
+      const sh = this.offShoulder.getWorldPosition(this.tmp);
+      this.root.worldToLocal(sh);
+      const fl = this.root.worldToLocal(this.eyeWorld.copy(this.carry));
+      const a = Math.atan2(fl.x - sh.x, -(fl.y - sh.y));
+      this.offShoulder.rotation.z = a + c.lean + Math.sin(t * 2.1) * 0.03;
+      this.offElbow.rotation.z = 0.3;
+    } else if (this.torchOn) {
       this.offShoulder.rotation.z = 1.05 + Math.sin(t * 2.1) * 0.04 - c.lean * 0.5;
       this.offElbow.rotation.z = 0.95;
       this.torch.rotation.z = -1.9 + c.lean * 0.5;
@@ -705,7 +718,7 @@ export class KnightView {
     const eyeMat = this.eyes.material as THREE.MeshBasicMaterial;
     if (k.state === 'dead') eyeMat.color.setRGB(0.3, 0.25, 0.5).multiplyScalar(Math.max(0, 1 - k.stateT));
     else if (k.state === 'hurt') eyeMat.color.setRGB(4, 0.6, 0.4);
-    else if (this.torchOn) eyeMat.color.setRGB(4.4, 2.4, 1.2);
+    else if (this.torchOn || this.carry) eyeMat.color.setRGB(4.4, 2.4, 1.2);
     else eyeMat.color.setRGB(2.6, 2.2, 4.8);
     this.body.visible = !(k.iframes > 0.3 && k.state !== 'dash' && Math.floor(t * 20) % 2 === 0 && k.state !== 'dead');
 

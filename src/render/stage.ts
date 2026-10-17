@@ -88,6 +88,8 @@ export class Stage {
   readonly sun: THREE.DirectionalLight;
   readonly bloom: BloomEffect;
   readonly smaa: EffectPass;
+  /** Scales the night's ambient and moonlight (the Still City is darker: the flame is the light). */
+  ambientK = 1;
   readonly outline: OutlineEffect;
   private far = new THREE.Group(); // follows the camera like the sky
   private skyline = new THREE.Group(); // rings of distant silhouettes, drifting a little with the camera
@@ -413,10 +415,10 @@ export class Stage {
     this.sky.material.uniforms.uFlash.value = this.flash;
     this.sun.intensity = this.dawn * 4.2;
     // enough night ambient that the ground, the ruins and the shapes on them read; the fire still rules the frame
-    this.hemi.intensity = 0.48 + this.dawn * 0.25 + this.flash * 2.2;
+    this.hemi.intensity = (0.48 + this.dawn * 0.25) * this.ambientK + this.flash * 2.2;
     this.sun.shadow.autoUpdate = this.dawn > 0.05;
     // no moon on the darkest hour (no disc in the sky), and none once the sun is up
-    this.moon.intensity = (0.25 + 0.55 * Math.min(1, this.cur.disc * 20)) * (1 - this.dawn) + this.flash * 3.5;
+    this.moon.intensity = (0.25 + 0.55 * Math.min(1, this.cur.disc * 20)) * (1 - this.dawn) * this.ambientK + this.flash * 3.5;
     const f = this.focus;
     // the moon redraws on even frames, the hearth or the torch on odd ones (see SHADOW_FRAME): never two in one frame,
     // and not at all once it is too faint to cast anything (the darkest hour, dawn)
