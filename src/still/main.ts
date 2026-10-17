@@ -281,7 +281,9 @@ function nextDistrict(): void {
 
 // ------------------------------------------------------------------ input
 initInput(stage.renderer.domElement);
-stage.renderer.domElement.addEventListener('pointerdown', () => {
+// a click anywhere starts it (the title lies over the canvas)
+document.addEventListener('pointerdown', (e) => {
+  if ((e.target as HTMLElement).closest('#sc-menu, #sc-choice, #sc-credits')) return;
   if (mode === 'title' && !REC) begin();
   audio.initAudio();
 });
