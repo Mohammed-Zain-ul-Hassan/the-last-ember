@@ -2,8 +2,9 @@ import type { Input } from './sim/world';
 
 // Keyboard + mouse. Presses are latched until the next sim step consumes them, so fast taps are never lost.
 // W A S D (or the arrows) move relative to the camera and he turns to face where he runs; J / K strike. The camera
-// moves only by the mouse, and the cursor is never captured: drag with any button to look around (a two-finger
-// swipe on a trackpad turns it too); a quick click without dragging strikes (left) or cleaves (right).
+// moves only by the mouse, and the cursor is never captured: simply moving the mouse looks around (no button held),
+// and resting the cursor near the left or right edge of the screen keeps turning, so a free cursor never runs out of
+// room. Dragging works too, and a two-finger swipe on a trackpad; a quick click strikes (left) or cleaves (right).
 // (Pointer lock was dropped: it needs a click, shows a browser banner, Esc steals it back, and itch.io frames block it.)
 const held = new Set<string>();
 const latched = new Set<string>();
@@ -12,6 +13,14 @@ let mouseR = false;
 let lookX = 0;
 let lookY = 0;
 let lookT = 0; // performance.now() of the last look input
+let cursorX = -1; // the cursor across the canvas, 0..1 (-1: not over it)
+let lastTake = 0;
+/** Plain mouse movement turns the view at this gain (dragging turns faster: the hand travels further). */
+const HOVER_GAIN = 1.25;
+/** The outer fraction of the screen, left and right, where a resting cursor keeps the view turning. */
+const EDGE = 0.07;
+/** Turning speed at the very edge, in look pixels per second. */
+const EDGE_SPEED = 650;
 
 const BIND = {
   forward: ['KeyW', 'ArrowUp'],
@@ -72,7 +81,17 @@ export function initInput(canvas: HTMLElement): void {
     for (const l of listeners) l('Mouse' + e.button);
   });
   canvas.addEventListener('pointermove', (e) => {
-    if (down < 0) return;
+    const r = canvas.getBoundingClientRect();
+    cursorX = r.width > 0 ? (e.clientX - r.left) / r.width : -1;
+    if (down < 0) {
+      // no button held: the mouse just looks
+      if (e.pointerType === 'mouse' && (e.movementX || e.movementY)) {
+        lookX += e.movementX * HOVER_GAIN;
+        lookY += e.movementY * HOVER_GAIN;
+        lookT = performance.now();
+      }
+      return;
+    }
     if (!dragging && Math.hypot(e.clientX - downX, e.clientY - downY) > DRAG_PX) dragging = true;
     if (!dragging) return;
     lookX += e.movementX * DRAG_GAIN;
@@ -89,6 +108,8 @@ export function initInput(canvas: HTMLElement): void {
     dragging = false;
   };
   canvas.addEventListener('pointerup', lift);
+  canvas.addEventListener('pointerleave', () => (cursorX = -1));
+  window.addEventListener('blur', () => (cursorX = -1));
   canvas.addEventListener('pointercancel', () => {
     down = -1;
     dragging = false;
@@ -109,6 +130,17 @@ export function initInput(canvas: HTMLElement): void {
 
 /** Mouse movement since the last call, in pixels. */
 export function takeLook(): [number, number] {
+  // a cursor resting at the left or right edge keeps turning that way
+  const now = performance.now();
+  const dt = lastTake ? Math.min(0.1, (now - lastTake) / 1000) : 0;
+  lastTake = now;
+  if (cursorX >= 0 && cursorX <= 1) {
+    const k = cursorX < EDGE ? -(EDGE - cursorX) / EDGE : cursorX > 1 - EDGE ? (cursorX - (1 - EDGE)) / EDGE : 0;
+    if (k) {
+      lookX += k * EDGE_SPEED * dt;
+      lookT = now;
+    }
+  }
   const out: [number, number] = [lookX, lookY];
   lookX = lookY = 0;
   return out;

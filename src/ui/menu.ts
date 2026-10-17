@@ -35,7 +35,7 @@ const QUALITY_NAME: Record<Quality, string> = { auto: 'Auto', high: 'High', medi
 
 const CONTROLS: [string, string][] = [
   ['W  A  S  D', 'move  ·  relative to the camera  ·  or the arrows'],
-  ['Mouse drag', 'look around  ·  any button  ·  a two-finger swipe turns too'],
+  ['Mouse', 'move it to look around (no button needed)  ·  rest at a screen edge to keep turning'],
   ['Space', 'jump  ·  again in the air to double jump'],
   ['Click  /  J', 'strike  ·  in the air: aerial  ·  running: lunge  ·  turns toward the nearest shade'],
   ['Right click  /  K', 'heavy cleave  ·  hold K to charge, release to rend  ·  in the air: plunge'],

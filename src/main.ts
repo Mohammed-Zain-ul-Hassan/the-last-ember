@@ -382,7 +382,7 @@ function beginPlay(): void {
   rig.follow(0.8, world.level.startYaw);
   clearInput(); // the key that skipped the card must not also jump or swing on the first frame
   setMode('play');
-  if (!DEMO) hud.toast('W A S D move  ·  drag the mouse to look  ·  J / K or click to strike');
+  if (!DEMO) hud.toast('W A S D move  ·  move the mouse to look  ·  J / K or click to strike');
 }
 
 function restartAll(): void {
@@ -1136,7 +1136,7 @@ function update(now: number): void {
   else if (mode === 'prologue') rig.target.set(world.hearthX, 0, world.hearthZ);
   else if (mode === 'midnight') rig.target.set(world.hearthX - 1.1, 0, world.hearthZ);
   else rig.target.set(k.x, k.y, k.z);
-  // the camera moves only by the mouse (drag, or a two-finger swipe)
+  // the camera moves only by the mouse (moving it, dragging, or a two-finger swipe)
   const [lookX, lookY] = takeLook();
   if (rig.following && (mode === 'play' || mode === 'choice')) {
     rig.look(lookX, lookY, settings.sens, settings.invertY);
