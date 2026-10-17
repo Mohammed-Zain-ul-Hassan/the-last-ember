@@ -191,7 +191,7 @@ export class Guide {
     let face = yaw - b.yaw;
     while (face > Math.PI) face -= Math.PI * 2;
     while (face < -Math.PI) face += Math.PI * 2;
-    if (Math.abs(face) > 0.5) this.coach = face > 0 ? 'turn toward him: drag the view right ⟶' : 'turn toward him: ⟵ drag the view left';
+    if (Math.abs(face) > 0.5) this.coach = face > 0 ? 'turn toward him: move the view right ⟶' : 'turn toward him: ⟵ move the view left';
     else if (dy < -0.2) this.coach = 'lower the flame: look down ↓';
     else if (dy > 0.2) this.coach = 'raise the flame: look up ↑';
     else if (off > 0.35) this.coach = 'step into the middle of the ring';

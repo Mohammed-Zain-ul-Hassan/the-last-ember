@@ -1,5 +1,7 @@
-// Keyboard and mouse for the Still City. The camera moves only by the mouse and the cursor is never captured: drag
-// with any button to look (a two-finger sideways swipe turns it too). A quick left click is E (wake, rest, read); a
+// Keyboard and mouse for the Still City. The camera moves only by the mouse: during play simply moving it looks (no
+// button held), the cursor hidden and the pointer locked to the game (src/ui/cursor.ts); paused, or in a menu, the
+// cursor is back. Where a lock is refused, plain movement still looks and resting the cursor at the left or right edge
+// keeps turning. Dragging works too, and a two-finger sideways swipe. A quick left click is E (wake, rest, read); a
 // quick right click is Flame Lock. The wheel trims the flame's height. Presses are latched until a sim step reads them.
 
 const held = new Set<string>();
@@ -12,6 +14,13 @@ let clickR = false;
 const DRAG_PX = 5;
 const CLICK_MS = 350;
 const DRAG_GAIN = 1.8;
+/** Plain mouse movement turns the view at this gain. */
+const HOVER_GAIN = 1.25;
+/** The outer fraction of the screen, left and right, where a resting cursor keeps the view turning (no lock). */
+const EDGE = 0.07;
+const EDGE_SPEED = 650;
+let cursorX = -1;
+let lastTake = 0;
 
 type Listener = (code: string) => void;
 const listeners: Listener[] = [];
@@ -48,7 +57,23 @@ export function initInput(canvas: HTMLElement): void {
     for (const l of listeners) l('Mouse' + e.button);
   });
   canvas.addEventListener('pointermove', (e) => {
-    if (down < 0) return;
+    // locked to the game: every movement looks, held button or not
+    if (document.pointerLockElement === canvas) {
+      lookX += e.movementX * HOVER_GAIN;
+      lookY += e.movementY * HOVER_GAIN;
+      cursorX = -1;
+      return;
+    }
+    const r = canvas.getBoundingClientRect();
+    cursorX = r.width > 0 ? (e.clientX - r.left) / r.width : -1;
+    if (down < 0) {
+      // no button held: the mouse just looks
+      if (e.pointerType === 'mouse') {
+        lookX += e.movementX * HOVER_GAIN;
+        lookY += e.movementY * HOVER_GAIN;
+      }
+      return;
+    }
     if (!dragging && Math.hypot(e.clientX - downX, e.clientY - downY) > DRAG_PX) dragging = true;
     if (!dragging) return;
     lookX += e.movementX * DRAG_GAIN;
@@ -64,6 +89,8 @@ export function initInput(canvas: HTMLElement): void {
     dragging = false;
   };
   canvas.addEventListener('pointerup', lift);
+  canvas.addEventListener('pointerleave', () => (cursorX = -1));
+  window.addEventListener('blur', () => (cursorX = -1));
   canvas.addEventListener('pointercancel', () => {
     down = -1;
     dragging = false;
@@ -81,6 +108,14 @@ export function initInput(canvas: HTMLElement): void {
 }
 
 export function takeLook(): [number, number] {
+  // a cursor resting at the left or right edge keeps turning that way (when the pointer is not locked)
+  const now = performance.now();
+  const dt = lastTake ? Math.min(0.1, (now - lastTake) / 1000) : 0;
+  lastTake = now;
+  if (cursorX >= 0 && cursorX <= 1) {
+    const k = cursorX < EDGE ? -(EDGE - cursorX) / EDGE : cursorX > 1 - EDGE ? (cursorX - (1 - EDGE)) / EDGE : 0;
+    lookX += k * EDGE_SPEED * dt;
+  }
   const out: [number, number] = [lookX, lookY];
   lookX = lookY = 0;
   return out;

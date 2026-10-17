@@ -132,7 +132,7 @@ export class StillMenu {
       'beforeend',
       `<h2>CONTROLS</h2><div class="keys">
       <div><b>W A S D</b>walk (relative to the view)</div>
-      <div><b>DRAG THE MOUSE</b>look; the flame follows: look up to lift it, swing to sweep every shadow</div>
+      <div><b>MOVE THE MOUSE</b>look; the flame follows: look up to lift it, swing to sweep every shadow</div>
       <div><b>WHEEL</b>raise or lower the flame a little</div>
       <div><b>SHIFT (HOLD)</b>draw the flame back: your shadow runs ahead of you</div>
       <div><b>E / CLICK</b>wake a shadow at its true angle (1 Ash) &middot; rest, relight, read</div>

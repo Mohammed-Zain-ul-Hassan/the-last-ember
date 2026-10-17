@@ -36,6 +36,7 @@ import { Captions } from './ui/captions';
 import { Narrative } from './narrative/narrative';
 import { bus } from './narrative/bus';
 import { startRecording, type Recording } from './record';
+import { initCursor, wantCursorHidden } from '../ui/cursor';
 
 // The Still City. You carry the only fire left in a city that froze mid-breath four thousand years ago. Your flame
 // wakes the dead for ten seconds at a time, and something that moves only when unseen follows you.
@@ -261,7 +262,7 @@ function setPaused(on: boolean): void {
 const title = document.createElement('div');
 title.id = 'sc-title';
 title.innerHTML = `<h1>THE STILL CITY</h1><p>Carry it carefully. It is all the time that is left.</p><div class="begin">CLICK TO BEGIN</div>
-  <div class="keys">WASD walk &nbsp;·&nbsp; drag the mouse to look and aim the flame &nbsp;·&nbsp; E wake &nbsp;·&nbsp; Shift draw the flame back &nbsp;·&nbsp; Esc pause</div>`;
+  <div class="keys">WASD walk &nbsp;·&nbsp; move the mouse to look and aim the flame &nbsp;·&nbsp; E wake &nbsp;·&nbsp; Shift draw the flame back &nbsp;·&nbsp; Esc pause</div>`;
 document.body.appendChild(title);
 
 const TITLE_SHOT: Shot = { yaw: -0.9, height: 1.6, dist: 6.2, lookY: 1.8, fov: 40 };
@@ -349,6 +350,10 @@ function nextDistrict(): void {
 
 // ------------------------------------------------------------------ input
 initInput(stage.renderer.domElement);
+// the cursor hides (and the pointer locks) while the game is played; Esc releases it and pauses
+initCursor(stage.renderer.domElement, () => {
+  if (mode === 'play') setPaused(true);
+});
 // a click anywhere starts it (the title lies over the canvas)
 document.addEventListener('pointerdown', (e) => {
   if ((e.target as HTMLElement).closest('#sc-menu, #sc-choice, #sc-credits')) return;
@@ -695,6 +700,8 @@ function frame(now: number): void {
   SHADOW_FRAME.n++;
   const [lx, ly] = takeLook();
   if (cine) updateCine(dt);
+  // no cursor while the game is played (or a shot plays); paused, the title, the ending's choice and the credits show it
+  wantCursorHidden(!BOT && (mode === 'play' || !!cine) && !menu.open);
   if (mode === 'play' && !cine) {
     if (lockT > 0) {
       lockT = Math.min(1, lockT + dt / 0.28);
