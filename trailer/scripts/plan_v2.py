@@ -114,7 +114,7 @@ cues[-1]["b1"] = pos
 total = pos * BAR
 plan = {
     "fps": 60, "width": 1920, "height": 1080, "bpm": BPM, "bar": BAR, "duration": round(total, 4),
-    "url": "the-last-ember-xi.vercel.app",
+    "url": "the-last-ember-xi.vercel.app",  # (no end card in this shape: the link rides in the last shot's corner)
     "title": "THE LAST EMBER",
     "logline": "Carry the last fire. Hold back the night.",
     "themes": THEMES, "shots": shots, "overlays": overlays, "cues": cues,
@@ -131,8 +131,21 @@ assert produced <= 59.0, f"produced {produced:.2f} s > 59 s"
 for i, th in enumerate(THEMES):
     assert any(o["theme"] == i and o["kind"] == "lowerThird" for o in overlays), f"{th['name']} has no lower-third over gameplay"
     assert any(s.get("theme") == i for s in shots), f"{th['name']} has no explainer card"
-end = next(s for s in shots if s["kind"] == "end")
-assert end["dur"] >= 5, "end card dwell < 5 s"
+# Moeez: the last two minutes are pure gameplay. Everything from GAMEPLAY_FROM on is raw play, one shot after
+# another, with no cards and no cutscenes; only small corner tags (a theme word, the play link) sit over it.
+GAMEPLAY_FROM = total - 120.0
+assert 175.0 <= total <= 179.5, f"about three minutes: {total:.2f} s"
+tail = [s for s in shots if s["start"] + s["dur"] > GAMEPLAY_FROM + 1e-3]
+assert abs(tail[0]["start"] - GAMEPLAY_FROM) < 1e-3, f"the gameplay block must begin on a cut: {tail[0]['id']} spans {GAMEPLAY_FROM:.2f}"
+for s in tail:
+    assert s["kind"] == "gameplay" and s["raw"], f"{s['id']} ({s['kind']}) is inside the last two minutes of pure gameplay"
+for o in overlays:
+    if o["start"] + o["dur"] > GAMEPLAY_FROM + 1e-3:
+        assert o["kind"] == "corner", f"{o['kind']} at {o['start']} sits over the pure-gameplay block (only corner tags may)"
+    else:
+        assert o["kind"] != "corner", "corner tags belong to the gameplay block"
+for i, th in enumerate(THEMES):  # each theme is named again where it is played
+    assert any(o["kind"] == "corner" and o["theme"] == i and o["start"] >= GAMEPLAY_FROM for o in overlays), f"{th['name']} has no corner tag in the gameplay block"
 for o in overlays:  # overlays only ever sit on gameplay
     for s in shots:
         if s["kind"] != "gameplay" and o["start"] < s["start"] + s["dur"] - 1e-3 and o["start"] + o["dur"] > s["start"] + 1e-3:
@@ -152,7 +165,7 @@ strict = raw - covered  # the harshest reading: no second with lettering over it
 longest = max(s["dur"] for s in shots if s["kind"] == "gameplay")
 assert longest >= 20, "no 20 s uninterrupted take"
 for o in overlays:  # text is read, not glimpsed
-    if o["kind"] in ("lowerThird", "line"):
+    if o["kind"] in ("lowerThird", "line", "corner"):
         assert o["dur"] >= 2.5, f"{o['kind']} at {o['start']} is on screen < 2.5 s"
     if o.get("text"):
         assert len(o["text"].split()) <= 12, f"line too long to read: {o['text']}"
@@ -168,6 +181,8 @@ missing = sorted({Path(s['src']).stem for s in shots if s.get('missing')})
 print(f"\ntotal {total:.2f} s | raw gameplay {raw:.2f} s (gameplay shots at 1.0x, only lower-thirds/lines/tags over them) | "
       f"produced {produced:.2f} s | longest take {longest:.2f} s | overlays {len(overlays)}")
 print(f"strictest count (no second under a lower-third or story line): raw {strict:.2f} s")
+print(f"teaser 0:00-{int(GAMEPLAY_FROM // 60)}:{GAMEPLAY_FROM % 60:05.2f} | pure gameplay {int(GAMEPLAY_FROM // 60)}:{GAMEPLAY_FROM % 60:05.2f}-{int(total // 60)}:{total % 60:05.2f} "
+      f"({len(tail)} shots, only corner tags over it)")
 print(f"takes not captured yet (slates): {', '.join(missing) if missing else 'none'}")
 for n in notes:
     print("note:", n)

@@ -32,8 +32,9 @@ if ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$O
 else
   cp work/v2_score.wav work/v2_mix.wav  # nothing captured yet: the score alone
 fi
-# master: glue, measured gain to -14 LUFS, a 4x-oversampled limiter so the AAC stays under -1 dBTP
-ffmpeg -v error -y -i work/v2_mix.wav -af "alimiter=level_in=1:limit=0.5:attack=1:release=60:level=false" -c:a pcm_s16le work/v2_glued.wav
+# master: a 30 Hz high-pass (the booms' infrasonic tail made the AAC encoder overshoot to -0.2 dBTP), glue,
+# measured gain to -14 LUFS, a 4x-oversampled limiter so the AAC stays under -1 dBTP
+ffmpeg -v error -y -i work/v2_mix.wav -af "highpass=f=30:poles=2,alimiter=level_in=1:limit=0.5:attack=1:release=60:level=false" -c:a pcm_s16le work/v2_glued.wav
 I=$(ffmpeg -v info -i work/v2_glued.wav -af ebur128 -f null - 2>&1 | awk '/^ +I:/{print $2}' | tail -1)
 G=$(python3 -c "print(round(-14 - ($I), 2))")
 ffmpeg -v error -y -i work/v2_glued.wav -af "volume=${G}dB,aresample=192000,alimiter=limit=0.6:attack=1:release=80:level=false,aresample=48000" -c:a pcm_s16le work/v2_master.wav

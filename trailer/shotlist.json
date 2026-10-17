@@ -4,7 +4,7 @@
   "height": 1080,
   "bpm": 120,
   "bar": 2.0,
-  "duration": 176.0,
+  "duration": 179.0,
   "url": "the-last-ember-xi.vercel.app",
   "title": "THE LAST EMBER",
   "logline": "Carry the last fire. Hold back the night.",
@@ -69,32 +69,173 @@
       "subtitle": "Everyone stopped one second before the flood."
     },
     {
-      "id": "walk",
-      "kind": "gameplay",
-      "start": 14.0,
-      "dur": 8.0,
-      "src": "clips/A1_main.mp4",
-      "in": 0.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "The frozen city: rain hanging in the air, statues mid-step, the flame the only light",
-      "anchor": "district@gateWard",
-      "missing": true,
-      "vol": 1.0
-    },
-    {
       "id": "card_fire",
       "kind": "card",
-      "start": 22.0,
-      "dur": 5.0,
+      "start": 14.0,
+      "dur": 4.0,
       "raw": false,
       "why": "Theme explainer: FIRE",
       "theme": 0
     },
     {
+      "id": "t_fire",
+      "kind": "gameplay",
+      "start": 18.0,
+      "dur": 4.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Glimpse: the flame swung, every shadow swinging with it",
+      "anchor": "district@gateWard",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "card_time",
+      "kind": "card",
+      "start": 22.0,
+      "dur": 4.0,
+      "raw": false,
+      "why": "Theme explainer: TIME",
+      "theme": 1
+    },
+    {
+      "id": "t_time",
+      "kind": "gameplay",
+      "start": 26.0,
+      "dur": 4.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Glimpse: a frozen figure wakes and replays its last seconds",
+      "anchor": "wake#2",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "card_shadow",
+      "kind": "card",
+      "start": 30.0,
+      "dur": 4.0,
+      "raw": false,
+      "why": "Theme explainer: SHADOW",
+      "theme": 2
+    },
+    {
+      "id": "t_shadow",
+      "kind": "gameplay",
+      "start": 34.0,
+      "dur": 4.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Glimpse: look away, and the shadow with his face is closer",
+      "anchor": "wrongShift@library",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "heart",
+      "kind": "scene",
+      "start": 38.0,
+      "dur": 5.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": false,
+      "why": "The Heart: \"It has your hands.\" The shadow is him; he lit the flame",
+      "anchor": "ending",
+      "missing": true,
+      "vol": 0.9
+    },
+    {
+      "id": "act2",
+      "kind": "act",
+      "start": 43.0,
+      "dur": 4.0,
+      "raw": false,
+      "why": "ACT II: The Hearth",
+      "act": "ACT II",
+      "name": "THE HEARTH",
+      "subtitle": "Carry it out. Hold it until dawn."
+    },
+    {
+      "id": "t_sunset",
+      "kind": "gameplay",
+      "start": 47.0,
+      "dur": 2.0,
+      "src": "clips/A2_7pm.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Glimpse: sunset at the hearth, a sword cut",
+      "anchor": "kill#3",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "t_rise",
+      "kind": "gameplay",
+      "start": 49.0,
+      "dur": 2.0,
+      "src": "clips/A2_9pm.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Glimpse: shades rising from the fire's shadows",
+      "anchor": "spawn#5",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "t_torch",
+      "kind": "gameplay",
+      "start": 51.0,
+      "dur": 2.0,
+      "src": "clips/A2_1am.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Glimpse: the torch in the lower city",
+      "anchor": "kill#7",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "t_marshal",
+      "kind": "gameplay",
+      "start": 53.0,
+      "dur": 2.0,
+      "src": "clips/A2_3am.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Glimpse: the Marshal's wave",
+      "anchor": "wave#2",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "midnight",
+      "kind": "scene",
+      "start": 55.0,
+      "dur": 4.0,
+      "src": "clips/A2_midnight.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": false,
+      "why": "Midnight: the hearth dies; he lights the torch from its last flame",
+      "anchor": "mode:midnight",
+      "missing": true,
+      "vol": 0.9
+    },
+    {
       "id": "fire_take",
       "kind": "gameplay",
-      "start": 27.0,
+      "start": 59.0,
       "dur": 20.0,
       "src": "clips/A1_main.mp4",
       "in": 0.0,
@@ -106,18 +247,9 @@
       "vol": 1.0
     },
     {
-      "id": "card_time",
-      "kind": "card",
-      "start": 47.0,
-      "dur": 5.0,
-      "raw": false,
-      "why": "Theme explainer: TIME",
-      "theme": 1
-    },
-    {
       "id": "step_in",
       "kind": "gameplay",
-      "start": 52.0,
+      "start": 79.0,
       "dur": 8.0,
       "src": "clips/A1_main.mp4",
       "in": 0.0,
@@ -129,32 +261,9 @@
       "vol": 1.0
     },
     {
-      "id": "replay2",
-      "kind": "gameplay",
-      "start": 60.0,
-      "dur": 4.0,
-      "src": "clips/A1_main.mp4",
-      "in": 0.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "A second figure, a second last moment (the Market or the Temple)",
-      "anchor": "wake#3",
-      "missing": true,
-      "vol": 1.0
-    },
-    {
-      "id": "card_shadow",
-      "kind": "card",
-      "start": 64.0,
-      "dur": 5.0,
-      "raw": false,
-      "why": "Theme explainer: SHADOW",
-      "theme": 2
-    },
-    {
       "id": "bridge",
       "kind": "gameplay",
-      "start": 69.0,
+      "start": 87.0,
       "dur": 8.0,
       "src": "clips/A1_main.mp4",
       "in": 0.0,
@@ -168,7 +277,7 @@
     {
       "id": "stalk1",
       "kind": "gameplay",
-      "start": 77.0,
+      "start": 95.0,
       "dur": 6.0,
       "src": "clips/A1_main.mp4",
       "in": 0.0,
@@ -182,22 +291,8 @@
     {
       "id": "stalk2",
       "kind": "gameplay",
-      "start": 83.0,
-      "dur": 3.0,
-      "src": "clips/A1_main.mp4",
-      "in": 0.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Look away: it is closer",
-      "anchor": "wrongShift@library",
-      "missing": true,
-      "vol": 1.0
-    },
-    {
-      "id": "stalk3",
-      "kind": "gameplay",
-      "start": 86.0,
-      "dur": 3.0,
+      "start": 101.0,
+      "dur": 4.0,
       "src": "clips/A1_main.mp4",
       "in": 0.0,
       "speed": 1.0,
@@ -208,34 +303,23 @@
       "vol": 1.0
     },
     {
-      "id": "heart",
-      "kind": "scene",
-      "start": 89.0,
-      "dur": 6.0,
+      "id": "stalk3",
+      "kind": "gameplay",
+      "start": 105.0,
+      "dur": 4.0,
       "src": "clips/A1_main.mp4",
       "in": 0.0,
       "speed": 1.0,
-      "raw": false,
-      "why": "The Heart: \"It has your hands.\" The shadow is him; he lit the flame",
-      "anchor": "ending",
+      "raw": true,
+      "why": "The Heart: the first plate under the rumble",
+      "anchor": "plate#1",
       "missing": true,
-      "vol": 0.9
-    },
-    {
-      "id": "act2",
-      "kind": "act",
-      "start": 95.0,
-      "dur": 4.0,
-      "raw": false,
-      "why": "ACT II: The Hearth",
-      "act": "ACT II",
-      "name": "THE HEARTH",
-      "subtitle": "Carry it out. Hold it until dawn."
+      "vol": 1.0
     },
     {
       "id": "sunset",
       "kind": "gameplay",
-      "start": 99.0,
+      "start": 109.0,
       "dur": 10.0,
       "src": "clips/A2_7pm.mp4",
       "in": 0.0,
@@ -249,7 +333,7 @@
     {
       "id": "rise",
       "kind": "gameplay",
-      "start": 109.0,
+      "start": 119.0,
       "dur": 6.0,
       "src": "clips/A2_9pm.mp4",
       "in": 0.0,
@@ -263,7 +347,7 @@
     {
       "id": "crawl",
       "kind": "gameplay",
-      "start": 115.0,
+      "start": 125.0,
       "dur": 3.0,
       "src": "clips/A2_11pm.mp4",
       "in": 0.0,
@@ -277,7 +361,7 @@
     {
       "id": "ember",
       "kind": "gameplay",
-      "start": 118.0,
+      "start": 128.0,
       "dur": 3.0,
       "src": "clips/A2_11pm.mp4",
       "in": 0.0,
@@ -289,24 +373,10 @@
       "vol": 1.0
     },
     {
-      "id": "midnight",
-      "kind": "scene",
-      "start": 121.0,
-      "dur": 6.0,
-      "src": "clips/A2_midnight.mp4",
-      "in": 0.0,
-      "speed": 1.0,
-      "raw": false,
-      "why": "Midnight: the hearth dies; he lights the torch from its last flame",
-      "anchor": "mode:midnight",
-      "missing": true,
-      "vol": 0.9
-    },
-    {
       "id": "e1",
       "kind": "gameplay",
-      "start": 127.0,
-      "dur": 4.0,
+      "start": 131.0,
+      "dur": 6.0,
       "src": "clips/A2_1am.mp4",
       "in": 0.0,
       "speed": 1.0,
@@ -319,8 +389,8 @@
     {
       "id": "e2",
       "kind": "gameplay",
-      "start": 131.0,
-      "dur": 2.0,
+      "start": 137.0,
+      "dur": 4.0,
       "src": "clips/A2_5am.mp4",
       "in": 0.0,
       "speed": 1.0,
@@ -333,8 +403,8 @@
     {
       "id": "e3",
       "kind": "gameplay",
-      "start": 133.0,
-      "dur": 1.0,
+      "start": 141.0,
+      "dur": 2.0,
       "src": "clips/A2_1am.mp4",
       "in": 0.0,
       "speed": 1.0,
@@ -347,8 +417,8 @@
     {
       "id": "e4",
       "kind": "gameplay",
-      "start": 134.0,
-      "dur": 1.0,
+      "start": 143.0,
+      "dur": 2.0,
       "src": "clips/A2_9pm.mp4",
       "in": 0.0,
       "speed": 1.0,
@@ -361,8 +431,8 @@
     {
       "id": "e5",
       "kind": "gameplay",
-      "start": 135.0,
-      "dur": 1.0,
+      "start": 145.0,
+      "dur": 2.0,
       "src": "clips/A2_5am.mp4",
       "in": 0.0,
       "speed": 1.0,
@@ -375,8 +445,8 @@
     {
       "id": "e6",
       "kind": "gameplay",
-      "start": 136.0,
-      "dur": 1.0,
+      "start": 147.0,
+      "dur": 2.0,
       "src": "clips/A2_3am.mp4",
       "in": 0.0,
       "speed": 1.0,
@@ -389,7 +459,7 @@
     {
       "id": "climax",
       "kind": "gameplay",
-      "start": 137.0,
+      "start": 149.0,
       "dur": 21.0,
       "src": "clips/A2_3am.mp4",
       "in": 0.0,
@@ -402,133 +472,79 @@
     },
     {
       "id": "dawn",
-      "kind": "scene",
-      "start": 158.0,
+      "kind": "gameplay",
+      "start": 170.0,
       "dur": 6.0,
       "src": "clips/A2_dawn.mp4",
       "in": 0.0,
       "speed": 1.0,
-      "raw": false,
-      "why": "Dawn: the light reaches the gate; the choice",
+      "raw": true,
+      "why": "Dawn: the choice, played: into the light, or stay in the shadow",
       "anchor": "mode:choice",
       "missing": true,
-      "vol": 0.9
+      "vol": 1.0
     },
     {
       "id": "button",
       "kind": "gameplay",
-      "start": 164.0,
+      "start": 176.0,
       "dur": 3.0,
       "src": "clips/A1_library.mp4",
       "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Button: in the still city a shadow with his face turns toward the camera",
+      "why": "Last look: in the still city, a shadow with his face turns toward the camera",
       "anchor": "wrongSeen#1",
       "missing": true,
       "vol": 1.0
-    },
-    {
-      "id": "m_fire",
-      "kind": "gameplay",
-      "start": 167.0,
-      "dur": 1.0,
-      "src": "clips/A2_7pm.mp4",
-      "in": 0.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Montage FIRE: a burst of hearth fire",
-      "anchor": "fireburst#1",
-      "missing": true,
-      "vol": 1.0
-    },
-    {
-      "id": "m_time",
-      "kind": "gameplay",
-      "start": 168.0,
-      "dur": 1.0,
-      "src": "clips/A1_main.mp4",
-      "in": 0.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Montage TIME: a rewind",
-      "anchor": "rewind#1",
-      "missing": true,
-      "vol": 1.0
-    },
-    {
-      "id": "m_shadow",
-      "kind": "gameplay",
-      "start": 169.0,
-      "dur": 1.0,
-      "src": "clips/A2_9pm.mp4",
-      "in": 0.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Montage SHADOW: a shade rising from a cast shadow",
-      "anchor": "spawn#8",
-      "missing": true,
-      "vol": 1.0
-    },
-    {
-      "id": "end",
-      "kind": "end",
-      "start": 170.0,
-      "dur": 6.0,
-      "raw": false,
-      "why": "End card: name, play link, FIRE / SHADOW / TIME, Built in 3 days with Claude Code"
     }
   ],
   "overlays": [
     {
-      "kind": "line",
-      "start": 15.0,
-      "dur": 5.0,
-      "theme": 0,
-      "text": "You carry the last flame."
-    },
-    {
       "kind": "lowerThird",
-      "start": 28.0,
-      "dur": 5.0,
+      "start": 18.5,
+      "dur": 3.0,
       "theme": 0
     },
     {
       "kind": "lowerThird",
-      "start": 53.0,
-      "dur": 5.0,
+      "start": 26.5,
+      "dur": 3.0,
       "theme": 1
     },
     {
       "kind": "lowerThird",
-      "start": 70.0,
-      "dur": 5.0,
+      "start": 34.5,
+      "dur": 3.0,
       "theme": 2
     },
     {
-      "kind": "line",
-      "start": 101.0,
-      "dur": 5.0,
+      "kind": "corner",
+      "start": 60.0,
+      "dur": 6.0,
       "theme": 0,
-      "text": "For the first time in four thousand years, the sun sets."
+      "text": "the flame casts every shadow"
     },
     {
-      "kind": "tag",
-      "start": 167.0,
-      "dur": 1.0,
-      "theme": 0
+      "kind": "corner",
+      "start": 79.5,
+      "dur": 6.0,
+      "theme": 1,
+      "text": "Ash is time: step in, rewind"
     },
     {
-      "kind": "tag",
-      "start": 168.0,
-      "dur": 1.0,
-      "theme": 1
+      "kind": "corner",
+      "start": 87.5,
+      "dur": 6.0,
+      "theme": 2,
+      "text": "a lit shadow turns solid"
     },
     {
-      "kind": "tag",
-      "start": 169.0,
-      "dur": 1.0,
-      "theme": 2
+      "kind": "corner",
+      "start": 176.0,
+      "dur": 3.0,
+      "theme": 0,
+      "text": "the-last-ember-xi.vercel.app"
     }
   ],
   "cues": [
@@ -543,79 +559,79 @@
       "b1": 7.0
     },
     {
-      "name": "still",
-      "b0": 7.0,
-      "b1": 13.5
-    },
-    {
       "name": "puzzle",
-      "b0": 13.5,
-      "b1": 26.0
-    },
-    {
-      "name": "still",
-      "b0": 26.0,
-      "b1": 38.5
+      "b0": 7.0,
+      "b1": 15.0
     },
     {
       "name": "stalk",
-      "b0": 38.5,
-      "b1": 44.5
+      "b0": 15.0,
+      "b1": 19.0
     },
     {
       "name": "reveal",
-      "b0": 44.5,
-      "b1": 47.5
+      "b0": 19.0,
+      "b1": 21.5
     },
     {
       "name": "act",
-      "b0": 47.5,
-      "b1": 49.5
-    },
-    {
-      "name": "hearth",
-      "b0": 49.5,
-      "b1": 54.5
+      "b0": 21.5,
+      "b1": 23.5
     },
     {
       "name": "drive",
-      "b0": 54.5,
-      "b1": 60.5
+      "b0": 23.5,
+      "b1": 27.5
     },
     {
       "name": "midnight",
-      "b0": 60.5,
-      "b1": 63.5
+      "b0": 27.5,
+      "b1": 29.5
+    },
+    {
+      "name": "puzzle",
+      "b0": 29.5,
+      "b1": 39.5
+    },
+    {
+      "name": "still",
+      "b0": 39.5,
+      "b1": 47.5
+    },
+    {
+      "name": "stalk",
+      "b0": 47.5,
+      "b1": 54.5
+    },
+    {
+      "name": "hearth",
+      "b0": 54.5,
+      "b1": 59.5
+    },
+    {
+      "name": "drive",
+      "b0": 59.5,
+      "b1": 65.5
     },
     {
       "name": "escalate",
-      "b0": 63.5,
-      "b1": 68.5
+      "b0": 65.5,
+      "b1": 74.5
     },
     {
       "name": "climax",
-      "b0": 68.5,
-      "b1": 79.0
-    },
-    {
-      "name": "dawn",
-      "b0": 79.0,
-      "b1": 82.0
-    },
-    {
-      "name": "after",
-      "b0": 82.0,
-      "b1": 83.5
-    },
-    {
-      "name": "montage",
-      "b0": 83.5,
+      "b0": 74.5,
       "b1": 85.0
     },
     {
-      "name": "end",
+      "name": "dawn",
       "b0": 85.0,
       "b1": 88.0
+    },
+    {
+      "name": "after",
+      "b0": 88.0,
+      "b1": 89.5
     }
   ]
 }

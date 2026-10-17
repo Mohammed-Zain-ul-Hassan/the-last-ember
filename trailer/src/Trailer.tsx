@@ -1,6 +1,7 @@
 import React from "react";
 import { AbsoluteFill, OffthreadVideo, Sequence, staticFile, useVideoConfig } from "remotion";
-import { ActCard, EndCard, LowerThird, Scene, Slate, StoryLine, Tag, ThemeCard, TitleCard } from "./components/Cards";
+import { ActCard, CornerTag, EndCard, LowerThird, Scene, Slate, StoryLine, Tag, ThemeCard, TitleCard } from "./components/Cards";
+import { colorOf } from "./theme";
 import { C } from "./theme";
 import type { Shot, Shotlist } from "./types";
 
@@ -35,6 +36,7 @@ export const Trailer: React.FC<{ plan: Shotlist }> = ({ plan }) => {
           {o.kind === "lowerThird" && <LowerThird index={o.theme} theme={plan.themes[o.theme]} />}
           {o.kind === "tag" && <Tag index={o.theme} theme={plan.themes[o.theme]} />}
           {o.kind === "line" && <StoryLine text={o.text!} />}
+          {o.kind === "corner" && <CornerTag word={plan.themes[o.theme].name} text={o.text} color={colorOf(plan.themes[o.theme].name, o.theme)} />}
         </Sequence>
       ))}
     </AbsoluteFill>

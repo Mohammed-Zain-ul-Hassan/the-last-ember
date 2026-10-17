@@ -391,3 +391,24 @@ export const Slate: React.FC<{ id: string; src?: string; anchor?: string; why: s
     </AbsoluteFill>
   );
 };
+
+/** The pure-gameplay block's only lettering: a small tag in the top-right corner (a theme word and a few words on how,
+ * or the play link). Inside the graphics-safe area, no backing panel, gone in 3 s. */
+export const CornerTag: React.FC<{ word: string; text?: string; color: string }> = ({ word, text, color }) => {
+  const a = useIn(0.05, 0.4);
+  const out = useOut(0.4);
+  const link = text?.includes(".");
+  return (
+    <AbsoluteFill style={{ opacity: Math.min(a, out) }}>
+      <div style={{ position: "absolute", right: 96, top: 64, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, transform: `translateX(${(1 - a) * 16}px)` }}>
+        {!link && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 10, height: 10, transform: "rotate(45deg)", background: color, boxShadow: `0 0 10px ${color}` }} />
+            <div style={{ fontFamily: DISPLAY, fontSize: 40, letterSpacing: "0.3em", color: C.bone, ...glow(color, 12) }}>{word}</div>
+          </div>
+        )}
+        {text && <div style={{ fontFamily: link ? DISPLAY : SERIF, fontStyle: link ? "normal" : "italic", fontSize: link ? 34 : 36, letterSpacing: link ? "0.06em" : 0, color: link ? C.gold : C.bone, ...glow("#000000", 10) }}>{text}</div>}
+      </div>
+    </AbsoluteFill>
+  );
+};

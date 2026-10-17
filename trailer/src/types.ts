@@ -23,7 +23,7 @@ export interface Shot {
 }
 
 export interface Overlay {
-  kind: "lowerThird" | "tag" | "line";
+  kind: "lowerThird" | "tag" | "line" | "corner";
   start: number;
   dur: number;
   theme: number;

@@ -5,23 +5,35 @@
 - Zain chooses which build to record: production, or the `merged-game` preview.
 - An animatic renders now. Every shot not yet captured plays as a labelled slate, under the real cards, lines and score:
   `trailer/scripts/build_v2.sh preview` produces `trailer/out/v2_preview_540p.mp4` and `v2_contact_sheet.jpg`.
+- Shape (Moeez): a stylised first minute, then two minutes of pure gameplay.
 
-## Rules this cut is built to (docs/handbook.md, jam-trailer skill)
-`plan_v2.py` asserts every rule below. Plan as of tonight:
+## Rules this cut is built to (docs/handbook.md, the jam-trailer skill, and Moeez's structure)
+Moeez (2026-10-18): *"around 3 minutes, and the last 2 minutes should be of pure gameplay."* So the stylised and
+teaser work all lives in the first minute, and the last two minutes are continuous raw play.
 
-| Rule | Limit | This cut |
-|---|---|---|
-| Total length | ≤ 3:00 | **2:56** (176 s) |
-| Raw, directly screen-recorded gameplay at 1.0x | ≥ 2:00 | **125 s** |
-| Stylised edit: cards, act cards, the Heart / midnight / dawn scenes, end card | ≤ 1:00 | **51 s** |
-| Longest uninterrupted take | — | 21 s (the Marshal) |
-| Each theme word shown verbatim | — | explainer card, lower-third over live play, montage tag, title and end chips |
-| End card dwell | — | 6 s |
+`plan_v2.py` asserts every rule below:
 
-- **The strictest reading:** count no second that has lettering over it. Raw is then **100 s**.
-  - If an organiser rules that way, drop the two story lines and two of the lower-thirds (the cards already name the themes). Raw then rises to 115 s.
-  - Also extend the climax by 3 bars, from the dawn scene. That makes 121 s.
-- **Screen recording:** v1 used canvas captures. v2 records the **tab as seen and heard**, with the HUD, captions and the game's own sound (`?rec=1` in both acts). So "directly screen-recorded" holds literally.
+| Rule | This cut |
+|---|---|
+| About three minutes | **2:59** (179 s) |
+| **0:00–0:59 teaser:** cold open, title, act cards, the three theme reveals (card + glimpse), the Heart, midnight | 59 s, of which 26 s is raw glimpses |
+| **0:59–2:59 pure gameplay:** gameplay shots only, cut on the beat; no cards, no cutscenes, no lower-thirds; only small corner tags (a theme word with a few words on how, then the play link) | **120 s**, 19 shots |
+| Raw, directly screen-recorded gameplay ≥ 2:00 | **146 s** (137 s even if no second under lettering counts) |
+| Stylised ≤ 1:00 | 33 s |
+| Each theme named verbatim | an explainer card and a lower-third in the teaser, a corner tag where it is played, title chips |
+| Longest uninterrupted take | 21 s (the Marshal) |
+| Loudness (animatic, score only) | −14.4 LUFS, true peak −2.0 dBTP |
+
+The rule check also asserts:
+- the gameplay block starts exactly on a cut;
+- nothing but `gameplay` shots sit in it;
+- every theme has a corner tag in it.
+
+**There is no end card in this shape** (it would not be gameplay). The title carries the name, and the play link
+rides in the corner of the last shot.
+
+**Screen recording:** v1 used canvas captures. v2 records the **tab as seen and heard**, with the HUD, captions and the
+game's own sound (`?rec=1` in both acts). So "directly screen-recorded" holds literally.
 
 ## What the research says (sources at the end)
 - **Open on the verb, no logo.** The first 5 to 10 s decide whether people stay, and about 19% leave in the first 10 s.
@@ -53,46 +65,55 @@
 ## Beat sheet (120 BPM, a bar = 2.0 s; `trailer/scripts/cut_v2.py` is the source of truth)
 **Type:** **R** = raw gameplay, **S** = in-engine scene (counted as produced), **C** = card.
 
+### Teaser, 0:00–0:59 (the stylised minute)
 | Time | Type | Beat | Take @ anchor | Music cue |
 |---|---|---|---|---|
 | 0:00 | R 6 s | **Hook:** the flame swept down a frozen street; far off, a figure that is not frozen | A1_main @ wrongSeen (Gate Ward) −4.5 s | cold: braam + boom on frame 1, heartbeat, reverse swell |
-| 0:06 | C 5 s | **THE LAST EMBER**, "Carry the last fire. Hold back the night.", FIRE · SHADOW · TIME | — | title: boom + bell, Phrygian pad |
+| 0:06 | C 5 s | **THE LAST EMBER**, "Carry the last fire. Hold back the night.", FIRE · SHADOW · TIME | — | title: boom + bell |
 | 0:11 | C 3 s | ACT I · **THE STILL CITY**, "Everyone stopped one second before the flood." | — | |
-| 0:14 | R 8 s | Walking the frozen city (rain hanging, statues mid-step); line: *You carry the last flame.* | A1_main @ district (Gate Ward) +6.5 s | still: drone, half-time clock, the theme a note at a time |
-| 0:22 | C 5 s | **FIRE** card | — | card: pad, bell, whoosh |
-| 0:27 | R 20 s | **One take:** aim the flame, the coaching ring, the shadow lines up, the figure wakes and replays its last 10 s; lower-third FIRE | A1_main @ wake#1 −13 s | puzzle: drone, pulse with the Phrygian semitone, an "oo" choir |
-| 0:47 | C 5 s | **TIME** card | — | |
-| 0:52 | R 8+4 s | Spend Ash, step into the replay as a ghost; a second figure's last moment; lower-third TIME | A1_main @ stepIn#1 −1.5, @ wake#3 −1 | still |
-| 1:04 | C 5 s | **SHADOW** card | — | |
-| 1:09 | R 8 s | Draw the flame back: his own shadow becomes the bridge over the canal; lower-third SHADOW | A1_main @ bridge −3 | |
-| 1:17 | R 6+3+3 s | **The Wrong Shadow** in the Library, wearing his face; look away, it is closer; light it, it stops dead | A1_main @ wrongSeen / wrongShift / wrongLit (Library) | stalk: heartbeat quickening, semitone pulses, reverse swell |
-| 1:29 | S 6 s | **The Heart:** "It has your hands." | A1_main @ ending +1 | reveal: choir, bells (stopdown) |
-| 1:35 | C 4 s | ACT II · **THE HEARTH**, "Carry it out. Hold it until dawn." | — | act: **braam**, boom, a single tick |
-| 1:39 | R 10 s | 7 PM sunset, the first shades, sword cuts; line: *For the first time in four thousand years, the sun sets.* | A2_7pm @ mode:play +1 | hearth: Aeolian pad, pulse, light taiko, the motif |
-| 1:49 | R 6+3+3 s | 9 PM shades rise from cast shadows; 11 PM a crawler pounces; an ember carried home | A2_9pm @ spawn#3, A2_11pm @ pounce#1, @ feed#1 | drive: taiko, choir, brass every 2 bars |
-| 2:01 | S 6 s | **Midnight:** the hearth dies, the torch is lit from its last flame | A2_midnight @ mode:midnight +1 | midnight: deep bell, near silence (stopdown) |
-| 2:07 | R 10 s | **Escalation:** cuts of 4 s, 2 s, then four of 1 s: torch in the lower city, bolts on the wall, kills, the cathedral stirs | A2_1am, A2_5am, A2_9pm, A2_3am @ kill / bolt / spawn | escalate: everything, Shepard riser, **one silent beat** |
-| 2:17 | R 21 s | **Climax, one take:** the Hollow Marshal rises, his cry, the waves jumped, the kill | A2_3am @ marshalCry#1 −3 | climax: **the drop**: booms + braams on 1 and bar 5, double taiko, choir, brass, the motif an octave up |
-| 2:38 | S 6 s | **Dawn:** the light reaches the gate; the choice | A2_dawn @ mode:choice −4 | dawn: D major (Dorian lift), piano |
-| 2:44 | R 3 s | **Button:** back in the still city, a shadow with his face turns toward us | A1_library @ wrongSeen#1 | after: violet drone, one high bell |
-| 2:47 | R 3 s | Montage: FIRE / TIME / SHADOW tags, one hit each | A2_7pm @ fireburst, A1_main @ rewind, A2_9pm @ spawn#8 | montage: three taiko + bell hits |
-| 2:50 | C 6 s | End card: THE LAST EMBER, play link, FIRE · SHADOW · TIME, "Built in 3 days with Claude Code" | — | end: the motif, fading |
+| 0:14 | C 4 s + R 4 s | **FIRE** card, then a glimpse: the flame swung, every shadow swinging (lower-third) | A1_main @ district (Gate Ward) +7 s | puzzle: drone, semitone pulse |
+| 0:22 | C 4 s + R 4 s | **TIME** card, then a glimpse: a frozen figure wakes and replays (lower-third) | A1_main @ wake#2 | |
+| 0:30 | C 4 s + R 4 s | **SHADOW** card, then a glimpse: look away, the shadow with his face is closer (lower-third) | A1_main @ wrongShift (Library) | stalk: heartbeat quickening |
+| 0:38 | S 5 s | **The Heart:** "It has your hands." | A1_main @ ending +1 | reveal: choir, bells (stopdown) |
+| 0:43 | C 4 s | ACT II · **THE HEARTH**, "Carry it out. Hold it until dawn." | — | act: **braam** |
+| 0:47 | R 4×2 s | Glimpses, quickening: sunset sword cut, shades rising, the torch, the Marshal's wave | A2_7pm, A2_9pm, A2_1am, A2_3am | drive |
+| 0:55 | S 4 s | **Midnight:** the hearth dies, the torch is lit | A2_midnight @ mode:midnight | midnight: bell, near silence (stopdown) |
 
-**Score as rendered tonight** (`music/score_v2.wav`): −14.4 LUFS integrated, LRA 15.3 LU. Loudness by section:
+### Pure gameplay, 0:59–2:59 (120 s: the story again, played)
+| Time | Shot | Take @ anchor | Corner tag | Music cue (ducked under the game) |
+|---|---|---|---|---|
+| 0:59 | 20 s, **one take:** aim the flame, the ring, the shadow lines up, the figure wakes and replays | A1_main @ wake#1 −13 | FIRE · *the flame casts every shadow* | puzzle |
+| 1:19 | 8 s: spend Ash, step into the replay as a ghost | A1_main @ stepIn#1 | TIME · *Ash is time: step in, rewind* | still |
+| 1:27 | 8 s: the shadow bridge over the canal | A1_main @ bridge | SHADOW · *a lit shadow turns solid* | |
+| 1:35 | 6 + 4 + 4 s: the Wrong Shadow with his face; lit, it stops dead; the Heart's first plate | A1_main @ wrongSeen / wrongLit (Library), plate#1 | — | stalk |
+| 1:49 | 10 s: 7 PM, sunset at the hearth, the first shades | A2_7pm @ mode:play +1 | — | hearth |
+| 1:59 | 6 + 3 + 3 s: 9 PM shades rise; 11 PM a crawler; an ember carried home | A2_9pm, A2_11pm | — | drive |
+| 2:11 | 6, 4, then four 2 s cuts: the torch in the lower city, bolts on the wall, kills, the cathedral stirs | A2_1am, A2_5am, A2_9pm, A2_3am | — | escalate: Shepard riser, one silent beat |
+| 2:29 | **21 s, one take:** the Hollow Marshal rises, his cry, the waves, the kill | A2_3am @ marshalCry#1 −3 | — | climax: **the drop** |
+| 2:50 | 6 s: dawn, the choice, played | A2_dawn @ mode:choice | — | dawn: D major |
+| 2:56 | 3 s: last look, a shadow with his face in the still city | A1_library @ wrongSeen#1 | the play link | after: drone, one bell |
 
-| Section | LUFS |
-|---|---|
-| cold | −14.7 |
-| still | −19 to −21 |
-| puzzle | −23 |
-| stalk | −17 |
-| act | −11 |
-| hearth | −17.6 |
-| drive | −16 |
-| escalate | −11 |
-| climax | **−9.3** |
-| after | −20.6 |
-| end | −16.8 |
+**Score as rendered** (`music/score_v2.wav`, from this cut's cues): -14.4 LUFS integrated, LRA 14.3 LU. The mastered animatic is −14.4 LUFS, true peak −2.0 dBTP. Loudness by section:
+
+| At | Cue | LUFS |
+|---|---|---|
+| 0:00.0 | cold | -14.9 |
+| 0:06.0 | title | -16.7 |
+| 0:14.0 | puzzle | -23.3 |
+| 0:30.0 | stalk | -18.0 |
+| 0:38.0 | reveal | -19.1 |
+| 0:43.0 | act | -12.1 |
+| 0:47.0 | drive | -16.2 |
+| 0:55.0 | midnight | -16.8 |
+| 0:59.0 | puzzle | -23.2 |
+| 1:19.0 | still | -19.4 |
+| 1:35.0 | stalk | -17.2 |
+| 1:49.0 | hearth | -17.4 |
+| 1:59.0 | drive | -16.2 |
+| 2:11.0 | escalate | -11.8 |
+| 2:29.0 | climax | -9.2 |
+| 2:50.0 | dawn | -15.2 |
+| 2:56.0 | after | -19.4 |
 
 ## Card copy (`cut_v2.py` THEMES; the title and act cards are in the cut)
 - **Title:** THE LAST EMBER. *Carry the last fire. Hold back the night.*
@@ -104,8 +125,8 @@
 - **SHADOW:** *A lit shadow turns solid: walk the bridge your body casts.* / *And one shadow moves only when you look away.*
   - Lower-third: *shadows hold you up, and one hunts you.*
 - **ACT II · THE HEARTH:** *Carry it out. Hold it until dawn.*
-- **Story lines over play:** *You carry the last flame.* · *For the first time in four thousand years, the sun sets.*
-- **End:** the play link (production, or the preview once Zain chooses), the three theme chips, *Built in 3 days with Claude Code*.
+- **Corner tags (pure-gameplay block):** FIRE *the flame casts every shadow* · TIME *Ash is time: step in, rewind* · SHADOW *a lit shadow turns solid* · the play link on the last shot.
+- No story lines over play and no end card in this shape (both would break "pure gameplay"). "Built in 3 days with Claude Code" can go in the Drive description.
 
 ## Sound (`trailer/scripts/score_v2.py`, original, numpy, no samples; logged in ASSETS.md)
 - **One grid for both acts** at 120 BPM. Act I is in half time over it: D Phrygian (i, ♭II, i, ♭vii), with the semitone above the root for dread. Act II is in D Aeolian, turning D major at dawn.
@@ -153,16 +174,16 @@ Steps:
 | Anchor | Stand-in |
 |---|---|
 | `stepIn#1` | the same event in A1_full |
-| `rewind#1` (montage) | A1_full `rewind`, or swap the TIME tag to `wake#4` |
+| `wake#2` (TIME glimpse) | `wake#3` |
+| `plate#1` | `district@heart` +10 s |
 | `wrongLit@library` | `wrongSeen#2@library` |
 | `bridge` | A1_market `bridge` |
-| `fireburst#1` | `feed#2` |
 | `marshalCry#1` | `mode:play` +25 s in A2_3am |
 
 ## Open decisions (for Zain in the morning)
 1. **Which build to record:** production (the Still City alone; `/classic` is the old combat), or the `merged-game` preview (the two acts). The plan assumes merged-game. On production, Act II takes come from `/classic`, and the act handoff, Heart reveal and bridge shots are cut.
-2. **The end-card link:** production URL (the default), or the preview once it's public.
-3. **Whether to keep the two story lines and the lower-thirds** (see the strict count above).
+2. **The play link in the last shot's corner:** production URL (the default), or the preview once it's public.
+3. **No end card** (Moeez's last-two-minutes rule). If the team wants one anyway, it costs 6 s of the gameplay block.
 
 ## Sources
 Trailer structure, pacing and cards:

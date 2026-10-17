@@ -1,11 +1,14 @@
 """The Last Ember, trailer v2: the cut, bar by bar (120 BPM: a bar is 2.0 s). Read by plan_v2.py.
 
-Shape (docs/trailer-v2.md has the why, with sources):
-  cold open on the verb (the flame sweeps every shadow; something stands in the dark) -> title -> ACT I
-  -> tell, show, repeat for each theme (card, then one unhurried take of exactly that) -> the stalker, cuts tightening
-  -> stopdown -> the Heart ("It has your hands") -> ACT II braam -> the hours, building -> midnight stopdown
-  -> escalation (cuts 4 s down to 1 s, Shepard riser, a beat of silence) -> the Marshal, one 21 s take on the drop
-  -> dawn -> button (back in the city, his shadow) -> theme montage -> end card.
+Shape (Moeez, 2026-10-18: "around 3 minutes, and the last 2 minutes should be of pure gameplay"; the why, with
+sources: docs/trailer-v2.md):
+  TEASER, 0:00-0:59 (the stylised minute): cold open on the verb -> title -> ACT I -> tell, show for each theme
+    (card, then a glimpse of exactly that) -> the Heart ("It has your hands") -> ACT II braam -> a quickening
+    glimpse of the hours -> midnight.
+  GAMEPLAY, 0:59-2:59 (120 s, raw only: no cards, no cutscenes, no lettering but small corner tags): the story again,
+    played: one unhurried take of the true angle -> stepping into a replay -> the shadow bridge -> the stalker
+    -> the hearth at sunset -> the hours building -> the torch in the dark -> the Marshal, one 21 s take on the drop
+    -> the dawn choice -> a last look back at the still city, the play link in the corner.
 Every gameplay shot is anchored to an event in its take's moments log (capture-v2.mjs); `pre` is how many seconds
 before the event the shot starts (negative: after it).
 """
@@ -22,78 +25,68 @@ FIRE, TIME, SHADOW = 0, 1, 2
 
 
 def build(gp, scene, card, over, cue, here):
-    # ---------------- COLD OPEN: no logo. The verb in the first frame, something waiting in the dark.
+    # ================= TEASER (0:00-0:59) =================
+    # COLD OPEN: no logo. The verb in the first frame, something waiting in the dark.
     cue("cold")
     gp("hook", "A1_main", "wrongSeen@gateWard", 3, "Hook: he sweeps the flame down a frozen street; every shadow swings; far off, a figure that is not frozen", pre=4.5)
-    # ---------------- TITLE (over the title screen: the knight, the flame, the rain)
     cue("title")
     card("title", "title", 2.5, "Title: THE LAST EMBER, the logline, FIRE / SHADOW / TIME")
-    # ---------------- ACT I
     card("act1", "act", 1.5, "ACT I: The Still City", act="ACT I", name="THE STILL CITY", subtitle="Everyone stopped one second before the flood.")
-    cue("still")
-    gp("walk", "A1_main", "district@gateWard", 4, "The frozen city: rain hanging in the air, statues mid-step, the flame the only light", pre=-6.5)
-    over("line", here() - 3.5, 2.5, text="You carry the last flame.")
-    # ---------------- FIRE: tell, then show it in one unhurried take
-    card("card_fire", "card", 2.5, "Theme explainer: FIRE", theme=FIRE)
+    # THE THREE THEMES: tell (card), show (a glimpse of exactly that, its word low on the frame)
     cue("puzzle")
-    gp("fire_take", "A1_main", "wake#1", 10, "One take: aim the flame, the coaching ring, the shadow lines up, the figure wakes and replays its last ten seconds", pre=13)
-    over("lowerThird", here() - 10 + 0.5, 2.5, theme=FIRE)
-    # ---------------- TIME
-    card("card_time", "card", 2.5, "Theme explainer: TIME", theme=TIME)
-    cue("still")
-    gp("step_in", "A1_main", "stepIn#1", 4, "Spend Ash: step into the replay as a ghost and do what the figure did", pre=1.5)
-    over("lowerThird", here() - 4 + 0.5, 2.5, theme=TIME)
-    gp("replay2", "A1_main", "wake#3", 2, "A second figure, a second last moment (the Market or the Temple)", pre=1.0)
-    # ---------------- SHADOW
-    card("card_shadow", "card", 2.5, "Theme explainer: SHADOW", theme=SHADOW)
-    gp("bridge", "A1_main", "bridge", 4, "Draw the flame back: his own shadow runs out over the canal and holds him up", pre=3)
-    over("lowerThird", here() - 4 + 0.5, 2.5, theme=SHADOW)
-    # ---------------- THE STALKER: cuts tighten 3 -> 1.5 bars, the heartbeat quickens
+    card("card_fire", "card", 2, "Theme explainer: FIRE", theme=FIRE)
+    gp("t_fire", "A1_main", "district@gateWard", 2, "Glimpse: the flame swung, every shadow swinging with it", pre=-7.0)
+    over("lowerThird", here() - 2 + 0.25, 1.5, theme=FIRE)
+    card("card_time", "card", 2, "Theme explainer: TIME", theme=TIME)
+    gp("t_time", "A1_main", "wake#2", 2, "Glimpse: a frozen figure wakes and replays its last seconds", pre=0.5)
+    over("lowerThird", here() - 2 + 0.25, 1.5, theme=TIME)
     cue("stalk")
-    gp("stalk1", "A1_main", "wrongSeen@library", 3, "The Wrong Shadow, wearing his face, frozen in the lamplight", pre=1.5)
-    gp("stalk2", "A1_main", "wrongShift@library", 1.5, "Look away: it is closer", pre=0.5)
-    gp("stalk3", "A1_main", "wrongLit@library", 1.5, "Swing the flame onto it: it stops dead", pre=0.5)
-    # ---------------- THE HEART: who it is (stopdown into the reveal)
+    card("card_shadow", "card", 2, "Theme explainer: SHADOW", theme=SHADOW)
+    gp("t_shadow", "A1_main", "wrongShift@library", 2, "Glimpse: look away, and the shadow with his face is closer", pre=0.5)
+    over("lowerThird", here() - 2 + 0.25, 1.5, theme=SHADOW)
+    # WHO IT IS (stopdown into the reveal), then ACT II on a braam
     cue("reveal")
-    scene("heart", "A1_main", "ending", 3, "The Heart: \"It has your hands.\" The shadow is him; he lit the flame", pre=-1.0)
-    # ---------------- ACT II: one braam, then the sun moves for the first time
+    scene("heart", "A1_main", "ending", 2.5, "The Heart: \"It has your hands.\" The shadow is him; he lit the flame", pre=-1.0)
     cue("act")
     card("act2", "act", 2, "ACT II: The Hearth", act="ACT II", name="THE HEARTH", subtitle="Carry it out. Hold it until dawn.")
+    cue("drive")
+    gp("t_sunset", "A2_7pm", "kill#3", 1, "Glimpse: sunset at the hearth, a sword cut", pre=0.5)
+    gp("t_rise", "A2_9pm", "spawn#5", 1, "Glimpse: shades rising from the fire's shadows", pre=0.3)
+    gp("t_torch", "A2_1am", "kill#7", 1, "Glimpse: the torch in the lower city", pre=0.4)
+    gp("t_marshal", "A2_3am", "wave#2", 1, "Glimpse: the Marshal's wave", pre=0.3)
+    cue("midnight")
+    scene("midnight", "A2_midnight", "mode:midnight", 2, "Midnight: the hearth dies; he lights the torch from its last flame", pre=-1.0)
+
+    # ================= GAMEPLAY (0:59-2:59): raw play only =================
+    cue("puzzle")
+    gp("fire_take", "A1_main", "wake#1", 10, "One take: aim the flame, the coaching ring, the shadow lines up, the figure wakes and replays its last ten seconds", pre=13)
+    over("corner", here() - 10 + 0.5, 3, theme=FIRE, text="the flame casts every shadow")
+    cue("still")
+    gp("step_in", "A1_main", "stepIn#1", 4, "Spend Ash: step into the replay as a ghost and do what the figure did", pre=1.5)
+    over("corner", here() - 4 + 0.25, 3, theme=TIME, text="Ash is time: step in, rewind")
+    gp("bridge", "A1_main", "bridge", 4, "Draw the flame back: his own shadow runs out over the canal and holds him up", pre=3)
+    over("corner", here() - 4 + 0.25, 3, theme=SHADOW, text="a lit shadow turns solid")
+    cue("stalk")
+    gp("stalk1", "A1_main", "wrongSeen@library", 3, "The Wrong Shadow, wearing his face, frozen in the lamplight", pre=1.5)
+    gp("stalk2", "A1_main", "wrongLit@library", 2, "Swing the flame onto it: it stops dead", pre=0.5)
+    gp("stalk3", "A1_main", "plate#1", 2, "The Heart: the first plate under the rumble", pre=1.0)
     cue("hearth")
     gp("sunset", "A2_7pm", "mode:play", 5, "7 PM: sunset on the hearth grounds, the first shades, the knight's sword cuts", pre=-1.0)
-    over("line", here() - 4, 2.5, text="For the first time in four thousand years, the sun sets.")
     cue("drive")
     gp("rise", "A2_9pm", "spawn#3", 3, "9 PM: shades rise out of the shadows the fire throws", pre=0.6)
     gp("crawl", "A2_11pm", "pounce#1", 1.5, "11 PM: a crawler pounces, the cleave answers", pre=0.8)
     gp("ember", "A2_11pm", "feed#1", 1.5, "An ember carried home: the hearth flares", pre=1.8)
-    # ---------------- MIDNIGHT: stopdown, only the fire
-    cue("midnight")
-    scene("midnight", "A2_midnight", "mode:midnight", 3, "Midnight: the hearth dies; he lights the torch from its last flame", pre=-1.0)
-    # ---------------- ESCALATION: the torch in the dark; cuts 2 -> 1 -> 0.5 bars; a Shepard riser; one silent beat
     cue("escalate")
-    gp("e1", "A2_1am", "kill#2", 2, "1 AM: the lower city, the torch swings every shadow", pre=1.2)
-    gp("e2", "A2_5am", "bolt#3", 1, "5 AM: lantern-eater bolts over the wall walk", pre=0.6)
-    gp("e3", "A2_1am", "kill#5", 0.5, "A kill in torchlight", pre=0.4)
-    gp("e4", "A2_9pm", "kill#6", 0.5, "A dash-strike through a shade", pre=0.4)
-    gp("e5", "A2_5am", "kill#4", 0.5, "On the wall", pre=0.4)
-    gp("e6", "A2_3am", "spawn#2", 0.5, "The cathedral: something vast stirs", pre=0.3)
-    # ---------------- CLIMAX: the drop. One uninterrupted 21 s take.
+    gp("e1", "A2_1am", "kill#2", 3, "1 AM: the lower city, the torch swings every shadow", pre=1.2)
+    gp("e2", "A2_5am", "bolt#3", 2, "5 AM: lantern-eater bolts over the wall walk", pre=0.6)
+    gp("e3", "A2_1am", "kill#5", 1, "A kill in torchlight", pre=0.4)
+    gp("e4", "A2_9pm", "kill#6", 1, "A dash-strike through a shade", pre=0.4)
+    gp("e5", "A2_5am", "kill#4", 1, "On the wall", pre=0.4)
+    gp("e6", "A2_3am", "spawn#2", 1, "The cathedral: something vast stirs", pre=0.3)
     cue("climax")
     gp("climax", "A2_3am", "marshalCry#1", 10.5, "Climax, one take: the Hollow Marshal rises, his cry, the waves jumped, the kill", pre=3.0)
-    # ---------------- DAWN
     cue("dawn")
-    scene("dawn", "A2_dawn", "mode:choice", 3, "Dawn: the light reaches the gate; the choice", pre=4.0)
-    # ---------------- BUTTON: back in the city, one shadow still standing
+    gp("dawn", "A2_dawn", "mode:choice", 3, "Dawn: the choice, played: into the light, or stay in the shadow", pre=0.5)
     cue("after")
-    gp("button", "A1_library", "wrongSeen#1", 1.5, "Button: in the still city a shadow with his face turns toward the camera", pre=0.3)
-    # ---------------- THEME MONTAGE: three hits, one word each
-    cue("montage")
-    gp("m_fire", "A2_7pm", "fireburst#1", 0.5, "Montage FIRE: a burst of hearth fire", pre=0.2)
-    over("tag", here() - 0.5, 0.5, theme=FIRE)
-    gp("m_time", "A1_main", "rewind#1", 0.5, "Montage TIME: a rewind", pre=0.2)
-    over("tag", here() - 0.5, 0.5, theme=TIME)
-    gp("m_shadow", "A2_9pm", "spawn#8", 0.5, "Montage SHADOW: a shade rising from a cast shadow", pre=0.2)
-    over("tag", here() - 0.5, 0.5, theme=SHADOW)
-    # ---------------- END CARD (held 6 s)
-    cue("end")
-    card("end", "end", 3, "End card: name, play link, FIRE / SHADOW / TIME, Built in 3 days with Claude Code")
+    gp("button", "A1_library", "wrongSeen#1", 1.5, "Last look: in the still city, a shadow with his face turns toward the camera", pre=0.3)
+    over("corner", here() - 1.5, 1.5, theme=FIRE, text="the-last-ember-xi.vercel.app")
