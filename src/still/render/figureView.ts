@@ -83,6 +83,18 @@ const _v = new THREE.Vector3();
 export class FigureViews {
   readonly group = new THREE.Group();
   readonly items: Item[] = [];
+  private hintT: number[] = [];
+  private woken = 0;
+
+  /** A hint: this figure glows faintly for a while. */
+  hint(i: number, seconds: number): void {
+    this.hintT[i] = Math.max(this.hintT[i] ?? 0, seconds);
+  }
+
+  /** The let-go ending: every statue lives again (k 0..1). */
+  wakeAll(k: number): void {
+    this.woken = k;
+  }
 
   constructor(d: District) {
     for (const def of d.figures) {
@@ -130,7 +142,13 @@ export class FigureViews {
     this.items.forEach((it, i) => {
       const rt = s.figs[i];
       const def = it.def;
-      const living = rt.state !== 'frozen';
+      if (!city.present(i)) {
+        it.statue.visible = it.ink.visible = it.live.root.visible = false;
+        it.glow.material.opacity = 0;
+        return;
+      }
+      const living = rt.state !== 'frozen' || this.woken > 0.5;
+      this.hintT[i] = Math.max(0, (this.hintT[i] ?? 0) - dt);
       // the ink leaves the wall while he lives again ("so does he, back into the wall"); it comes back after
       const inkWant = living || (def.inkGone && city.flag(def.inkGone)) ? 0 : 1;
       it.inkK += (inkWant - it.inkK) * Math.min(1, dt * (inkWant ? 1.2 : 4));
@@ -142,8 +160,11 @@ export class FigureViews {
       it.liveK += ((living ? 1 : 0) - it.liveK) * Math.min(1, dt * 6);
       it.statue.visible = !living;
       it.live.root.visible = living;
-      it.glow.material.opacity = it.liveK * 0.5;
-      if (!living) return;
+      it.glow.material.opacity = Math.max(it.liveK * 0.5, Math.min(1, this.hintT[i]) * (0.35 + 0.25 * Math.sin(t * 5)));
+      if (!living) {
+        it.glow.position.set(def.x, (def.h ?? 1.8) * 0.6, def.z);
+        return;
+      }
       const at = city.placeOf(i);
       this.place(it.live, at.x, at.z, at.yaw);
       let pose: Pose;
@@ -156,6 +177,9 @@ export class FigureViews {
           const trig = def.clip.triggers?.[0]?.t ?? def.clip.len / 2;
           pose = poseAt(def.clip, trig - 0.9 + (0.9 - g.acting) * 1.4);
         } else pose = sp > 0.4 ? { ...STAND, ...run(it.phase / 9, 9), lean: 0.2 } : { ...STAND, lean: 0.05, head: Math.sin(t * 0.7) * 0.05 };
+      } else if (this.woken > 0.5 && rt.state === 'frozen') {
+        // alive: they breathe, they turn their heads toward the one who let it go out
+        pose = { ...STAND, ...def.frozen, y: 0, lF: 0.05, kF: -0.05, lB: -0.05, kB: -0.05, lean: 0.05 + Math.sin(t * 1.3 + i) * 0.03, head: -0.1 + Math.sin(t * 0.7 + i) * 0.1, aF: 0.2, aB: -0.1 };
       } else pose = def.clip ? poseAt(def.clip, rt.t) : { ...STAND, ...def.frozen };
       it.live.apply(pose);
       it.live.root.updateMatrixWorld(true);

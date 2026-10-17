@@ -71,6 +71,15 @@ export class Bot {
     return this.i >= this.script.length;
   }
 
+  /** After a death: go back to the last rest at a brazier (that is where he woke) and play on from there. */
+  restart(): void {
+    let k = Math.min(this.i, this.script.length - 1);
+    while (k > 0 && !('rest' in this.script[k])) k--;
+    this.i = k;
+    this.t = 0;
+    this.plan = null;
+  }
+
   private next(): void {
     this.i++;
     this.t = 0;

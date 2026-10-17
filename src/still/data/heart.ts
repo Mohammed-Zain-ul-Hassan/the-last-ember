@@ -116,6 +116,7 @@ export const HEART_D: District = {
   exit: { x0: 999, z0: 999, x1: 1000, z1: 1000 },
   decor: [
     { kind: 'dial', x: HEART.x, z: HEART.z, r: 9.5 },
+    ...PLATE_AT.map(([x, z], i) => ({ kind: 'plate' as const, x, z, s: 1.3, flag: `p${i + 1}` })),
     { kind: 'rubble', x: HEART.x - 12, z: 8, n: 6, r: 1.5 },
     { kind: 'rubble', x: HEART.x + 12, z: -8, n: 6, r: 1.5 },
   ],

@@ -179,7 +179,8 @@ export type Decor =
   | { kind: 'rubble'; x: number; z: number; n: number; r: number }
   | { kind: 'shaft'; x0: number; x1: number; z0: number; z1: number } // a shaft of real light through a broken roof
   | { kind: 'dial'; x: number; z: number; r: number } // a sundial's ring of hours on the floor
-  | { kind: 'roof'; x0: number; x1: number; z0: number; z1: number; y: number }; // a dark ceiling (render only)
+  | { kind: 'roof'; x0: number; x1: number; z0: number; z1: number; y: number } // a dark ceiling (render only)
+  | { kind: 'plate'; x: number; z: number; s: number; flag: string }; // a stone plate that lights when its flag is set
 
 export interface District {
   id: string;
