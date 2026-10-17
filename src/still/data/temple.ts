@@ -123,7 +123,7 @@ export const TEMPLE: District = {
     { id: 'p6', x: 82, y: 3, z: 8.95, ry: -Math.PI / 2 },
   ],
   figures,
-  mechs: [{ id: 'vault', kind: 'gate', x: 40, z: 0, w: 4, h: 5, ry: 0, opens: 'vault', blocks: [box(40, 0, 0.5, 4, 5, 0, 0, 'mech')] }],
+  mechs: [{ id: 'vault', kind: 'gate', x: 40, z: 0, w: 4, h: 5, ry: 0, opens: 'vault', blocks: [box(40, 0, 0.5, 4, 5, 0, 0, 'mech')], shutMsg: 'The vault is shut. Read what is carved above it, then wake the four priests in that order.' }],
   riddles: [{ id: 'temple', x: 39.35, y: 5.8, z: 0, ry: -Math.PI / 2, puzzle: 'priests' }],
   zones: [
     { rect: { x0: 0, z0: -9, x1: 6, z1: 9 }, line: 'temple.enter' },

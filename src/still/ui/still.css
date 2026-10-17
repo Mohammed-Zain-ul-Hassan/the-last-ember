@@ -723,7 +723,8 @@
   display: flex;
   justify-content: center;
 }
-#sc-caps .lane.story {
+#sc-caps .lane.story,
+#sc-caps .lane.wordlane {
   margin-top: 6px;
 }
 #sc-caps .lane.sound {

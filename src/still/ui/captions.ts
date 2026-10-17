@@ -31,6 +31,7 @@ export class Captions {
   private story: Lane;
   private whisper: Lane;
   private sound: Lane;
+  private word: Lane;
 
   constructor() {
     this.root = document.createElement('div');
@@ -43,6 +44,7 @@ export class Captions {
       return { box, queue: [], cur: null };
     };
     this.sound = lane('sound');
+    this.word = lane('wordlane');
     this.whisper = lane('whisper');
     this.story = lane('story');
     this.apply();
@@ -58,12 +60,13 @@ export class Captions {
 
   say(line: Line, priority = 2, laneName?: 'story' | 'whisper' | 'sound'): void {
     if (line.voice === 'cue' && !save.captions.cues) return;
-    const lane = laneName ? this[laneName] : line.voice === 'cue' ? this.sound : line.voice === 'flame' ? this.whisper : this.story;
+    // a Last Word has its own row: it never waits behind the story, and never holds an action beat up
+    const lane = laneName ? this[laneName] : line.voice === 'cue' ? this.sound : line.voice === 'flame' ? this.whisper : line.voice === 'word' ? this.word : this.story;
     const html =
       line.voice === 'word' || line.voice === 'inscription'
         ? `<span class="who">${esc(line.who ?? '')}</span>${line.voice === 'word' ? '&ldquo;' : ''}${esc(line.text)}${line.voice === 'word' ? '&rdquo;' : ''}`
         : esc(line.text);
-    this.push(lane, { html, cls: line.voice, id: line.id, priority, dur: read(line.text, line.voice), ttl: line.voice === 'cue' ? 4 : priority >= 3 ? 20 : 14 });
+    this.push(lane, { html, cls: line.voice, id: line.id, priority, dur: read(line.text, line.voice), ttl: line.voice === 'word' ? Infinity : line.voice === 'cue' ? 4 : priority >= 3 ? 20 : 14 });
   }
 
   /** A plain note (how to do something, why something failed): whisper lane, shown at once. */
@@ -87,18 +90,20 @@ export class Captions {
   }
 
   get speaking(): boolean {
+    void this.word;
     return !!this.story.cur || this.story.queue.length > 0;
   }
 
+  /** A new district: drop what no longer belongs, but never a Last Word or an action-beat line. */
   clear(): void {
     for (const l of [this.story, this.whisper, this.sound]) {
-      l.queue = [];
-      if (l.cur) l.cur.left = Math.min(l.cur.left, 0.4);
+      l.queue = l.queue.filter((q) => q.priority >= 3);
+      if (l.cur && l.cur.item.priority < 3) l.cur.left = Math.min(l.cur.left, 0.4);
     }
   }
 
   update(dt: number): void {
-    for (const l of [this.story, this.whisper, this.sound]) {
+    for (const l of [this.story, this.whisper, this.sound, this.word]) {
       // lines that waited too long are no longer worth saying (a sound long gone, a moment passed)
       for (const q of l.queue) q.ttl -= dt;
       l.queue = l.queue.filter((q) => q.ttl > 0);

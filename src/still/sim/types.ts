@@ -77,6 +77,7 @@ export interface MechDef {
   opens: string; // the flag
   blocks: Solid[];
   frozenMsg?: string; // said when you try it in the present ("held in the same second as everything else")
+  shutMsg?: string; // said when he comes up to it shut: what opens it
   highIn?: Rect; // a door of shadow: open only while the flame is held inside this area at least `minY` high
   minY?: number;
 }

@@ -196,12 +196,12 @@ export class StillHud {
   }
 
   /** The warmth ring: how near the flame is to a shadow's true angle (null hides it). */
-  align(k: number | null): void {
+  align(k: number | null, say?: string | null): void {
     this.ring.classList.toggle('on', k !== null);
     if (k === null) return;
     const c = 2 * Math.PI * 18;
     this.ringArc.style.strokeDasharray = `${c * k} ${c}`;
-    const label = k > 0.93 ? 'there' : k > 0.75 ? 'almost' : k > 0.45 ? 'closer' : 'his shadow stirs';
+    const label = say ?? (k > 0.93 ? 'there' : k > 0.75 ? 'almost' : k > 0.45 ? 'closer' : 'his shadow stirs');
     if (this.ringLabel.textContent !== label) this.ringLabel.textContent = label;
     this.ring.style.setProperty('--warm', String(k));
   }

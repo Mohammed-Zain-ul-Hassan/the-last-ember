@@ -15,6 +15,8 @@ export interface Objective {
   done: string | ((c: City) => boolean);
   at: At;
   via?: [number, number][];
+  /** The figure whose true angle this step is about: a ring of light marks where to stand, and the flame coaches. */
+  stand?: string | ((c: City) => string | null);
 }
 
 /** Where to stand for a figure's true angle (the same spot the bot finds). */
@@ -42,19 +44,26 @@ const brazier = (c: City, id: string): [number, number] | null => {
 export const OBJECTIVES: Record<string, Objective[]> = {
   gate: [
     { text: 'Rest by the brazier. It keeps your Ash, and your place.', done: 'rest:ward', at: (c) => brazier(c, 'ward') },
-    { text: 'Follow the passage. Look for a shadow on the wall, reaching for something.', done: 'found:lever', at: (c) => standAt(c, 'lever'), via: [[8, 0], [12, 0], [19, -0.5]] },
+    { text: 'Follow the passage. A guard’s shadow on the wall reaches for something. Stand in the ring of light and hold the flame where the fire once stood.', done: 'found:lever', at: (c) => standAt(c, 'lever'), via: [[8, 0], [12, 0], [19, -0.5]], stand: 'lever' },
     { text: 'Wake his shadow: E (1 Ash). Watch what he does.', done: 'woke:lever', at: (c) => figAt(c, 'lever') },
     {
       text: (c) => (replaying(c, 'lever') ? 'Hold E now to step into his last ten seconds. Do what he did: the lever behind the pillar.' : 'Wake him again (E) from his true angle, and while he moves, hold E to step in.'),
       done: 'lever',
       at: (c) => (c.s.ghost ? [27.9, 3.0] : replaying(c, 'lever') ? figAt(c, 'lever') : standAt(c, 'lever')),
+      stand: (c) => (c.s.ghost || replaying(c, 'lever') ? null : 'lever'),
     },
     { text: 'The portcullis is up. Rest at the brazier in the court beyond.', done: 'rest:court', at: (c) => brazier(c, 'court'), via: [[31, 0], [35.5, 0]] },
-    { text: 'Two guards held the gate shut. Find the angle each was lit from, and wake them both.', done: (c) => c.flag('woke:second') && c.flag('woke:watch'), at: (c) => (c.flag('woke:second') ? standAt(c, 'watch') : standAt(c, 'second')) },
+    {
+      text: 'Two guards held the gate shut. Stand in each ring of light, find the angle each was lit from, and wake them both (E).',
+      done: (c) => c.flag('woke:second') && c.flag('woke:watch'),
+      at: (c) => (c.flag('woke:second') ? standAt(c, 'watch') : standAt(c, 'second')),
+      stand: (c) => (c.flag('woke:second') ? 'watch' : 'second'),
+    },
     {
       text: (c) => (replaying(c, 'second') || replaying(c, 'watch') ? 'Hold E now: step into his replay and lift the bar.' : 'Wake one of them again (E), and while he moves, hold E to step in and lift the bar.'),
       done: 'bar',
       at: (c) => (c.s.ghost ? [56.6, 0] : replaying(c, 'second') ? figAt(c, 'second') : replaying(c, 'watch') ? figAt(c, 'watch') : standAt(c, 'watch')),
+      stand: (c) => (c.s.ghost || replaying(c, 'second') || replaying(c, 'watch') ? null : 'watch'),
     },
     { text: 'Through the gate, into the city.', done: 'never', at: [62, 0] },
   ],
@@ -70,8 +79,9 @@ export const OBJECTIVES: Record<string, Objective[]> = {
         const st = standFor(m.light, 0, false);
         return [st.x, st.z];
       },
+      stand: (c) => MERCHANTS.find((_, k) => !c.flag(`scale${k + 1}`))?.id ?? null,
     },
-    { text: 'The shutter is open. Go down to the dry canal.', done: 'found:beggar', at: (c) => standAt(c, 'beggar'), via: [[31, 0], [34, 0.5]] },
+    { text: 'The shutter is open. Go down to the dry canal, to the beggar sitting at its edge.', done: 'found:beggar', at: (c) => standAt(c, 'beggar'), via: [[31, 0], [34, 0.5]], stand: 'beggar' },
     { text: 'The beggar knew a way across. Wake him (E) and watch how he goes.', done: 'woke:beggar', at: (c) => figAt(c, 'beggar') },
     { text: 'Cross on your own shadow: hold Shift to draw the flame back, look down to stretch your shadow to the far bank, and walk on it.', done: 'crossed', at: [47, 0] },
     { text: 'Rest at the brazier on the far bank.', done: 'rest:bank', at: (c) => brazier(c, 'bank') },
@@ -85,6 +95,7 @@ export const OBJECTIVES: Record<string, Objective[]> = {
       text: (c) => `Wake the priests in the order of their last hours: idle, fleeing, praying, looking up (${c.s.seq[0] ?? 0} of 4). It costs four of your five Ash.`,
       done: 'vault',
       at: (c) => standAt(c, ['idle', 'flee', 'pray', 'up'][c.s.seq[0] ?? 0] ?? 'idle'),
+      stand: (c) => ['idle', 'flee', 'pray', 'up'][c.s.seq[0] ?? 0] ?? null,
     },
     { text: 'In the court the roof is open. Throw the gnomon’s shadow along the shaft of light.', done: 'dial', at: [49.4, -0.3], via: [[41, 0], [46, 0]] },
     { text: 'One brazier burns a cold blue. Rest at the warm one.', done: 'rest:court', at: (c) => brazier(c, 'court') },
@@ -121,6 +132,10 @@ export const OBJECTIVES: Record<string, Objective[]> = {
         return `Five plates, five lessons (${n} of 5). ${next ? how[next] : ''}`;
       },
       done: 'plates',
+      stand: (c) => {
+        const k = ['p1', 'p2', 'p3', 'p4', 'p5'].findIndex((p) => !c.flag(p));
+        return k === 0 ? 'soldier' : k === 2 ? (['old', 'dancer', 'twin'][c.s.seq[0] ?? 0] ?? null) : null;
+      },
       at: (c) => {
         const k = ['p1', 'p2', 'p3', 'p4', 'p5'].findIndex((p) => !c.flag(p));
         if (k < 0) return null;

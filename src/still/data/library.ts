@@ -112,9 +112,9 @@ export const LIBRARY: District = {
   ],
   figures: words,
   mechs: [
-    { id: 'door', kind: 'gate', x: 40, z: 0, w: 4, h: 5, ry: 0, opens: 'pages', blocks: [box(40, 0, 0.5, 4, 5, 0, 0, 'mech')] },
+    { id: 'door', kind: 'gate', x: 40, z: 0, w: 4, h: 5, ry: 0, opens: 'pages', blocks: [box(40, 0, 0.5, 4, 5, 0, 0, 'mech')], shutMsg: 'The door opens when all seven pages have been read from above.' },
     // the maze's way out: a door of shadow in the far wall that is only there while the flame is held high
-    { id: 'shadow', kind: 'shadowdoor', x: 62, z: 0, w: 4.4, h: 4.2, ry: 0, opens: 'never', highIn: { x0: 58.5, z0: -4, x1: 63, z1: 4 }, minY: 2.5, blocks: [box(62, 0, 0.6, 4.4, 4.2, 0, 0, 'mech')] },
+    { id: 'shadow', kind: 'shadowdoor', x: 62, z: 0, w: 4.4, h: 4.2, ry: 0, opens: 'never', highIn: { x0: 58.5, z0: -4, x1: 63, z1: 4 }, minY: 2.5, blocks: [box(62, 0, 0.6, 4.4, 4.2, 0, 0, 'mech')], shutMsg: 'A door of shadow. Look up: hold the flame high, and it opens.' },
   ],
   riddles: [{ id: 'library', x: 39.35, y: 5.8, z: 0, ry: -Math.PI / 2, puzzle: 'pages' }],
   zones: [

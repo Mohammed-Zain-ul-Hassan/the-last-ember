@@ -183,9 +183,9 @@ export const GATE_WARD: District = {
   ],
   figures,
   mechs: [
-    { id: 'portcullis', kind: 'portcullis', x: 34, z: 0, w: 7.2, h: 5.2, ry: 0, opens: 'lever', blocks: [box(34, 0, 0.5, 7.2, 5.2, 0, 0, 'mech')] },
+    { id: 'portcullis', kind: 'portcullis', x: 34, z: 0, w: 7.2, h: 5.2, ry: 0, opens: 'lever', blocks: [box(34, 0, 0.5, 7.2, 5.2, 0, 0, 'mech')], shutMsg: 'The portcullis is shut. Its lever is behind the pillar back in the passage, but only someone in the past can pull it: find the guard reaching for it, and wake him.' },
     { id: 'lever', kind: 'lever', x: LEVER.x, z: LEVER.z, w: 0.3, h: 1.6, ry: 0, opens: 'lever', blocks: [], frozenMsg: 'The lever will not move. It is held in the same second as everything else.' },
-    { id: 'gate', kind: 'gate', x: 57.85, z: 0, w: 5.6, h: 6.2, ry: 0, opens: 'bar', blocks: [box(57.85, 0, 0.5, 5.6, 6.2, 0, 0, 'mech')] },
+    { id: 'gate', kind: 'gate', x: 57.85, z: 0, w: 5.6, h: 6.2, ry: 0, opens: 'bar', blocks: [box(57.85, 0, 0.5, 5.6, 6.2, 0, 0, 'mech')], shutMsg: 'The gate is barred. The two guards held it: wake them both, then step into one of their replays and lift the bar.' },
   ],
   riddles: [{ id: 'gate', x: 33.6, y: 5.9, z: 0, ry: -Math.PI / 2, puzzle: 'lever' }],
   zones: [],

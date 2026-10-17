@@ -3,6 +3,7 @@ import { glowTexture } from '../render/textures';
 import type { Particles } from '../render/particles';
 import type { City } from './sim/city';
 import { OBJECTIVES, type Objective } from './data/objectives';
+import { standFor } from './bot';
 import type { StillHud } from './ui/hud';
 import { save } from './save';
 
@@ -11,7 +12,31 @@ import { save } from './save';
 // a warmth ring fills as the flame nears a shadow's true angle. The line is always there. Guided: the ember keeps
 // leading. Gentle: it leads when asked (H). Off: no ember.
 
+/** A chevron of light lying on the floor, pointing along +x (the trail's arrows, made of the flame's own light). */
+function chevron(): THREE.BufferGeometry {
+  const w = 0.09;
+  const a = 0.32;
+  const pts = [
+    [-a * 0.6, -a], [-a * 0.6 + w, -a], [a * 0.4 + w, 0], [a * 0.4, 0],
+    [-a * 0.6, a], [a * 0.4, 0], [a * 0.4 + w, 0], [-a * 0.6 + w, a],
+  ];
+  const pos: number[] = [];
+  for (const q of [pts.slice(0, 4), pts.slice(4, 8)]) for (const k of [0, 1, 2, 0, 2, 3]) pos.push(q[k][0], 0, q[k][1]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
+
+const TRAIL_MAX = 48;
+const TRAIL_STEP = 1.25;
+
 export class Guide {
+  private trail: THREE.InstancedMesh;
+  private ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+  private ringGlow: THREE.Sprite;
+  private onStep = 0; // seconds on the current step
+  /** The coaching line for the true angle (main shows it by the warmth ring), or null. */
+  coach: string | null = null;
   private ember: THREE.Sprite;
   private core: THREE.Sprite;
   private path: THREE.Vector3[] = [];
@@ -36,6 +61,21 @@ export class Guide {
     };
     this.ember = mk(0.9, new THREE.Color(2.2, 1.0, 0.35), 0.55);
     this.core = mk(0.22, new THREE.Color(4, 2.6, 1.2), 1);
+    // the trail: ember chevrons on the floor, a wave of light running along them toward the next place
+    this.trail = new THREE.InstancedMesh(chevron(), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }), TRAIL_MAX);
+    this.trail.count = 0;
+    this.trail.frustumCulled = false;
+    this.trail.renderOrder = 3;
+    this.trail.userData.noWarm = true;
+    for (let i = 0; i < TRAIL_MAX; i++) this.trail.setColorAt(i, new THREE.Color(0, 0, 0));
+    scene.add(this.trail);
+    // the ring of light where to stand for a true angle
+    this.ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.56, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.2, 0.4), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    this.ring.rotation.x = -Math.PI / 2;
+    this.ring.visible = false;
+    this.ring.renderOrder = 3;
+    scene.add(this.ring);
+    this.ringGlow = mk(1.6, new THREE.Color(1.4, 0.7, 0.25), 0.3);
   }
 
   /** H in Gentle mode: lead once. */
@@ -80,6 +120,84 @@ export class Guide {
     return [from.clone(), ...pts.slice(best).map(([x, z]) => new THREE.Vector3(x, 1.35, z))];
   }
 
+  /** The ember chevrons from his feet along the way to the target, lit by a wave running toward it. */
+  private drawTrail(c: City, t: number, to: [number, number] | null): void {
+    const b = c.s.body;
+    if (!to || Math.hypot(to[0] - b.x, to[1] - b.z) < 2.4) {
+      this.trail.count = 0;
+      return;
+    }
+    const path = this.route(c, new THREE.Vector3(b.x, 0, b.z), to);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    const col = new THREE.Color();
+    let n = 0;
+    let carry = 1.1; // the first chevron a step ahead of him
+    for (let i = 0; i < path.length - 1 && n < TRAIL_MAX; i++) {
+      const a = path[i];
+      const z = path[i + 1];
+      const len = Math.hypot(z.x - a.x, z.z - a.z);
+      const yaw = Math.atan2(z.z - a.z, z.x - a.x);
+      q.setFromAxisAngle(up, -yaw);
+      let d = carry;
+      while (d < len && n < TRAIL_MAX) {
+        const k = d / len;
+        const x = a.x + (z.x - a.x) * k;
+        const zz = a.z + (z.z - a.z) * k;
+        if (Math.hypot(to[0] - x, to[1] - zz) < 0.9) break;
+        m.compose(new THREE.Vector3(x, c.floorAt(x, zz, 0.1, 3) + 0.04, zz), q, new THREE.Vector3(1, 1, 1));
+        this.trail.setMatrixAt(n, m);
+        // a wave of light runs along the trail, toward the goal
+        const wave = Math.max(0, Math.cos((n * 0.45 - t * 3.2) % (Math.PI * 2)));
+        const near = Math.max(0.25, 1 - n / 30);
+        col.setRGB(1.6, 0.7, 0.22).multiplyScalar((0.25 + 0.75 * wave * wave) * near);
+        this.trail.setColorAt(n, col);
+        n++;
+        d += TRAIL_STEP;
+      }
+      carry = d - len;
+    }
+    this.trail.count = n;
+    this.trail.instanceMatrix.needsUpdate = true;
+    if (this.trail.instanceColor) this.trail.instanceColor.needsUpdate = true;
+  }
+
+  /** The ring where to stand for a true angle, and what the flame says once he is in it. */
+  private drawStand(c: City, t: number, o: Objective | null): void {
+    this.coach = null;
+    const id = o?.stand ? (typeof o.stand === 'function' ? o.stand(c) : o.stand) : null;
+    const fi = id ? c.d.figures.findIndex((f) => f.id === id) : -1;
+    if (fi < 0 || c.s.figs[fi].locked || c.s.figs[fi].state !== 'frozen') {
+      this.ring.visible = this.ringGlow.visible = false;
+      return;
+    }
+    const f = c.d.figures[fi];
+    const yaw = Math.atan2(f.z - f.light[2], f.x - f.light[0]);
+    const st = standFor(f.light, yaw, false);
+    const y = c.floorAt(st.x, st.z, 0.2, 3) + 0.05;
+    this.ring.position.set(st.x, y, st.z);
+    const pulse = 0.85 + 0.15 * Math.sin(t * 4);
+    this.ring.scale.setScalar(pulse);
+    this.ring.material.opacity = 0.75;
+    this.ringGlow.position.set(st.x, y + 0.3, st.z);
+    this.ring.visible = this.ringGlow.visible = true;
+    // in the ring: say plainly what is left to do (a five-year-old can follow it)
+    const b = c.s.body;
+    if (Math.hypot(st.x - b.x, st.z - b.z) > 1.2) return;
+    const fl = c.s.flame;
+    const dy = f.light[1] - fl.y;
+    const off = Math.hypot(f.light[0] - fl.x, f.light[2] - fl.z);
+    let face = yaw - b.yaw;
+    while (face > Math.PI) face -= Math.PI * 2;
+    while (face < -Math.PI) face += Math.PI * 2;
+    if (Math.abs(face) > 0.5) this.coach = face > 0 ? 'turn toward him: drag the view right ⟶' : 'turn toward him: ⟵ drag the view left';
+    else if (dy < -0.2) this.coach = 'lower the flame: look down ↓';
+    else if (dy > 0.2) this.coach = 'raise the flame: look up ↑';
+    else if (off > 0.35) this.coach = 'step into the middle of the ring';
+    else this.coach = 'hold it there…';
+  }
+
   update(dt: number, t: number, c: City, flame: THREE.Vector3, hud: StillHud, glow: Particles, active: boolean): void {
     const ob = active ? this.objective(c) : null;
     this.current = ob?.o ?? null;
@@ -91,9 +209,15 @@ export class Guide {
       this.objKey = key;
       this.state = 'idle';
       this.restT = 1.2;
+      this.onStep = -dt;
     }
     this.asked = Math.max(0, this.asked - dt);
-    const leads = active && !!ob && (save.hints === 'guided' || (save.hints === 'gentle' && this.asked > 0)) && !c.s.ghost;
+    this.onStep = key === this.objKey ? this.onStep + dt : 0;
+    // Guided: always. Gentle: when asked (H), or after a minute stuck on the step. Off: never.
+    const show = active && !!ob && (save.hints === 'guided' || (save.hints === 'gentle' && (this.asked > 0 || this.onStep > 60)));
+    this.drawTrail(c, t, show && !c.s.ghost ? this.target(c) : null);
+    this.drawStand(c, t, show ? ob!.o : null);
+    const leads = show && !c.s.ghost;
     const to = leads ? this.target(c) : null;
     const b = c.s.body;
     const far = !!to && Math.hypot(to[0] - b.x, to[1] - b.z) > 2.2;

@@ -100,7 +100,7 @@ export const HEART_D: District = {
   figures,
   mechs: [
     { id: 'ring', kind: 'ring', x: HEART.x, z: HEART.z, w: 6.4, h: 1.1, ry: 0, opens: 'never', blocks: ring },
-    { id: 'gap', kind: 'ring', x: HEART.x, z: HEART.z, w: 6.4, h: 1.1, ry: 0, opens: 'plates', blocks: ringGap },
+    { id: 'gap', kind: 'ring', x: HEART.x, z: HEART.z, w: 6.4, h: 1.1, ry: 0, opens: 'plates', blocks: ringGap, shutMsg: 'The ring will not open until all five plates are lit.' },
   ],
   riddles: [
     { id: 'heart', x: HEART.x, y: 0.62, z: HEART.z - 0.78, ry: Math.PI, puzzle: 'plates' },

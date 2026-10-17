@@ -144,7 +144,7 @@ export const MARKET: District = {
     { id: 'm8', x: 88, y: 2.8, z: 7.95, ry: -Math.PI / 2 },
   ],
   figures,
-  mechs: [{ id: 'shutter', kind: 'portcullis', x: 32, z: 0, w: 6, h: 4.6, ry: 0, opens: 'weights', blocks: [box(32, 0, 0.5, 6, 4.6, 0, 0, 'mech')] }],
+  mechs: [{ id: 'shutter', kind: 'portcullis', x: 32, z: 0, w: 6, h: 4.6, ry: 0, opens: 'weights', blocks: [box(32, 0, 0.5, 6, 4.6, 0, 0, 'mech')], shutMsg: 'The shutter stays down until the three merchants’ scales are balanced.' }],
   riddles: [{ id: 'market', x: 34.6, y: 3.0, z: 7.95, ry: Math.PI, puzzle: 'canal' }],
   zones: [
     { rect: { x0: 0, z0: -8, x1: 7, z1: 8 }, line: 'market.enter' },

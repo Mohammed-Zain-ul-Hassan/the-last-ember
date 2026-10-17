@@ -25,6 +25,8 @@ export interface HintCues {
   coldBreeze: (seconds: number) => void;
   glintBrazier: (i: number, seconds: number) => void;
   brightenRiddle: (seconds: number) => void;
+  /** Is the step in front of him a puzzle (a true angle to find), rather than a walk or a rest? */
+  onPuzzle: () => boolean;
 }
 
 /** One puzzle's hint state. */
@@ -137,7 +139,7 @@ export class Hints {
     // the riddle's plain answer is the district's own (the doc's table line answers the Gate and the Heart)
     const own = trig === 'riddle' && tier === 3 ? LINES[`hint.riddle.3.${d.id}`] : undefined;
     this.speak(own ?? HINTS[trig][tier - 1], 1);
-    if (trig === 'stuck' && tier === 1) {
+    if (trig === 'stuck' && tier === 1 && this.cues.onPuzzle()) {
       const pz = PUZZLE_WHISPERS[d.id];
       if (pz?.length) this.speak(pz[0], 1);
     }

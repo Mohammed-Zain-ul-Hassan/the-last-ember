@@ -121,6 +121,7 @@ const guide = new Guide(stage.world);
 const hints = new Hints((l, pr) => captions.say(l, pr), (txt) => captions.note(txt), () => city, () => `${DISTRICTS[di].id}:${guide.index}`, {
   glowFigure: (i, sec) => figs?.hint(i, sec),
   ghostReplay: (i) => figs?.ghostReplay(i),
+  onPuzzle: () => !!guide.current?.stand,
   brightenRiddle: (sec) => dview?.brightenPlaques(sec),
   markAngle: (i, sec) => {
     const f = DISTRICTS[di].figures[i];
@@ -829,6 +830,7 @@ function frame(now: number): void {
 }
 
 const humFor = new Set<number>();
+const shutSaid = new Map<string, number>();
 let wasClose = false;
 let wasBehind = false;
 let dripT = -99;
@@ -876,10 +878,36 @@ function drawHud(): void {
   hud.mood(close ? 0.8 : breezeT > 0 ? Math.min(1, breezeT) * 0.5 : 0, near ? near.align * near.align * 0.8 : 0);
   // the warmth ring: how near the flame is to the true angle of the shadow in front of him
   const ring = mode === 'play' && s.status === 'play' && !s.ghost && near && near.align > 0.12 && !s.figs[near.fig].locked ? near.align : null;
-  hud.align(ring);
+  // standing in the guide's ring, the flame says plainly what is left: turn, lower, raise, hold
+  const coach = mode === 'play' && !cine ? guide.coach : null;
+  hud.align(coach ? Math.max(0.05, near?.align ?? 0.05) : ring, coach);
   if (ring !== null && ring > 0.55 && !humFor.has(near!.fig)) {
     humFor.add(near!.fig);
     bus.emit({ type: 'aligning' });
+  }
+  // near a brazier: its sound captioned as he approaches (a warm crackle, or a false one's cold hum)
+  if (mode === 'play') {
+    let cold = 0;
+    let warm = 0;
+    for (const bz of DISTRICTS[di].braziers) {
+      const k = Math.max(0, 1 - Math.hypot(bz.x - s.body.x, bz.z - s.body.z) / 7);
+      if (bz.false) cold = Math.max(cold, k);
+      else warm = Math.max(warm, k);
+    }
+    if (cold > 0.55 && !nearCold) bus.emit({ type: 'nearFalse' });
+    if (warm > 0.55 && !nearWarm) bus.emit({ type: 'nearWarm' });
+    nearCold = cold > 0.55;
+    nearWarm = warm > 0.55;
+  }
+  // a shut way: say plainly what opens it (once, then again only after a while)
+  if (mode === 'play' && !cine) {
+    for (const m of DISTRICTS[di].mechs) {
+      if (!m.shutMsg || city.mechOpen(m) || Math.hypot(m.x - s.body.x, m.z - s.body.z) > 4.5) continue;
+      if (t - (shutSaid.get(m.id) ?? -99) > 25) {
+        shutSaid.set(m.id, t);
+        captions.note(m.shutMsg, 2);
+      }
+    }
   }
   // sound cues the captions name: the silence when it is close, its breath behind him, water before an action beat
   if (mode === 'play') {
@@ -905,7 +933,7 @@ let tryT = 0;
 let tryPeak = 0;
 function trackAttempts(dt: number): void {
   const near = city.nearestAlign();
-  if (near && near.align > 0.5 && !city.s.figs[near.fig].locked) {
+  if (near && near.align > 0.5 && !city.s.figs[near.fig].locked && DISTRICTS[di].figures[near.fig].puzzle) {
     if (tryFig !== near.fig) {
       tryFig = near.fig;
       tryT = 0;
@@ -914,7 +942,10 @@ function trackAttempts(dt: number): void {
     tryT += dt;
     tryPeak = Math.max(tryPeak, near.align);
   } else {
-    if (tryFig >= 0 && tryT > 1.5 && !city.s.figs[tryFig]?.locked && (!near || near.fig !== tryFig || near.align < 0.3)) hints.failed();
+    if (tryFig >= 0 && tryT > 1.5 && !city.s.figs[tryFig]?.locked && (!near || near.fig !== tryFig || near.align < 0.3)) {
+      hints.failed();
+      tryFig = -1;
+    }
     if (!near || near.align < 0.3) tryFig = -1;
   }
 }
@@ -933,12 +964,6 @@ function audioBeds(): void {
     if (bz.false) cold = Math.max(cold, k);
     else br = Math.max(br, k);
   });
-  if (mode === 'play') {
-    if (cold > 0.55 && !nearCold) bus.emit({ type: 'nearFalse' });
-    if (br > 0.55 && !nearWarm) bus.emit({ type: 'nearWarm' });
-    nearCold = cold > 0.55;
-    nearWarm = br > 0.55;
-  }
   audio.setBeds({
     music: mode === 'title' ? 0.6 : silent ? 0 : mode === 'ending' ? 0.5 : 1,
     rumble: d.rumble * (mode === 'ending' ? rumbleK : 1),
