@@ -1,6 +1,28 @@
 import * as THREE from 'three';
 import { FROZEN_LAYER, OWNER_LAYER } from './frozenShadows';
-import { horn } from './knightView';
+
+/** A tube along a curve that tapers to a point: horns. */
+function horn(points: THREE.Vector3[], r: number): THREE.BufferGeometry {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const tub = 24;
+  const rad = 12;
+  const g = new THREE.TubeGeometry(curve, tub, r, rad, false);
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  const c = new THREE.Vector3();
+  const p = new THREE.Vector3();
+  for (let i = 0; i <= tub; i++) {
+    curve.getPointAt(i / tub, c);
+    const s = 1 - (i / tub) * 0.95;
+    for (let j = 0; j <= rad; j++) {
+      const idx = i * (rad + 1) + j;
+      p.fromBufferAttribute(pos, idx).sub(c).multiplyScalar(s).add(c);
+      pos.setXYZ(idx, p.x, p.y, p.z);
+    }
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 
 // The ownerless shadow. Nothing in the world is ever seen standing here: this figure lives only on the still-shadow
 // layer, so all anyone sees is its shadow, cast west by the dawn that never came. It has his horns, his pauldrons,

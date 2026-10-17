@@ -144,8 +144,9 @@ class ShadeMesh {
       lean = 0.75;
       armA = -0.2;
     } else if (s.state === 'stagger') {
-      lean = -0.4 * (1 - s.stateT / S.staggerTime);
-      armA = 1.6;
+      // thrown: bent back, arms flung up; on the ground it straightens as the stagger runs out
+      lean = s.air ? -0.85 + Math.min(0.3, s.stateT * 0.6) : -0.4 * (1 - Math.min(1, s.stateT / s.stun));
+      armA = s.air ? 2.4 : 1.6;
     } else if (s.state === 'dead') {
       opacity = Math.max(0, 1 - s.deadT * 3.5);
       rise = 1 - s.deadT * 0.8;
@@ -278,6 +279,7 @@ export class ShadeViews {
         const s: Shade = {
           id: -1, x: at.x, y: -4, z: at.z, vx: 0, vz: 0, hp: 1, maxHp: 1, speed: 0, yaw: 0, state: dying ? 'dead' : 'walk', stateT: 0, cd: 0,
           target: 'knight', light: 0, deadT: dying ? 0.1 : 0, big: false, kind, enraged: false,
+          vy: 0, air: false, stun: CFG.shade.staggerTime, tell: 0, side: 0, sideT: 0,
         };
         v.update(s, 0, 0, smoke, embers); // inside every shadow volume, under the ground where no one sees it
         v.root.visible = true;

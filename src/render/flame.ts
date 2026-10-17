@@ -1,9 +1,16 @@
 import * as THREE from 'three';
+import { PULL_GLSL } from './depth';
 
 // Shader flame: fbm-distorted teardrop on camera-facing quads, layered for volume. Additive, HDR so it blooms.
 const VERT = /* glsl */ `
+  uniform float uDepthPull;
   varying vec2 vUv;
-  void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+  void main() {
+    vUv = uv;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+    ${PULL_GLSL}
+  }`;
 
 const FRAG = /* glsl */ `
   uniform float uTime; uniform float uStrength; uniform float uSeed; uniform float uHeat; uniform vec3 uTint; uniform float uCold;
@@ -44,8 +51,8 @@ export class Flame {
   strength = 1;
   opacity = 1;
 
-  /** width/height in metres; the flame's base sits at the group origin. */
-  constructor(width: number, height: number, layers = 3, tint = new THREE.Color(1, 1, 1), cold = false) {
+  /** width/height in metres; the flame's base sits at the group origin. pull: depth pull (the knight's torch). */
+  constructor(width: number, height: number, layers = 3, tint = new THREE.Color(1, 1, 1), cold = false, pull = { value: 0 }) {
     for (let i = 0; i < layers; i++) {
       const k = layers === 1 ? 1 : 1 - i * 0.22;
       const geo = new THREE.PlaneGeometry(width * (1.1 - i * 0.18), height * k, 1, 1);
@@ -60,6 +67,7 @@ export class Flame {
           uHeat: { value: 0.8 + i * 0.25 },
           uTint: { value: tint },
           uCold: { value: cold ? 1 : 0 },
+          uDepthPull: pull,
         },
         transparent: true,
         depthWrite: false,

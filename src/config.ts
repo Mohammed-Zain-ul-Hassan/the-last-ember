@@ -80,6 +80,27 @@ export const CFG = {
   crawler: { dmg: 16, hpMul: 0.5, speed: 4.4, pounceRange: 3.4, windup: 0.32, pounceSpeed: 10.5, strikeTime: 0.3, cd: 1.5, h: 0.95 },
   // keeps its distance above jump height and spits shadow bolts; light cannot burn it (it eats light)
   lantern: { boltDmg: 14, hp: 3, speed: 2.8, near: 5.5, far: 8.5, hover: 2.5, windup: 0.75, cd: 2.9, boltSpeed: 8.5, boltLife: 3, dimTime: 3, dimMul: 0.55 },
+  // How enemies move through the world: they collide with it, and blows throw them around inside it.
+  body: {
+    climb: { shade: 0.9, crawler: 0.42, lantern: 0 }, // they pass over anything this low; taller solids block them
+    ledge: 1.6, // a blocking wall no taller than this above their feet is climbed (they drift up over it); taller: go round
+    look: 1.1, // how far ahead a walker checks for a wall before it steers round
+    gravity: 30, // for bodies thrown into the air (heavy blows, a lantern knocked out of the sky)
+    airDrag: 2.5, // per second, while thrown (on the ground they stop at 6 per second)
+    launch: 4.2, // a blow with knock >= launchKnock pops a shade up this fast (m/s)...
+    launchPerKnock: 0.2, // ...plus this much per unit of knockback
+    launchKnock: 8, // the combo finisher, lunge, cleave, plunge and charged strike launch; quick cuts do not
+    juggle: 3, // a hit on a body already in the air keeps it up at least this fast
+    getUp: 0.22, // seconds on the ground after a throw before it fights again
+    slamSpeed: 4.0, // thrown into a wall faster than this: it slams, bounces back, staggers longer, takes a point
+    slamDmg: 1,
+    slamBounce: 0.35,
+    slamStagger: 0.45,
+    pounceStun: 0.9, // a crawler that pounces into a wall lies stunned this long
+    bumpSpeed: 4.5, // thrown into another body faster than this: that one is knocked off its feet too
+    bumpShare: 0.55,
+    lanternFall: 1.25, // a struck lantern-eater is knocked out of the air and lies stunned on the ground this long
+  },
   // the Hollow Marshal below half health: a cry, two crawlers, faster, and every strike sends a ground wave
   marshal: { waveDmg: 26, enrageAt: 0.5, speedMul: 1.5, cdMul: 0.6, waveSpeed: 9, waveLife: 1.4 },
 
@@ -87,6 +108,33 @@ export const CFG = {
 
   // frames of sim freeze
   hitstop: { light: 3, heavy: 7, kill: 5 },
+} as const;
+
+// The hero's look and feel. Render-only: the sim never reads these, so tuning them cannot change gameplay.
+export const HERO = {
+  guardHold: 2.6, // seconds he holds his guard after fighting before he lowers the blade
+  fidgetAfter: 2.2, // seconds of standing still before idle fidgets start
+  fidgetGap: [4.5, 8.5], // seconds between fidgets
+  breathPeriod: 3.9, // one full breath (inhale is quicker than exhale)
+  flipTime: 0.46, // the double-jump somersault
+  // screen-space aura: life = seconds a wisp survives, rise = figure heights per second, spread = figure heights
+  aura: {
+    body: { life: 0.4, rise: 0.7, spread: 0.05, intensity: 1.0 },
+    sword: { life: 0.09, rise: 0.22, spread: 0.022, intensity: 1.0 },
+    smoke: { life: 0.6, rise: 0.9, spread: 0.09, intensity: 0.7 },
+    dashLife: 0.55, // trails hang in the air behind a dash
+    swingLife: 0.1, // the blade's sheath leaves a short crescent of afterglow behind a swing
+    lowHp: 0.3, // below this fraction of health the aura gutters
+    // his edge: violet rises out of his shadow toward the silhouette and dissolves outward, no hard line.
+    // width: how far the fade reaches each way, in outline widths (~0.6% of his height on screen)
+    edge: { width: 6, outer: 0.6, inner: 0.65 },
+  },
+  swordLight: 5, // light the blade casts on the ground (and his edges) around him
+  // he is depth-tested this many metres nearer the camera: rubble, grass and posts he brushes never cut into him,
+  // while walls between him and the camera still hide him (the follow camera pulls in past those anyway)
+  depthPull: 1.0,
+  // the blade's look: 'ember' (blackened steel, molten edges), 'moonsteel' (pale steel, cold edges), 'violet'
+  swordPalette: 'ember' as 'ember' | 'moonsteel' | 'violet',
 } as const;
 
 export interface MoveSpec {
