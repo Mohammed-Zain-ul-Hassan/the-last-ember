@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "playtest": "node scripts/playtest.mjs"
+    "playtest": "node scripts/playtest.mjs",
+    "sfx:fetch": "node scripts/fetch-sfx.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"

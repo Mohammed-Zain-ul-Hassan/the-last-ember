@@ -10,7 +10,7 @@ export interface VesselUniforms {
 }
 
 /**
- * The runner "vessel": a lit, Faith-style suit (pale with red accents) per GLB material slot.
+ * The runner "vessel": lit dark-purple knight armour per GLB material slot.
  * Shares the near-eye dissolve with the shadow body, so first person never clips into it, and
  * burns away with a violet edge when the shadow entity takes over.
  */
@@ -26,10 +26,12 @@ export function createVesselMaterials(): { forSlot: (name: string) => THREE.Mesh
   const forSlot = (name: string): THREE.MeshStandardMaterial => {
     const hit = cache.get(name);
     if (hit) return hit;
+    // Black undersuit reads matte; purple plate stays metallic.
+    const isJoint = name === 'M_Joints';
     const material = new THREE.MeshStandardMaterial({
       color: CHARACTER.vessel.colors[name] ?? fallback,
-      roughness: CHARACTER.vessel.roughness,
-      metalness: CHARACTER.vessel.metalness,
+      roughness: isJoint ? 0.78 : CHARACTER.vessel.roughness,
+      metalness: isJoint ? 0.12 : CHARACTER.vessel.metalness,
       // The trimmed neck opening must not show a hollow shell.
       side: THREE.DoubleSide,
     });

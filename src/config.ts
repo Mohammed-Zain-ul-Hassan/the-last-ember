@@ -85,14 +85,13 @@ export const TRAIL = {
 
 export const CHARACTER = {
   /**
-   * The runner "vessel" body. Today a Faith-style suit on the mannequin; later a knight's
-   * armour that the shadow entity lives inside. Swap the look here.
+   * The runner "vessel" body: purple plate over black undersuit — shadow knight armour.
    */
   vessel: {
     /** Material slot name in the GLB -> colour. */
-    colors: { M_Main: 0xe9e6df, M_Joints: 0xd8261c } as Record<string, number>,
-    roughness: 0.42,
-    metalness: 0.05,
+    colors: { M_Main: 0x6b2fa0, M_Joints: 0x0a0a0c } as Record<string, number>,
+    roughness: 0.32,
+    metalness: 0.72,
   },
   /** Quaternius Universal Animation Library mannequin + clips; built by scripts/build-character.mjs. */
   modelUrl: '/models/character/shadow.glb',

@@ -1,6 +1,11 @@
-shadow.glb: mannequin and animations from the Universal Animation Library and
-Universal Animation Library 2 ("Standard" packs) by Quaternius - https://quaternius.com
-License: CC0 1.0 Universal (public domain) - https://creativecommons.org/publicdomain/zero/1.0/
+shadow.glb: Quaternius Universal Animation Library + UAL2 ("Standard" packs) skeleton and
+animations (CC0) — https://quaternius.com — https://creativecommons.org/publicdomain/zero/1.0/
 
-Rebuild with: node scripts/build-character.mjs <UAL1_Standard.glb> <UAL2_Standard.glb>
-(the GLBs are in the packs' Unreal-Godot folders).
+Knight mesh: "Medieval Light Armor" by frankestudios71 on Sketchfab
+License: CC Attribution — https://creativecommons.org/licenses/by/4.0/
+https://sketchfab.com/3d-models/medieval-light-armor-4dfb95c72f814d3fbe32e7ada8435fa9
+
+Bound in Blender to the UAL armature; vessel tinted dark purple in-game via CHARACTER.vessel.
+
+Previous mannequin-only build backed up as shadow.glb.bak.
+Rebuild animations-only packs with: node scripts/build-character.mjs <UAL1_Standard.glb> <UAL2_Standard.glb>

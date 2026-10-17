@@ -1,17 +1,45 @@
 /**
- * Procedural sound effects via Web Audio. No audio files are loaded.
- * The AudioContext is created lazily on the first user gesture (autoplay policy).
+ * Game SFX via Web Audio. Key one-shots load from /sfx/*.mp3 (Freesound CC0);
+ * remaining cues stay procedural. AudioContext is created lazily on first gesture.
  */
+
+type SfxId =
+  | 'footstep-walk'
+  | 'footstep-run'
+  | 'recall-start'
+  | 'recall-land'
+  | 'fireball-throw'
+  | 'fireball-impact'
+  | 'enemy-hit'
+  | 'jump'
+  | 'fireball-charge';
+
+const SFX_FILES: Record<SfxId, string> = {
+  'footstep-walk': '/sfx/footstep-walk.mp3',
+  'footstep-run': '/sfx/footstep-run.mp3',
+  'recall-start': '/sfx/recall-start.mp3',
+  'recall-land': '/sfx/recall-land.mp3',
+  'fireball-throw': '/sfx/fireball-throw.mp3',
+  'fireball-impact': '/sfx/fireball-impact.mp3',
+  'enemy-hit': '/sfx/enemy-hit.mp3',
+  jump: '/sfx/jump.mp3',
+  'fireball-charge': '/sfx/fireball-charge.mp3',
+};
+
 export class SoundSynth {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
+  private buffers: Partial<Record<SfxId, AudioBuffer>> = {};
   private slideLoop: { src: AudioBufferSourceNode; filter: BiquadFilterNode; gain: GainNode } | null = null;
   private analyser: AnalyserNode | null = null;
   private drift: { src: AudioBufferSourceNode; band: BiquadFilterNode; gain: GainNode; level: number } | null = null;
   /** Event counts (playtest metering). */
   readonly stats = { footsteps: 0, lands: 0, slides: 0, throws: 0, impacts: 0, dummyHits: 0, fizzles: 0, refusals: 0, shifts: 0 };
-  private chargeHum: { osc: OscillatorNode; noise: AudioBufferSourceNode; filter: BiquadFilterNode; gain: GainNode } | null = null;
+  private chargeHum:
+    | { kind: 'sample'; src: AudioBufferSourceNode; filter: BiquadFilterNode; gain: GainNode }
+    | { kind: 'proc'; osc: OscillatorNode; noise: AudioBufferSourceNode; filter: BiquadFilterNode; gain: GainNode }
+    | null = null;
 
   /** Call from a user gesture (click) to create/resume the context. */
   unlock(): void {
@@ -21,12 +49,14 @@ export class SoundSynth {
       this.master.gain.value = 0.5;
       this.master.connect(this.ctx.destination);
       this.noiseBuffer = this.createNoiseBuffer(this.ctx, 1.5);
+      void this.loadSamples(this.ctx);
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
 
-  /** Ascending sawtooth sweep + bandpassed white-noise whoosh. */
+  /** Ascending reverse-whoosh sample, or procedural sweep if missing. */
   recallStart(duration = 0.8): void {
+    if (this.playBuffer('recall-start', { gain: 0.45, rate: 0.95 + Math.random() * 0.1 })) return;
     const audio = this.ready();
     if (!audio) return;
     const { ctx, out } = audio;
@@ -58,8 +88,9 @@ export class SoundSynth {
     noise.stop(t + duration + 0.05);
   }
 
-  /** Digital lock-in chime: 880Hz -> 220Hz exponential drop with a click transient. */
+  /** Chime lock-in sample, or procedural drop if missing. */
   recallLand(): void {
+    if (this.playBuffer('recall-land', { gain: 0.35, rate: 0.98 + Math.random() * 0.04 })) return;
     const audio = this.ready();
     if (!audio) return;
     const { ctx, out } = audio;
@@ -83,7 +114,6 @@ export class SoundSynth {
     sub.start(t);
     sub.stop(t + 0.35);
 
-    // Short click transient.
     const click = ctx.createBufferSource();
     click.buffer = this.noiseBuffer;
     const hp = ctx.createBiquadFilter();
@@ -105,33 +135,39 @@ export class SoundSynth {
     this.blip(ctx, out, 987.77, t + 0.09, 0.2, 0.22);
   }
 
-  /** Subtle low-to-mid sine puff. */
+  /** Weighty body swoosh on leap; procedural low puff if the sample is missing. */
   jump(): void {
+    if (this.playBuffer('jump', { gain: 0.28, rate: 0.88 + Math.random() * 0.06 - 0.03 })) return;
     const audio = this.ready();
     if (!audio) return;
     const { ctx, out } = audio;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(180, t);
-    osc.frequency.exponentialRampToValueAtTime(320, t + 0.12);
-    const g = this.envelope(ctx, t, 0.01, 0.14, 0.12);
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(70, t + 0.16);
+    const g = this.envelope(ctx, t, 0.01, 0.18, 0.1);
     osc.connect(g).connect(out);
     osc.start(t);
-    osc.stop(t + 0.2);
+    osc.stop(t + 0.22);
   }
 
   /**
-   * Soft, muffled footfall: a low thump plus a short filtered scuff. `intensity` 0..1 goes
-   * from a careful walk to a full sprint; every step is slightly detuned so runs don't loop.
+   * Sampled footfall. `intensity` 0..1 picks walk vs run (threshold 0.45) and scales volume;
+   * every step is slightly rate-varied so loops don't machine-gun.
    */
   footstep(intensity: number): void {
     this.stats.footsteps++;
+    const k = Math.min(Math.max(intensity, 0), 1);
+    const id: SfxId = k >= 0.45 ? 'footstep-run' : 'footstep-walk';
+    const rate = 0.92 + Math.random() * 0.16;
+    const gain = 0.12 + 0.22 * k;
+    if (this.playBuffer(id, { gain, rate })) return;
+
     const audio = this.ready();
     if (!audio || !this.noiseBuffer) return;
     const { ctx, out } = audio;
     const t = ctx.currentTime;
-    const k = Math.min(Math.max(intensity, 0), 1);
     const vary = 0.9 + Math.random() * 0.2;
 
     const thump = ctx.createOscillator();
@@ -228,13 +264,32 @@ export class SoundSynth {
     this.slideLoop = null;
   }
 
-  /** Low, rising hum while a shadowball gathers in the hand. */
+  /** Rising charge sample (or procedural hum) while a shadowball gathers. */
   startCharge(): void {
     const audio = this.ready();
-    if (!audio || !this.noiseBuffer) return;
+    if (!audio) return;
     this.stopCharge();
     const { ctx, out } = audio;
     const t = ctx.currentTime;
+    const buffer = this.buffers['fireball-charge'];
+    if (buffer) {
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      src.playbackRate.value = 0.9;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 1200;
+      filter.Q.value = 1.2;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.12, t + 0.12);
+      src.connect(filter).connect(gain).connect(out);
+      src.start(t);
+      this.chargeHum = { kind: 'sample', src, filter, gain };
+      return;
+    }
+    if (!this.noiseBuffer) return;
     const osc = ctx.createOscillator();
     osc.type = 'sawtooth';
     osc.frequency.value = 55;
@@ -255,72 +310,103 @@ export class SoundSynth {
     filter.connect(gain).connect(out);
     osc.start(t);
     noise.start(t, Math.random());
-    this.chargeHum = { osc, noise, filter, gain };
+    this.chargeHum = { kind: 'proc', osc, noise, filter, gain };
   }
 
   setCharge(charge: number): void {
     if (!this.chargeHum || !this.ctx) return;
     const t = this.ctx.currentTime;
-    this.chargeHum.osc.frequency.setTargetAtTime(55 + 55 * charge, t, 0.05);
-    this.chargeHum.filter.frequency.setTargetAtTime(220 + 900 * charge, t, 0.05);
-    this.chargeHum.gain.gain.setTargetAtTime(0.06 + 0.07 * charge, t, 0.05);
+    const c = Math.min(Math.max(charge, 0), 1);
+    if (this.chargeHum.kind === 'sample') {
+      this.chargeHum.src.playbackRate.setTargetAtTime(0.9 + 0.55 * c, t, 0.05);
+      this.chargeHum.filter.frequency.setTargetAtTime(1200 + 2800 * c, t, 0.05);
+      this.chargeHum.gain.gain.setTargetAtTime(0.12 + 0.16 * c, t, 0.05);
+      return;
+    }
+    this.chargeHum.osc.frequency.setTargetAtTime(55 + 55 * c, t, 0.05);
+    this.chargeHum.filter.frequency.setTargetAtTime(220 + 900 * c, t, 0.05);
+    this.chargeHum.gain.gain.setTargetAtTime(0.06 + 0.07 * c, t, 0.05);
   }
 
   stopCharge(): void {
     if (!this.chargeHum || !this.ctx) return;
-    const { osc, noise, gain } = this.chargeHum;
+    const hum = this.chargeHum;
     const t = this.ctx.currentTime;
-    gain.gain.cancelScheduledValues(t);
-    gain.gain.setTargetAtTime(0.0001, t, 0.04);
-    osc.stop(t + 0.3);
-    noise.stop(t + 0.3);
+    hum.gain.gain.cancelScheduledValues(t);
+    hum.gain.gain.setTargetAtTime(0.0001, t, 0.04);
+    if (hum.kind === 'sample') {
+      hum.src.stop(t + 0.3);
+    } else {
+      hum.osc.stop(t + 0.3);
+      hum.noise.stop(t + 0.3);
+    }
     this.chargeHum = null;
   }
 
-  /** Throw: a dark whoosh, deeper and longer for charged balls. */
+  /** Throw: fireball whoosh sample; louder/deeper for charged balls. */
   throwBall(charge: number): void {
     this.stats.throws++;
+    const c = Math.min(Math.max(charge, 0), 1);
+    if (
+      this.playBuffer('fireball-throw', {
+        gain: 0.28 + 0.22 * c,
+        rate: 1.05 - 0.2 * c + (Math.random() * 0.06 - 0.03),
+      })
+    ) {
+      return;
+    }
+
     const audio = this.ready();
     if (!audio || !this.noiseBuffer) return;
     const { ctx, out } = audio;
     const t = ctx.currentTime;
-    const len = 0.22 + 0.2 * charge;
+    const len = 0.22 + 0.2 * c;
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer;
     const band = ctx.createBiquadFilter();
     band.type = 'bandpass';
     band.Q.value = 1.2;
-    band.frequency.setValueAtTime(1600 - 700 * charge, t);
+    band.frequency.setValueAtTime(1600 - 700 * c, t);
     band.frequency.exponentialRampToValueAtTime(260, t + len);
-    const g = this.envelope(ctx, t, 0.015, len, 0.16 + 0.1 * charge);
+    const g = this.envelope(ctx, t, 0.015, len, 0.16 + 0.1 * c);
     src.connect(band).connect(g).connect(out);
     src.start(t, Math.random());
     src.stop(t + len + 0.05);
 
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(200 - 80 * charge, t);
+    osc.frequency.setValueAtTime(200 - 80 * c, t);
     osc.frequency.exponentialRampToValueAtTime(60, t + len);
-    const og = this.envelope(ctx, t, 0.01, len, 0.08 + 0.08 * charge);
+    const og = this.envelope(ctx, t, 0.01, len, 0.08 + 0.08 * c);
     osc.connect(og).connect(out);
     osc.start(t);
     osc.stop(t + len + 0.05);
   }
 
-  /** Impact: a muffled boom with a noise tail; charged balls hit much harder. */
+  /** Impact: magic projectile boom; attenuated by distance. */
   impact(charge: number, distance: number): void {
     this.stats.impacts++;
+    const c = Math.min(Math.max(charge, 0), 1);
+    const near = 1 / (1 + distance * 0.08);
+    if (
+      this.playBuffer('fireball-impact', {
+        gain: (0.32 + 0.28 * c) * near,
+        rate: 1.02 - 0.15 * c + (Math.random() * 0.06 - 0.03),
+      })
+    ) {
+      return;
+    }
+
     const audio = this.ready();
     if (!audio || !this.noiseBuffer) return;
     const { ctx, out } = audio;
     const t = ctx.currentTime;
-    const near = 1 / (1 + distance * 0.08);
-    const len = 0.35 + 0.45 * charge;
+    const len = 0.35 + 0.45 * c;
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(110 - 30 * charge, t);
+    osc.frequency.setValueAtTime(110 - 30 * c, t);
     osc.frequency.exponentialRampToValueAtTime(32, t + len);
-    const og = this.envelope(ctx, t, 0.005, len, (0.18 + 0.2 * charge) * near);
+    const og = this.envelope(ctx, t, 0.005, len, (0.18 + 0.2 * c) * near);
     osc.connect(og).connect(out);
     osc.start(t);
     osc.stop(t + len + 0.05);
@@ -331,15 +417,16 @@ export class SoundSynth {
     lp.type = 'lowpass';
     lp.frequency.setValueAtTime(2200, t);
     lp.frequency.exponentialRampToValueAtTime(180, t + len);
-    const ng = this.envelope(ctx, t, 0.003, len, (0.12 + 0.12 * charge) * near);
+    const ng = this.envelope(ctx, t, 0.003, len, (0.12 + 0.12 * c) * near);
     src.connect(lp).connect(ng).connect(out);
     src.start(t, Math.random());
     src.stop(t + len + 0.05);
   }
 
-  /** A padded thock layered on impacts that land on a training dummy. */
+  /** Padded body hit layered on impacts that land on a training dummy. */
   dummyHit(): void {
     this.stats.dummyHits++;
+    if (this.playBuffer('enemy-hit', { gain: 0.4, rate: 0.95 + Math.random() * 0.1 })) return;
     const audio = this.ready();
     if (!audio) return;
     const { ctx, out } = audio;
@@ -457,7 +544,6 @@ export class SoundSynth {
       this.drift = { src, band, gain, level: 0 };
     }
     const k = Math.min(Math.max(speed / 4.6, 0), 1);
-    // A slow "breath" swell on top of the motion.
     const breath = 0.5 + 0.5 * Math.sin(t * 1.3);
     this.drift.level = 0.006 + 0.05 * k + 0.008 * breath;
     this.drift.gain.gain.setTargetAtTime(this.drift.level, t, 0.12);
@@ -478,6 +564,46 @@ export class SoundSynth {
       this.master.connect(this.analyser);
     }
     return this.analyser;
+  }
+
+  private async loadSamples(ctx: AudioContext): Promise<void> {
+    await Promise.all(
+      (Object.keys(SFX_FILES) as SfxId[]).map(async (id) => {
+        try {
+          const res = await fetch(SFX_FILES[id]);
+          if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+          const raw = await res.arrayBuffer();
+          this.buffers[id] = await ctx.decodeAudioData(raw.slice(0));
+        } catch (err) {
+          console.warn(`[SoundSynth] failed to load ${id}:`, err);
+        }
+      }),
+    );
+  }
+
+  /** Play a loaded sample. Returns false if the buffer isn't ready (caller may fall back). */
+  private playBuffer(id: SfxId, opts: { gain?: number; rate?: number } = {}): boolean {
+    const audio = this.ready();
+    const buffer = this.buffers[id];
+    if (!audio || !buffer) return false;
+    const { ctx, out } = audio;
+    const t = ctx.currentTime;
+    const rate = opts.rate ?? 1;
+    const peak = opts.gain ?? 0.35;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = rate;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0001), t + 0.008);
+    const dur = buffer.duration / rate;
+    const fade = Math.min(0.08, dur * 0.2);
+    g.gain.setValueAtTime(peak, t + Math.max(dur - fade, 0.01));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.02);
+    src.connect(g).connect(out);
+    src.start(t);
+    src.stop(t + dur + 0.05);
+    return true;
   }
 
   private ready(): { ctx: AudioContext; out: GainNode } | null {
