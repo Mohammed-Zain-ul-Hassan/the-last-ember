@@ -257,3 +257,22 @@ export class Bot {
     return out;
   }
 }
+
+/**
+ * The main path only (?quick=1, for a short recording): drops standing at the true angles of figures that are only a
+ * Last Word (no replay, no plate, no order), and the pause after each. The puzzles are all still played.
+ */
+export function quickScript(script: Goal[], figures: { id: string; clip?: unknown; lockFlag?: string }[], required: string[] = []): Goal[] {
+  const optional = new Set(figures.filter((f) => !f.clip && !f.lockFlag && !required.includes(f.id)).map((f) => f.id));
+  const out: Goal[] = [];
+  for (let i = 0; i < script.length; i++) {
+    const g = script[i];
+    if ('aim' in g && optional.has(g.aim)) {
+      if (script[i + 1] && 'wait' in script[i + 1]) i++;
+      continue;
+    }
+    if ('wait' in g && g.wait > 2) out.push({ ...g, wait: Math.min(g.wait, 2.2) });
+    else out.push(g);
+  }
+  return out;
+}

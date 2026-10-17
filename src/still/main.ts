@@ -22,7 +22,7 @@ import { persist, save } from './save';
 import { clearInput, getTrim, initInput, isHeld, moveVector, onKey, takeLook, takePresses } from './input';
 import * as audio from './audio';
 import { DISTRICTS } from './data';
-import { Bot } from './bot';
+import { Bot, quickScript } from './bot';
 import { GATE_SCRIPT } from './scripts/gateWard';
 import { MARKET_SCRIPT } from './scripts/market';
 import { TEMPLE_SCRIPT } from './scripts/temple';
@@ -88,7 +88,13 @@ const hud = new StillHud();
 hud.show(false);
 // everything the player hears is captioned; the narrative engine speaks the lines beats.json ties to events
 const captions = new Captions();
-const narrative = new Narrative((l, pr) => captions.say(l, pr));
+const narrative = new Narrative((l, pr) => {
+  captions.say(l, pr);
+  // the Library: it repeats the narrator's last line, slightly late, in its own voice (the doc's voice table)
+  const w = city?.s.wrong;
+  if (l.voice === 'narrator' && DISTRICTS[di]?.id === 'library' && w?.on && !w.gone && w.dist < 16)
+    setTimeout(() => captions.say({ id: l.id + '.echo', voice: 'wrong', text: l.text }, pr), 1300);
+});
 const menu = new StillMenu({
   resume: () => setPaused(false),
   lastBrazier: () => {
@@ -201,7 +207,9 @@ function load(i: number, ash?: number): void {
   stage.setSky(SKIES[d.index], 1);
   stage.ambientK = AMBIENT[d.index];
   wrongView.mirror = d.wrong?.mode === 'face' || d.wrong?.mode === 'final';
-  bot = BOT ? new Bot(SCRIPTS[i], d.start.yaw) : null;
+  // ?quick=1: the main path only (the sequence figures at the Heart and the Temple's priests are puzzles, kept)
+  const script = params.get('quick') === '1' ? quickScript(SCRIPTS[i], d.figures, ['old', 'dancer', 'twin']) : SCRIPTS[i];
+  bot = BOT ? new Bot(script, d.start.yaw) : null;
   hints.reset();
   humFor.clear();
   const dv = new DistrictView(d);

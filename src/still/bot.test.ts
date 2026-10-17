@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { City, DT, NO_INPUT } from './sim/city';
-import { Bot, type Goal } from './bot';
+import { Bot, quickScript, type Goal } from './bot';
 import { GATE_WARD } from './data/gateWard';
 import { MARKET } from './data/market';
 import { TEMPLE } from './data/temple';
@@ -53,6 +53,14 @@ describe('every district, played start to finish by its script', () => {
     expect(city.flag('heart')).toBe(true);
     expect(city.s.deaths).toBe(0);
     expect(city.s.words.slice(26, 35).every(Boolean)).toBe(true);
+  });
+
+  it('the quick (main path) scripts still play every district through', () => {
+    for (const [d, script] of [...RUNS, [HEART_D, HEART_SCRIPT] as [District, Goal[]]]) {
+      const { city, bot } = play(d, quickScript(script, d.figures, ['old', 'dancer', 'twin']));
+      expect(bot.log).toEqual([]);
+      expect(city.s.status === 'exit' || city.flag('heart')).toBe(true);
+    }
   });
 
   it('the maze will not let a low flame out', () => {
