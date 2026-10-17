@@ -29,6 +29,7 @@ import { HEART_SCRIPT } from './scripts/heart';
 import { HEART } from './data/heart';
 import { Ending } from './ending';
 import { Hints } from './hints';
+import { startRecording, type Recording } from './record';
 
 // The Still City. You carry the only fire left in a city that froze mid-breath four thousand years ago. Your flame
 // wakes the dead for ten seconds at a time, and something that moves only when unseen follows you.
@@ -38,6 +39,9 @@ const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
 /** ?bot=1: the game plays itself, start to end (the recorded run). */
 const BOT = params.get('bot') === '1';
+/** ?rec=1: record the run (canvas and sound) to trailer/raw/ through the dev server. */
+const REC = params.get('rec') === '1';
+let recording: Recording | null = null;
 const SCRIPTS = [GATE_SCRIPT, MARKET_SCRIPT, TEMPLE_SCRIPT, LIBRARY_SCRIPT, HEART_SCRIPT];
 let bot: Bot | null = null;
 
@@ -278,7 +282,7 @@ function nextDistrict(): void {
 // ------------------------------------------------------------------ input
 initInput(stage.renderer.domElement);
 stage.renderer.domElement.addEventListener('pointerdown', () => {
-  if (mode === 'title') begin();
+  if (mode === 'title' && !REC) begin();
   audio.initAudio();
 });
 onKey((code) => {
@@ -562,6 +566,7 @@ const knightAd = {
 } as unknown as Knight;
 
 let acc = 0;
+let creditsT = 0;
 let last = performance.now();
 let fpsT = 0;
 let fpsN = 0;
@@ -593,7 +598,17 @@ function frame(now: number): void {
     }
     if (n === 6) acc = 0;
   } else if (mode === 'title') rig.orbit = Math.sin(t * 0.08) * 0.25;
-  if (mode === 'ending') ending.update(dt);
+  if (mode === 'ending') {
+    ending.update(dt);
+    if (ending.phase === 'credits' && recording) {
+      creditsT += dt;
+      if (creditsT > 8) {
+        const r = recording;
+        recording = null;
+        void r.stop().then((txt) => ((window as unknown as { __recDone: string }).__recDone = txt));
+      }
+    }
+  }
   if (mode === 'play') hints.update(dt);
   const alpha = mode === 'play' ? acc / DT : 1;
   const s = city.s;
@@ -763,7 +778,18 @@ function audioBeds(): void {
 load(di);
 rig.snap(TITLE_SHOT);
 rig.target.set(city.s.body.x, 0, city.s.body.z);
-if (params.has('skip') || BOT) begin();
+if (REC) {
+  // the recording opens on the title, then the run begins (sound needs the page to have been touched: the bot run
+  // is started by a click on the canvas, which also starts the audio)
+  const go = async () => {
+    audio.initAudio();
+    await new Promise((r) => setTimeout(r, 300));
+    recording = await startRecording(stage.renderer.domElement, audio.audioStream(), params.get('name') ?? 'still-city-run');
+    (window as unknown as { __recStop: () => Promise<string> | undefined }).__recStop = () => recording?.stop();
+    setTimeout(begin, 5000);
+  };
+  stage.renderer.domElement.addEventListener('pointerdown', () => void go(), { once: true });
+} else if (params.has('skip') || BOT) begin();
 requestAnimationFrame(frame);
 
 declare global {

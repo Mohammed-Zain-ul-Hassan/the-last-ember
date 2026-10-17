@@ -841,7 +841,6 @@ export class DistrictView {
       const want = city.flag(pl.id) ? 0 : Math.max(-0.45, Math.min(0.45, (city.plateCover(pl) - mid) * 1.6));
       bv.tilt += (want - bv.tilt) * Math.min(1, dt * 3);
       bv.beam.rotation.z = bv.tilt;
-      for (const c of bv.beam.children) if (c.position.y < -0.3) c.position.y = -0.5 + (c.position.x > 0 ? 1 : -1) * Math.sin(bv.tilt) * 0.7 * 0;
     }
     const f = s.flame;
     for (const pv of this.pageViews) {

@@ -62,7 +62,8 @@ function capture(): Plugin {
           }
           // a MediaRecorder take (webm, video and audio), streamed in chunks: the gameplay recording
           if (u.pathname === '/webopen') {
-            const path = join(dir, `${name}.webm`);
+            const ext = (u.searchParams.get('ext') ?? 'webm').replace(/[^a-z0-9]/gi, '');
+            const path = join(dir, `${name}.${ext}`);
             takes.set(name, { file: createWriteStream(path), path, bytes: 0, posts: 0 });
             return done(res, 'ok');
           }
