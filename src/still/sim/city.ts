@@ -580,11 +580,12 @@ export class City {
         if (def.lockFlag) this.setFlag(def.lockFlag);
         this.advance(def.id, 'lock');
       }
+      // found in this run (the objectives wait on it), even when its Last Word was heard in an earlier one
+      if (rt.locked && !was && !this.flag('found:' + def.id)) this.setFlag('found:' + def.id);
       if (rt.locked && !was && !rt.found) {
         rt.found = true;
         if (def.word !== undefined) s.words[def.word] = true;
         this.events.push({ type: 'found', fig: i });
-        this.setFlag('found:' + def.id);
         if (def.puzzle) s.progress[def.puzzle] = s.t;
       }
     });

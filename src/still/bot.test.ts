@@ -56,6 +56,16 @@ describe('every district, played start to finish by its script', () => {
     expect(city.s.words.slice(26, 35).every(Boolean)).toBe(true);
   });
 
+  it('a district plays through again with every Last Word already heard (chapter select, a second run)', () => {
+    for (const [d, script] of [...RUNS, [HEART_D, HEART_SCRIPT] as [District, Goal[]]]) {
+      const { city, bot } = play(d, script, 600, new Array(36).fill(true));
+      expect(bot.log).toEqual([]);
+      expect(city.s.status === 'exit' || city.flag('heart')).toBe(true);
+      // the objectives wait on these: a word heard before must not leave the step on screen forever
+      for (const id of ['lever', 'beggar']) if (d.figures.some((f) => f.id === id)) expect(city.flag(`found:${id}`), `${d.name}: found:${id}`).toBe(true);
+    }
+  });
+
   it('the quick (main path) scripts still play every district through', () => {
     for (const [d, script] of [...RUNS, [HEART_D, HEART_SCRIPT] as [District, Goal[]]]) {
       const { city, bot } = play(d, quickScript(script, d.figures, ['old', 'dancer', 'twin']));

@@ -145,6 +145,13 @@ export class Hud {
     this.toastT = 3;
   }
 
+  /** A line that stays while it still applies: call it every frame (it does not replay its entrance). */
+  keep(msg: string): void {
+    const el = $('toast');
+    if (el.textContent !== msg || this.toastT <= 0) this.toast(msg);
+    this.toastT = Math.max(this.toastT, 0.6);
+  }
+
   /** The name of a place, the first time he reaches it. */
   place(name: string, sub: string): void {
     $('place-name').textContent = name;
