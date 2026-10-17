@@ -339,12 +339,15 @@ function backdropTexture(): THREE.CanvasTexture {
 const AMBER = new THREE.Color(1.35, 0.72, 0.32);
 const EMBER = new THREE.Color(0.75, 0.22, 0.1);
 const COLD = new THREE.Color(0.16, 0.2, 0.42);
-const VIOLET = new THREE.Color(0.55, 0.3, 1.25);
 
 interface Script {
   fireX: number;
+  dur?: number; // seconds (default MEMORY_TIME)
+  still?: number; // from this point (0..1 of the memory) time has stopped inside it: the flame and the dust hang
+  flameScale?: number; // a bigger fire (someone stands in it)
   cam: (k: number) => { x: number; y: number; dist: number; lookX: number; lookY: number };
   update: (t: number, k: number) => { fire: number; sky: THREE.Color };
+  after?: (t: number, k: number) => void; // runs on real time even after the memory's time has stopped (eyes opening)
 }
 
 export class Memories {
@@ -355,6 +358,7 @@ export class Memories {
   private scripts: Script[] = [];
   private backdrop: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private flame = new Flame(1.6, 2.4, 3);
+  private flameHolder = new THREE.Group();
   private halo: THREE.Sprite;
   private eyes: THREE.Sprite[] = [];
   private sky = new THREE.Color();
@@ -373,7 +377,8 @@ export class Memories {
     this.group.add(floor);
     this.halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(1.4, 0.6, 0.2), blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
     this.halo.scale.set(5, 5, 1);
-    this.group.add(this.halo, this.flame.group);
+    this.flameHolder.add(this.flame.group);
+    this.group.add(this.halo, this.flameHolder);
     for (let i = 0; i < 1; i++) {
       const e = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(2.4, 2.0, 5), blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
       e.scale.set(0.15, 0.035, 1);
@@ -388,6 +393,11 @@ export class Memories {
     return i >= 0 && i < this.scripts.length;
   }
 
+  /** How long memory i plays. */
+  duration(i: number): number {
+    return this.scripts[i]?.dur ?? MEMORY_TIME;
+  }
+
   show(i: number): void {
     if (!this.has(i)) return;
     this.active = i;
@@ -395,7 +405,8 @@ export class Memories {
     this.group.visible = true;
     this.sets.forEach((s, j) => (s.visible = j === i));
     const sc = this.scripts[i];
-    this.flame.group.position.set(sc.fireX, Y0 + 1.1, 0.25);
+    this.flameHolder.position.set(sc.fireX, Y0 + 1.1, 0.25);
+    this.flameHolder.scale.setScalar(sc.flameScale ?? 1); // the flame sets its own scale each frame: scale its holder
     this.halo.position.set(sc.fireX, Y0 + 1.6, -0.5);
     this.backdrop.position.x = sc.fireX;
     for (const e of this.eyes) e.visible = false;
@@ -406,25 +417,29 @@ export class Memories {
     this.group.visible = false;
   }
 
-  update(dt: number, camera: THREE.PerspectiveCamera, glow: Particles, smoke: Particles): void {
+  update(dt: number, camera: THREE.PerspectiveCamera, glow: Particles, _smoke: Particles): void {
     if (this.active < 0) return;
     this.t += dt;
     const sc = this.scripts[this.active];
-    const k = Math.min(1, this.t / MEMORY_TIME);
-    const { fire, sky } = sc.update(this.t, k);
+    const dur = sc.dur ?? MEMORY_TIME;
+    const k = Math.min(1, this.t / dur);
+    // once time stops in the memory, everything in it is held at that instant (only the camera still moves)
+    const still = sc.still !== undefined && k >= sc.still;
+    const ts = still ? sc.still! * dur : this.t;
+    const ks = Math.min(1, ts / dur);
+    const { fire, sky } = sc.update(ts, ks);
     this.sky.copy(sky);
     this.backdrop.material.color.copy(this.sky);
-    const fl = 0.88 + 0.07 * Math.sin(this.t * 17) + 0.05 * Math.sin(this.t * 7.3);
+    const fl = 0.88 + 0.07 * Math.sin(ts * 17) + 0.05 * Math.sin(ts * 7.3);
     this.flame.strength = fire * fl;
-    this.flame.update(this.t, camera);
+    this.flame.update(ts, camera);
     (this.halo.material as THREE.SpriteMaterial).opacity = 0.5 * fire;
-    if (fire > 0.05 && Math.random() < 0.6 * fire)
+    if (sc.after) sc.after(this.t, k);
+    if (!still && fire > 0.05 && Math.random() < 0.6 * fire)
       glow.emit({ x: sc.fireX + (Math.random() - 0.5) * 0.8, y: Y0 + 1.4 + Math.random() * 1.2, z: 0.3, vx: (Math.random() - 0.5) * 0.8, vy: 1.4 + Math.random() * 1.6, spread: 0.1, life: 2.4, size: 0.06, sizeEnd: 0.015, r: 5, g: 2, b: 0.45, gravity: -0.4, drag: 0.4, wobble: 0.8 });
     // dust drifting through the light
-    if (Math.random() < dt * 10)
+    if (!still && Math.random() < dt * 10)
       glow.emit({ x: sc.fireX + (Math.random() - 0.5) * 12, y: Y0 + Math.random() * 5, z: 1.5, vx: 0.15, vy: 0.05, spread: 0.05, life: 4, size: 0.035, sizeEnd: 0.03, r: 1.2 * this.sky.r, g: 1.2 * this.sky.g, b: 1.2 * this.sky.b, drag: 0, wobble: 0.3 });
-    if (this.active === 4 && k > 0.35 && Math.random() < dt * 30 * k)
-      smoke.emit({ x: this.eyesX + (Math.random() - 0.5) * 1.6, y: Y0 + Math.random() * 0.4, z: -0.4, vx: (Math.random() - 0.5) * 0.4, vy: 1.6, spread: 0.15, life: 1.4, size: 0.18, sizeEnd: 0.6, r: 0.04, g: 0.01, b: 0.1, alpha: 0.7, drag: 0.4 });
     const c = sc.cam(k);
     camera.position.set(c.x, Y0 + c.y, c.dist);
     camera.lookAt(c.lookX, Y0 + c.lookY, 0);
@@ -433,8 +448,6 @@ export class Memories {
       camera.updateProjectionMatrix();
     }
   }
-
-  private eyesX = 0;
 
   private build(): void {
     const ease = (k: number) => k * k * (3 - 2 * k);
@@ -533,76 +546,141 @@ export class Memories {
       });
     }
 
-    // 3 — the dark came in: the doors give, the people run, he runs too, too late
+    // the Dawn Gate: two piers and the leaves thrown open on the right, the morning's glow beyond them
+    const gate = (set: THREE.Group) => {
+      set.add(box(0.8, 5.4, 4.2, 2.7, -0.9), box(0.8, 5.4, 7.6, 2.7, -0.9), box(4.2, 0.8, 5.9, 5.0, -0.9));
+      for (const [x, r] of [[4.6, 1.2], [7.2, -1.2]] as const) {
+        const leaf = box(1.3, 4.2, x, 2.1, -1.4);
+        leaf.rotation.y = r;
+        set.add(leaf);
+      }
+      const dawn = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(2.2, 1.7, 1.1), blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      dawn.scale.set(5.5, 6.5, 1);
+      dawn.position.set(5.9, Y0 + 2.6, -1.6);
+      set.add(dawn);
+    };
+    const DAWNSKY = new THREE.Color(0.95, 0.72, 0.55);
+    // the people of the city as the night stopped: run for the gate, stop, turn back, reach for the fire behind them
+    const folkAt = [-0.6, 0.2, 0.9, 1.6, 2.4];
+    const folkKinds = ['man', 'woman', 'child', 'elder', 'woman'] as const;
+    const folkH = [1.8, 1.75, 1.05, 1.65, 1.7];
+    const reach = (f: Figure, i: number, k: number, t: number) => {
+      // running right (toward the gate) until 0.45, then turning back to the fire and reaching for it
+      const turn = Math.max(0, Math.min(1, (k - 0.45 - i * 0.025) / 0.12));
+      const s = Math.abs(f.root.scale.y);
+      f.root.scale.x = turn > 0.5 ? -s : s;
+      if (turn <= 0) f.apply(f.kind === 'elder' ? { lean: 0.3, aF: 0.6, eF: -0.4 } : run(t + i, 10));
+      else {
+        const r = Math.min(1, (k - 0.5 - i * 0.025) / 0.25);
+        const up = Math.max(0, r);
+        f.apply({ lean: 0.15 + up * 0.2, aF: 0.4 + up * (f.kind === 'child' ? 2.0 : 1.6), eF: 0.3 - up * 0.2, aB: up * 1.2, eB: 0.3, head: -0.15 * up, lF: 0.3, kF: -0.2, lB: -0.3, kB: -0.1 });
+      }
+    };
+
+    // 3 — the Dawn Gate: they run for the doors and the morning, then stop, turn back, and reach for the fire behind them
     {
       const set = new THREE.Group();
-      set.add(box(0.7, 5, 1.6, 2.5, -0.9), box(0.7, 5, 4.6, 2.5, -0.9), box(3.7, 0.7, 3.1, 4.8, -0.9));
-      const doorL = new THREE.Group();
-      doorL.position.set(1.95, Y0, -0.9);
-      const dl = box(1.15, 4.2, 0, 2.1, 0);
-      dl.position.set(0.575, 2.1, 0);
-      doorL.add(dl);
-      const doorR = new THREE.Group();
-      doorR.position.set(4.25, Y0, -0.9);
-      const dr = box(1.15, 4.2, 0, 2.1, 0);
-      dr.position.set(-0.575, 2.1, 0);
-      doorR.add(dr);
-      set.add(doorL, doorR);
-      const shades = [0, 1, 2, 3].map((i) => new Figure('shade', 3.1, -1, 1.9 + (i % 2) * 0.3));
-      const folk = [new Figure('woman', 0.5, -1), new Figure('child', 0.0, -1, 1.0), new Figure('man', -0.6, -1)];
-      const knight = new Figure('knight', -6, 1);
-      knight.hold('sword');
-      set.add(...shades.map((s) => s.root), ...folk.map((f) => f.root), knight.root);
+      gate(set);
+      set.add(brazier(-4.5));
+      const folk = folkKinds.map((kind, i) => new Figure(kind, folkAt[i], 1, folkH[i]));
+      folk[3].hold('staff');
+      set.add(...folk.map((f) => f.root));
       this.sets.push(set);
       this.scripts.push({
-        fireX: 3.1,
-        cam: (k) => ({ x: lerp(-1.5, 0.5, ease(k)), y: 1.6 - 0.45, dist: 10, lookX: lerp(-1.2, 0.8, ease(k)), lookY: 1.5 }),
+        fireX: -4.5,
+        dur: 8.5,
+        cam: (k) => ({ x: lerp(1.5, -0.4, ease(k)), y: 1.5 - 0.45, dist: lerp(10.5, 11.5, k), lookX: lerp(2.6, -1.4, ease(Math.max(0, (k - 0.45) / 0.55))), lookY: 1.6 }),
         update: (t, k) => {
-          const open = ease(Math.min(1, k / 0.2));
-          doorL.rotation.y = open * 1.35; // they swing inward, away from us
-          doorR.rotation.y = -open * 1.35;
-          shades.forEach((s, i) => {
-            const go = Math.max(0, k - 0.12 - i * 0.08);
-            s.root.position.x = 3.1 - go * 7.5;
-            s.root.position.z = (i % 2 ? -0.4 : 0.15) + 0;
-            s.apply({ lean: 0.5, aF: 1.4 + Math.sin(t * 4 + i) * 0.2, eF: 0.2, aB: 1.0, head: 0.3 });
-          });
           folk.forEach((f, i) => {
-            f.root.position.x = [0.5, 0.0, -0.6][i] - Math.max(0, k - 0.15) * 7;
-            f.apply(f.kind === 'woman' || f.kind === 'elder' ? { lean: 0.3, aF: 1.5, aB: -0.8 } : run(t + i, 11));
+            const go = Math.min(k, 0.45);
+            f.root.position.x = folkAt[i] + go * 3.6;
+            reach(f, i, k, t);
           });
-          const arrive = Math.min(1, k / 0.55);
-          knight.root.position.x = -6.5 + ease(arrive) * 3.2;
-          knight.root.position.z = 0.35;
-          knight.apply(arrive < 1 ? { ...run(t, 10), aF: 1.3, eF: 0.4 } : { aF: 2.2, eF: 0.3, lF: 0.5, kF: -0.4, lB: -0.4, kB: -0.2, lean: 0.15 });
-          return { fire: 0.55 * (1 - k * 0.6), sky: mix(EMBER, COLD, k * 0.7) };
+          return { fire: 1.15, sky: mix(COLD, DAWNSKY, k * 0.6) };
         },
       });
     }
 
-    // 4 — you became what took them: alone in the ruin, the shadow takes him
+    // 4 — someone stepped into the fire: the hearth was dying; a figure climbs into its bowl, it roars up, the people
+    // run back to the fire with their arms out, and in that instant everything stops
     {
       const set = new THREE.Group();
-      set.add(columnAt(-4.8, 3.5), columnAt(4.4, 2.2), box(1.4, 0.6, -2.5, 0.3, -0.6), box(0.9, 0.4, 2.6, 0.2, -0.6));
-      const knight = new Figure('knight', 0, 1);
-      knight.hold('sword');
-      set.add(knight.root);
-      this.eyesX = 0;
+      hall(set);
+      set.add(brazier(0));
+      const keeper = new Figure('knight', -1.7, 1, 1.85);
+      keeper.root.position.z = 0.7; // in front of the flame he climbs into
+      const folk = [
+        { f: new Figure('woman', -4.6, 1), x0: -6.2, x1: -2.4 },
+        { f: new Figure('child', -5.4, 1, 1.0), x0: -7.0, x1: -3.1 },
+        { f: new Figure('man', 4.8, -1), x0: 6.4, x1: 2.4 },
+        { f: new Figure('elder', 5.6, -1, 1.65), x0: 7.2, x1: 3.3 },
+      ];
+      set.add(keeper.root, ...folk.map((q) => q.f.root));
       this.sets.push(set);
       this.scripts.push({
-        fireX: -3.4,
-        cam: (k) => ({ x: lerp(0.6, 0.15, ease(k)), y: lerp(1.6, 1.75, k) - 0.45, dist: lerp(8.5, 4.6, ease(k)), lookX: 0.1, lookY: lerp(1.3, 1.55, k) }),
+        fireX: 0,
+        dur: 8.5,
+        still: 0.66,
+        flameScale: 1.7,
+        cam: (k) => ({ x: lerp(-0.8, 0.0, ease(k)), y: 1.6 - 0.45, dist: lerp(11, 7.2, ease(k)), lookX: lerp(-0.6, 0.0, ease(k)), lookY: lerp(1.3, 1.7, ease(k)) }),
         update: (t, k) => {
-          const rise = ease(Math.max(0, (k - 0.3) / 0.6));
-          knight.apply({ lean: 0.35 - rise * 0.4, head: 0.7 - rise * 0.75, aF: 0.05 + rise * 0.1, eF: 0.1, aB: -0.1, y: Math.sin(t * 1.5) * 0.01 });
-          // his eyes open, cold and pale
-          const on = k > 0.72;
-          this.eyes.forEach((e, i) => {
-            e.visible = on;
-            e.position.set(0.11 + i * 0.012, Y0 + 1.68 - (1 - rise) * 0.3, 0.3 - i * 0.02);
-            (e.material as THREE.SpriteMaterial).opacity = Math.min(1, (k - 0.72) * 8);
+          // the walk to the dying fire, the climb, then standing in it with arms wide
+          const walk = ease(Math.min(1, k / 0.3));
+          const climb = ease(Math.max(0, Math.min(1, (k - 0.3) / 0.16)));
+          keeper.root.position.x = lerp(-1.7, -0.7, walk) + climb * 0.7;
+          const y = climb * 0.78;
+          const open = ease(Math.max(0, Math.min(1, (k - 0.46) / 0.14)));
+          keeper.apply({ ...(walk < 1 ? run(t, 5) : {}), lean: 0.1 - open * 0.2, y, aF: 0.2 + open * 2.0, aB: -open * 2.0, eF: 0.15, eB: -0.15, head: -open * 0.25 });
+          // they run back to the fire, reaching
+          folk.forEach((q, i) => {
+            const come = ease(Math.max(0, Math.min(1, (k - 0.38 - i * 0.03) / 0.3)));
+            q.f.root.position.x = lerp(q.x0, q.x1, come);
+            q.f.apply(come < 0.6 ? { ...run(t + i, 10), aF: 1.2 } : { lean: 0.3, aF: 1.6, eF: 0.1, aB: 1.1, eB: 0.2, lF: 0.4, kF: -0.3, lB: -0.4, kB: -0.1 });
           });
-          return { fire: Math.max(0, 0.4 - k * 0.5), sky: mix(EMBER, VIOLET, ease(Math.max(0, (k - 0.25) / 0.6))) };
+          // a dying flame, then it roars up when he stands in it
+          const fire = k < 0.46 ? 0.35 + 0.1 * Math.sin(t * 9) : 0.35 + open * 1.25;
+          return { fire, sky: mix(mix(EMBER, COLD, Math.min(1, k / 0.4)), DAWNSKY, open * 0.5) };
+        },
+      });
+    }
+
+    // 5 — the reveal (at dawn): it is still happening. The people frozen mid-reach, turned back from the gate; their
+    // reach leads along to the fire, and the one standing in it, arms wide. He turns his head. It is you.
+    {
+      const set = new THREE.Group();
+      gate(set);
+      set.add(brazier(-4.5));
+      const folk = folkKinds.map((kind, i) => new Figure(kind, folkAt[i] + 1.62, 1, folkH[i]));
+      folk[3].hold('staff');
+      const keeper = new Figure('knight', -4.5, 1, 1.85);
+      keeper.root.position.z = 0.7; // in front of the flame: a black figure with the fire behind him
+      set.add(...folk.map((f) => f.root), keeper.root);
+      this.sets.push(set);
+      this.scripts.push({
+        fireX: -4.5,
+        dur: 19,
+        still: 0,
+        flameScale: 1.7,
+        cam: (k) => {
+          const pan = ease(Math.min(1, k / 0.5));
+          const push = ease(Math.max(0, Math.min(1, (k - 0.45) / 0.35)));
+          return { x: lerp(5.0, -4.4, pan), y: lerp(1.6, 1.95, push) - 0.45, dist: lerp(9.5, 5.6, push), lookX: lerp(4.4, -4.5, pan), lookY: lerp(1.7, 2.05, push) };
+        },
+        update: (t, k) => {
+          folk.forEach((f, i) => reach(f, i, 1, t + k));
+          // arms wide in a V (in profile: one forward and up, one back and up), head lifted, standing in the fire
+          keeper.apply({ lean: -0.1, aF: 2.2, aB: -2.0, eF: 0.15, eB: -0.15, head: -0.25, y: 0.78 });
+          return { fire: 1.25, sky: DAWNSKY };
+        },
+        after: (_t, k) => {
+          // the only thing that moves in a stopped world: his eyes open, violet, and find you
+          const on = k > 0.72;
+          this.eyes.forEach((e) => {
+            e.visible = on;
+            e.position.set(-4.5 + 0.05, Y0 + (0.78 + 1.7) * 1.03, 0.95); // on the black of his helm, not over the flame
+            e.scale.set(0.16, 0.045, 1);
+            (e.material as THREE.SpriteMaterial).opacity = Math.min(1, (k - 0.72) * 6);
+          });
         },
       });
     }

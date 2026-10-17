@@ -94,7 +94,7 @@ export class Stage {
   private haze = new THREE.Group(); // fog banks: always ahead of the camera, between it and the distance
   private v = new THREE.Vector3();
   private ground!: THREE.Mesh;
-  private scatterGroup = new THREE.Group(); // rubble and grass
+  readonly scatterGroup = new THREE.Group(); // rubble and grass
   private skyAz = -1.134; // where the sun/moon glow sits around the horizon (angle on x/z)
   // the sky as an environment map: puddles and wet stone reflect it (rebuilt every couple of seconds as it changes)
   private pmrem!: THREE.PMREMGenerator;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FROZEN, FROZEN_GLSL } from './frozenShadows';
 
 // Surface detail for the whole world, computed in the shader from world position, so it never stretches however a
 // block is sized and costs no texture memory:
@@ -87,6 +88,14 @@ export function surface<T extends THREE.MeshStandardMaterial>(mat: T, kind: Surf
     shader.uniforms.uSfWet = SURFACE.uWet;
     shader.uniforms.uSfRain = SURFACE.uRain;
     shader.uniforms.uSfDetail = SURFACE.uDetail;
+    shader.uniforms.uFzMap = FROZEN.uFzMap;
+    shader.uniforms.uFzOwner = FROZEN.uFzOwner;
+    shader.uniforms.uFzOwnerMat = FROZEN.uFzOwnerMat;
+    shader.uniforms.uFzMat = FROZEN.uFzMat;
+    shader.uniforms.uFzK = FROZEN.uFzK;
+    shader.uniforms.uFzDebug = FROZEN.uFzDebug;
+    shader.uniforms.uFzLight = FROZEN.uFzLight;
+    shader.uniforms.uFzDir = FROZEN.uFzDir;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vSfPos;\nvarying vec3 vSfNrm;')
       .replace(
@@ -109,7 +118,8 @@ export function surface<T extends THREE.MeshStandardMaterial>(mat: T, kind: Surf
         varying vec3 vSfNrm;
         uniform float uSfTime; uniform float uSfWet; uniform float uSfRain; uniform float uSfDetail;
         uniform highp sampler3D uSfNoise;
-        ${NOISE}`,
+        ${NOISE}
+        ${FROZEN_GLSL}`,
       )
       .replace(
         '#include <color_fragment>',
@@ -150,6 +160,26 @@ export function surface<T extends THREE.MeshStandardMaterial>(mat: T, kind: Surf
           vec3 sfGrad = sign(sfDet) * (dFdx(sfH) * sfR1 + dFdy(sfH) * sfR2);
           normal = normalize(abs(sfDet) * normal - sfGrad * 0.06);
         }`,
+      )
+      .replace(
+        '#include <opaque_fragment>',
+        `{
+          // the still shadow of the dawn that never came: it darkens even the firelight it lies in
+          vec3 fzN = normalize(vSfNrm);
+          float fz = fzShadow(vSfPos, fzN);
+          // the frozen dawn's sheen where its light falls (a cold glaze, so its shadows read even off the fire's ground)...
+          float fzL = max(dot(fzN, uFzDir), 0.0) * (1.0 - fz) * uFzK;
+          outgoingLight += (diffuseColor.rgb * 4.0 + 0.06) * uFzLight * fzL;
+          // ...and its shadow, which even the fire cannot lift
+          outgoingLight = mix(outgoingLight, outgoingLight * 0.18 + vec3(0.004, 0.006, 0.016), fz);
+          // the one with no owner: ink black, and at its edge the violet of his own aura
+          float fo = fzOwner(vSfPos, fzN);
+          outgoingLight = mix(outgoingLight, vec3(0.0), fo * 0.95);
+          outgoingLight += vec3(0.42, 0.2, 1.1) * clamp(fo * (1.0 - fo) * 4.0, 0.0, 1.0) * 0.55 * uFzK;
+          if (uFzDebug > 0.5) outgoingLight = mix(outgoingLight, vec3(0.0, 2.0, 0.0), fo);
+          if (uFzDebug > 0.5) outgoingLight = mix(outgoingLight, vec3(2.0, 0.0, 0.0), fz);
+        }
+        #include <opaque_fragment>`,
       );
   };
   mat.customProgramCacheKey = () => `${prevKey()}|sf-${kind}`;

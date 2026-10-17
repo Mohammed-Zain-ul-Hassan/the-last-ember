@@ -27,16 +27,16 @@ function normalise(g: THREE.BufferGeometry): THREE.BufferGeometry {
 export function mergeStatic(root: THREE.Object3D, cell = 16): { before: number; after: number } {
   root.updateMatrixWorld(true);
   _inv.copy(root.matrixWorld).invert();
-  const buckets = new Map<string, { mat: THREE.Material; cast: boolean; receive: boolean; order: number; geos: THREE.BufferGeometry[] }>();
+  const buckets = new Map<string, { mat: THREE.Material; cast: boolean; receive: boolean; order: number; noStill: boolean; geos: THREE.BufferGeometry[] }>();
   const victims: THREE.Mesh[] = [];
   const visit = (o: THREE.Object3D) => {
     if (o.userData.dynamic) return;
     const m = o as THREE.Mesh;
     if (m.isMesh && !(m as unknown as THREE.InstancedMesh).isInstancedMesh && !Array.isArray(m.material) && m.visible) {
       _box.setFromObject(m).getCenter(_c);
-      const key = `${m.material.uuid}|${m.castShadow ? 1 : 0}${m.receiveShadow ? 1 : 0}|${m.renderOrder}|${Math.floor(_c.x / cell)},${Math.floor(_c.z / cell)}`;
+      const key = `${m.material.uuid}|${m.castShadow ? 1 : 0}${m.receiveShadow ? 1 : 0}|${m.renderOrder}|${m.userData.noStill ? 1 : 0}|${Math.floor(_c.x / cell)},${Math.floor(_c.z / cell)}`;
       let b = buckets.get(key);
-      if (!b) buckets.set(key, (b = { mat: m.material, cast: m.castShadow, receive: m.receiveShadow, order: m.renderOrder, geos: [] }));
+      if (!b) buckets.set(key, (b = { mat: m.material, cast: m.castShadow, receive: m.receiveShadow, order: m.renderOrder, noStill: !!m.userData.noStill, geos: [] }));
       const g = normalise(m.geometry);
       g.applyMatrix4(_m.multiplyMatrices(_inv, m.matrixWorld));
       b.geos.push(g);
@@ -56,6 +56,7 @@ export function mergeStatic(root: THREE.Object3D, cell = 16): { before: number; 
     mesh.castShadow = b.cast;
     mesh.receiveShadow = b.receive;
     mesh.renderOrder = b.order;
+    mesh.userData.noStill = b.noStill;
     mesh.matrixAutoUpdate = false;
     root.add(mesh);
     after++;

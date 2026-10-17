@@ -37,7 +37,7 @@ function limb(len: number, r0: number, r1 = r0 * 0.8, mat: THREE.Material = BODY
 }
 
 /** A tube along a curve that tapers to a point: horns. */
-function horn(points: THREE.Vector3[], r: number): THREE.BufferGeometry {
+export function horn(points: THREE.Vector3[], r: number): THREE.BufferGeometry {
   const curve = new THREE.CatmullRomCurve3(points);
   const tub = 24;
   const rad = 12;
@@ -739,7 +739,7 @@ export class KnightView {
 
     this.updateTrail(dt);
     this.updateCape(k, dt, t);
-    this.torchFlame.strength = 1;
+    this.torchFlame.strength = this.torchOn ? 1 : 0; // (at 1 the flame re-showed itself every frame, torch lit or not)
     this.torchFlame.update(t, camera);
     if (this.torchOn && SHADOW_FRAME.n % 2 === 1) this.torchLight.shadow.needsUpdate = true;
     if (this.torchOn) {

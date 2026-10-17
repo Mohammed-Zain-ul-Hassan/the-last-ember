@@ -53,6 +53,11 @@ const MOONBEAM = new THREE.MeshBasicMaterial({ map: shaftTexture(), color: new T
  * The checkpoint braziers' lights: two, created once, always in the scene (dark when unused). Main adds them to the
  * stage. A level places the first ones it needs; the light count, and so every shader, never changes between levels.
  */
+/** Where a road's checkpoint braziers stand across the band (z). */
+export function brazierZ(level: Level): number {
+  return level.area.kind === 'band' ? level.area.z0 + (level.id === 'cityWall' ? 0.6 : level.id === 'cathedral' ? 5.6 : 5.2) : 0;
+}
+
 export const BRAZIER_LIGHTS: THREE.PointLight[] = [0, 1].map(() => new THREE.PointLight(0xff8a3d, 0, 14, 2));
 
 export class LevelView {
@@ -85,7 +90,7 @@ export class LevelView {
       for (const r of level.regions) this.dressRegion(r.kind, r.x0, r.x1);
     }
     for (const s of level.shrines) this.buildShrine(s.x, s.y, s.z);
-    const side = level.area.kind === 'band' ? level.area.z0 + (level.id === 'cityWall' ? 0.6 : level.id === 'cathedral' ? 5.6 : 5.2) : 0;
+    const side = brazierZ(level);
     for (const x of level.checkpoints) this.buildBrazier(x, side);
     if (level.id === 'lowerCity' && level.end !== undefined) this.cityGate(level.end, 3.9);
     if (level.bossAt !== undefined && level.end !== undefined) this.cathedralDoors(level.end - 2.5, 2.0);
@@ -779,6 +784,8 @@ export class LevelView {
       m.rotation.x = rx;
       m.castShadow = true;
       m.receiveShadow = true;
+      // the roof throws no still shadow: it would swallow the one shadow that matters, lying out from the hearth
+      m.userData.noStill = true;
       g.add(m);
       return m;
     };

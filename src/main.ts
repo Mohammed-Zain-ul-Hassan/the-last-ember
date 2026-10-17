@@ -7,7 +7,7 @@ import { Menu } from './ui/menu';
 import { CFG } from './config';
 import { CHAPTERS, DAWN_SKY, MIDNIGHT_SKY } from './data/chapters';
 import { LEVELS } from './data/levels';
-import { MEMORY_TIME, Memories } from './render/memory';
+import { Memories } from './render/memory';
 import { playEvents, type FxTargets } from './fx';
 import { clearInput, initInput, isHeld, onKey, readInput, sinceLook, takeLook } from './input';
 import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, ROAD_CARD_SHOT, TITLE_SHOT } from './render/cameraRig';
@@ -19,7 +19,9 @@ import { Rain } from './render/rain';
 import { Blobs } from './render/blobs';
 import { LightRing } from './render/lightRing';
 import { ShadeViews } from './render/shadeView';
-import { LevelView, BRAZIER_LIGHTS } from './render/levelView';
+import { LevelView, BRAZIER_LIGHTS, brazierZ } from './render/levelView';
+import { castStill, FROZEN, FrozenShadows } from './render/frozenShadows';
+import { Ghost, type GhostPose } from './render/ghost';
 import { Stage, SHADOW_FRAME } from './render/stage';
 import { glowTexture, rampTexture } from './render/textures';
 const glowTex = glowTexture();
@@ -55,6 +57,90 @@ for (const l of BRAZIER_LIGHTS) stage.scene.add(l);
 const lightRing = new LightRing();
 stage.world.add(lightRing.mesh);
 const hud = new Hud();
+
+// ------------------------------------------------------------------ the still shadows and the one with no owner
+// (the story: the city froze one minute before dawn; see docs/story-loop.md)
+const frozen = new FrozenShadows(stage.renderer);
+const ghost = new Ghost();
+stage.scene.add(ghost.root);
+castStill(stage.scatterGroup);
+castStill(hearth.group);
+FROZEN.uFzK.value = 1;
+const HEART_Y = 0.7; // the feet of whoever stands in the hearth's bowl
+let ghostKey = '';
+/** Re-draw the still shadows of the current place (once per level, and whenever the ownerless one moves). */
+function bakeStill(): void {
+  const a = world.level.area;
+  const box = new THREE.Box3();
+  if (a.kind === 'disc') box.set(new THREE.Vector3(a.cx - a.r - 6, -1, a.cz - a.r - 6), new THREE.Vector3(a.cx + a.r + 6, 18, a.cz + a.r + 6));
+  else box.set(new THREE.Vector3(a.x0 - 4, world.level.id === 'cityWall' ? -2 : -1, a.z0 - 7), new THREE.Vector3(a.x1 + 4, 24, a.z1 + 7));
+  frozen.bake(stage.scene, box);
+}
+/** Where the ownerless shadow's figure stands this hour: where he is going to stand, doing what he will do there. */
+function ghostSpot(): { x: number; y: number; z: number; yaw: number; pose: GhostPose } | null {
+  const lv = world.level;
+  if (mode === 'title' || mode === 'credits') return lv.hearthX !== undefined ? { x: world.hearthX, y: HEART_Y, z: world.hearthZ, yaw: Math.PI, pose: 'open' } : null;
+  if (world.chapter.phase === 'hearth' && hearth.lit) {
+    const pose: GhostPose = chapterIndex === 0 ? 'stand' : chapterIndex === 1 ? 'reach' : 'open';
+    return { x: world.hearthX, y: HEART_Y, z: world.hearthZ, yaw: Math.PI, pose };
+  }
+  if (!world.road) return null;
+  const i = world.checkpointsLit;
+  if (i < lv.checkpoints.length) {
+    // at the next brazier, before he gets there, holding a torch to it
+    const x = lv.checkpoints[i] - 1.0;
+    const z = brazierZ(lv);
+    return { x, y: world.floorAt(x, z, 0.3), z, yaw: 0, pose: 'light' };
+  }
+  if (lv.end !== undefined && lv.id === 'cityWall') {
+    const x = lv.end - 6;
+    return { x, y: world.floorAt(x, 0, 0.3), z: 0, yaw: Math.PI, pose: 'stand' };
+  }
+  return null;
+}
+function placeGhost(): void {
+  const g = ghostSpot();
+  const key = g ? `${world.level.id}|${g.x.toFixed(2)}|${g.y.toFixed(2)}|${g.pose}` : `${world.level.id}|none`;
+  if (key === ghostKey) return;
+  ghostKey = key;
+  if (g) ghost.place(g.x, g.y, g.z, g.yaw, g.pose);
+  else ghost.hide();
+  bakeStill();
+}
+
+// whispers: a line, once, when the player can see what it is about
+const whispered = new Set<string>();
+function whisper(key: string, text: string): void {
+  if (whispered.has(key)) return;
+  whispered.add(key);
+  hud.toast(text);
+}
+function storyBeats(): void {
+  const tm = world.time;
+  const k = world.knight;
+  switch (world.chapter.id) {
+    case '7pm':
+      if (tm > 4) whisper('still', 'The fire moves. These shadows do not.');
+      // the ownerless shadow runs west from the hearth: say it when he is near it, or soon anyway
+      if (tm > 16 || (tm > 7 && k.x < world.hearthX - 2 && Math.abs(k.z - world.hearthZ) < 3.5)) whisper('owner', 'One shadow here belongs to no one.');
+      break;
+    case '9pm':
+      if (tm > 6) whisper('moved', 'The shadow in the hearth has moved since the last hour.');
+      break;
+    case '11pm':
+      if (tm > 6) whisper('open', 'It stands in the heart of the fire now. Arms open.');
+      break;
+    case '1am':
+      if (tm > 4) whisper('ahead', 'Someone is already waiting at the brazier ahead.');
+      break;
+    case '3am':
+      if (tm > 4) whisper('ahead3', 'Its shadow is ahead of you again.');
+      break;
+    case '5am':
+      if (tm > 5) whisper('gate', 'Every shadow here has its back to the Dawn Gate.');
+      break;
+  }
+}
 const worldUi = new WorldUi(stage.camera);
 let timeScale = 1;
 let slowT = 0;
@@ -125,6 +211,8 @@ function ensureLevel(): void {
   levelView?.dispose();
   levelView = new LevelView(world.level);
   stage.world.add(levelView.group);
+  castStill(levelView.group);
+  ghostKey = ''; // a new place: its still shadows are baked when the ownerless one is placed
   const sh = world.level.shelter;
   rain.setShelter(sh ? sh.rect : null, sh?.y ?? 0);
   hearth.setPresent(world.level.hearthX !== undefined);
@@ -145,7 +233,7 @@ function playMemory(i: number): void {
     levelComplete();
     return;
   }
-  memEnd = MEMORY_TIME;
+  memEnd = memories.duration(i);
   memories.show(i);
   hud.hideCard();
   hud.flash(1, '#000');
@@ -188,11 +276,19 @@ function levelComplete(): void {
 }
 
 function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
+  endMemory(); // never carry a memory (or the dawn's reveal) into a new hour
   chapterIndex = i;
   markReached(i);
   document.getElementById('card')!.classList.remove('dim');
   levelStats.wounds = 0;
   levelStats.embers = 0;
+  whispered.clear();
+  // a new night: time runs again, and the still shadows lie where the frozen dawn throws them
+  stillAll = 0;
+  frozen.dir.copy(FROZEN_DIR_START);
+  FROZEN.uFzDir.value.copy(FROZEN_DIR_START);
+  FROZEN.uFzK.value = 1;
+  ghostKey = '';
   hud.bestCombo = 0;
   world = new World(i, seed, opts);
   ensureLevel();
@@ -324,8 +420,12 @@ function journeyEvents(): void {
         sfx('ignite');
         break;
       case 'checkpoint':
-        hud.toast('a brazier is lit · you will rise here');
+        hud.toast(world.checkpointsLit === 1 && !whispered.has('before') ? 'It was here before you.' : 'a brazier is lit · you will rise here');
+        whispered.add('before');
         sfx('ignite');
+        break;
+      case 'kill':
+        if (e.big) whisper('marshal', 'He was nearest the fire. He almost reached it.');
         break;
       case 'gate':
         if (levelView) levelView.gateTarget = e.open ? 1 : 0;
@@ -648,7 +748,7 @@ function midnight(dt: number): void {
     for (let i = 0; i < 40; i++)
       smoke.emit({ x: hx + (Math.random() - 0.5), y: 1.3, z: hz + (Math.random() - 0.5), vy: 1.5, spread: 0.8, life: 3.5, size: 0.9, sizeEnd: 2.4, r: 0.03, g: 0.025, b: 0.035, alpha: 0.4, drag: 0.4 });
   });
-  at(5.6, 4, () => hud.card('XII', 'Midnight', 'The hearth is ash. Its fire lives in your hand now.'));
+  at(5.6, 4, () => hud.card('XII', 'Midnight', 'The hearth is ash. The shadow that stood in it is gone.'));
   at(7.2, 5, () => {
     knight.pose = 'stand';
     setMood('night');
@@ -656,6 +756,17 @@ function midnight(dt: number): void {
   at(9.6, 6, () => startChapter(midnightIndex));
 }
 
+/** The memory caption under the letterbox (the reveal speaks a line at a time). */
+function memLine(eyebrow: string | null, text: string): void {
+  if (eyebrow !== null) document.getElementById('mem-eyebrow')!.textContent = eyebrow;
+  const el = document.getElementById('mem-text')!;
+  el.textContent = text;
+  el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 900, easing: 'ease-out' });
+}
+
+// The dawn: the sun reaches the gate, and the last memory is not a memory. It is still happening, and it is you.
+const REVEAL = 4.2; // seconds into the dawn when the reveal begins
+const REVEAL_LEN = 19; // the reveal memory's length (memory.ts, set 5)
 function dawn(dt: number): void {
   stage.setSky(DAWN_SKY, Math.min(1, dt * 0.45));
   stage.dawn = Math.min(1, modeT / 5);
@@ -671,10 +782,28 @@ function dawn(dt: number): void {
     world.endless = true;
     shadeViews.clear();
   });
-  at(0.6, 1, () => hud.card('', 'Dawn', 'The sun returns. It will not spare a shadow.'));
-  at(5.0, 2, () => hud.hideCard());
+  at(0.6, 1, () => hud.card('', 'Dawn', 'The sun reaches the Dawn Gate. For the first time in a hundred years.'));
+  at(3.6, 2, () => hud.hideCard());
+  at(REVEAL, 3, () => {
+    memories.show(5);
+    hud.flash(1, '#000');
+    document.getElementById('letterbox')!.classList.add('on');
+    document.getElementById('memline')!.classList.add('on');
+    memLine('Not a memory  ·  It is still happening', '');
+  });
+  at(REVEAL + 1.2, 4, () => memLine(null, 'They were not running from the dark.'));
+  at(REVEAL + 5.0, 5, () => memLine(null, 'They were running back. To the one in the fire.'));
+  at(REVEAL + 9.8, 6, () => memLine(null, ''));
+  at(REVEAL + 13.9, 7, () => memLine(null, 'It was you.'));
+  at(REVEAL + 16.4, 8, () => memLine(null, 'You never closed your eyes. You stepped in.'));
+  at(REVEAL + REVEAL_LEN - 0.4, 9, () => {
+    endMemory();
+    memLine('', '');
+    hud.card('', '', 'You gave the fire yourself, and the night stopped.', 'Back to the fire, and it never ends. Or on into the morning.');
+  });
   stepSim(NO_INPUT, dt);
-  if (modeT > 5.8) {
+  if (modeT > REVEAL + REVEAL_LEN + 5.5) {
+    hud.hideCard();
     setMode('choice');
     choiceHold = 0;
     rig.follow(2.5, 0);
@@ -693,8 +822,8 @@ function choice(dt: number): void {
   hud.choice(modeT > 0.6);
   stepSim(DEMO ? { ...NO_INPUT, mx: 1 } : () => ({ ...readInput(rig.yaw), attack: false, heavy: false }), dt);
   const k = world.knight;
-  const inLight = k.x > sunEdge + 0.4;
-  const inShadow = k.x < dawnBase - 4.4; // back into the shadow of the gatehouse
+  const inLight = k.x > sunEdge + 0.4; // on into the morning: he lets the fire go out
+  const inShadow = k.x < dawnBase - 4.4; // back into the gatehouse's shadow, toward the fire: the night begins again
   choiceHold = inLight || inShadow ? choiceHold + dt : 0;
   if (choiceHold > 1.1) {
     ending = inLight ? 'light' : 'shadow';
@@ -703,17 +832,41 @@ function choice(dt: number): void {
   }
 }
 
+/** The still shadows turn as the morning climbs (the ending where he lets the fire go): k 0..1. */
+const thawDir = new THREE.Vector3();
+function thaw(k: number): void {
+  // from the frozen dawn, low in the east, up toward the morning sun; re-baked as it goes (a cutscene: one depth pass)
+  thawDir.copy(FROZEN_DIR_START).lerp(new THREE.Vector3(0.25, 1, -0.35), k).normalize();
+  frozen.dir.copy(thawDir);
+  FROZEN.uFzDir.value.copy(thawDir);
+  bakeStill();
+  FROZEN.uFzK.value = 1 - Math.max(0, (k - 0.55) / 0.45);
+}
+const FROZEN_DIR_START = frozen.dir.clone();
+
 function endingScene(dt: number): void {
   const light = ending === 'light';
-  stage.dawn = 1;
+  stage.dawn = light ? 1 : Math.max(0, 1 - modeT / 9);
   at(0, 0, () => {
     rig.go(ENDING_SHOT, 4);
-    if (light) sfx('dissolve');
+    if (light) sfx('gutter');
   });
   if (light) {
+    // he walks on into the morning; the torch, the last fire in the city, goes out; the shadows finally move
     stepSim(NO_INPUT, dt);
-    at(0.4, 1, () => (knight.pose = 'kneel'));
-    const p = Math.max(0, Math.min(1, (modeT - 1.6) / 5));
+    at(0.6, 1, () => {
+      knight.setTorch(false);
+      fx.flash(0.2, '#ffd8b0');
+      const k = world.knight;
+      for (let i = 0; i < 40; i++)
+        smoke.emit({ x: k.x + 0.4, y: k.y + 1.6, z: k.z, vy: 1.4, spread: 0.4, life: 2.6, size: 0.4, sizeEnd: 1.4, r: 0.05, g: 0.045, b: 0.05, alpha: 0.6, drag: 0.6 });
+    });
+    at(1.2, 2, () => hud.card('', '', 'He let the fire go out.'));
+    const sp = Math.max(0, Math.min(1, (modeT - 3) / 8));
+    if (sp > 0) thaw(sp);
+    at(4.6, 3, () => hud.card('', '', 'Somewhere, a shadow moved.'));
+    at(7.8, 4, () => hud.card('', '', 'Then all of them did.'));
+    const p = Math.max(0, Math.min(1, (modeT - 8) / 5));
     setKnightFade(1 - p);
     stage.outline.edgeStrength = 3.2 * (1 - p);
     if (p > 0 && p < 1) {
@@ -721,19 +874,21 @@ function endingScene(dt: number): void {
       for (let i = 0; i < 6; i++)
         glow.emit({ x: k.x + (Math.random() - 0.5) * 1.0, y: k.y + Math.random() * 2.2, z: k.z + (Math.random() - 0.5) * 0.6, vy: 1.2 + Math.random(), vx: -0.4, spread: 0.3, life: 2.4, size: 0.12, sizeEnd: 0.02, r: 4, g: 3.2, b: 2.2, gravity: -0.6, wobble: 0.8 });
     }
-    at(1.0, 2, () => hud.card('', '', 'He stepped into the light.'));
-    at(5.5, 3, () => hud.card('', '', 'For a moment, he remembered every name.'));
-    at(10, 4, () => hud.card('', '', 'The ember lives. The knight does not.'));
+    at(11.2, 5, () => hud.card('', '', 'They went home. So did he.'));
   } else {
+    // he turns back to the fire; the sun sinks back below the hills; time stops everywhere; the night begins again
     sunEdge += (dawnBase - 4.5 - sunEdge) * Math.min(1, dt * 0.5);
     const arrived = walkTo(dawnBase - 5.2, world.knight.z, dt);
-    at(0.2, 1, () => hud.card('', '', 'He turned from the light.'));
     if (arrived) knight.pose = 'kneel';
-    at(5.0, 2, () => hud.card('', '', 'In the shadow of the arch, he keeps the cold hearth still.'));
-    at(10, 3, () => hud.card('', '', 'The sun will rise every day. He will watch it from the dark. Alone.'));
+    stage.setSky(CHAPTERS[0].sky, Math.min(1, dt * 0.35));
+    stillAll = modeT > 3 ? 1 : 0;
+    at(0.4, 1, () => hud.card('', '', 'He turned back to the fire.'));
+    at(4.4, 2, () => hud.card('', '', 'The sun sank back behind the hills.'));
+    at(8.4, 3, () => hud.card('', '', 'No one aged. No one woke. No one was lost.'));
+    at(12.0, 4, () => hud.card('', '', 'The sun sets, as it has every night.'));
   }
-  at(14.5, 9, () => {
-    hud.card('', 'The Last Ember', light ? 'The fire endures. The knight is free.' : 'The fire endures. So does its keeper.', 'Thank you for playing  ·  Enter to begin again');
+  at(15.5, 9, () => {
+    hud.card('', 'The Last Ember', light ? 'The last ember went out. Morning came.' : 'The fire endures. So does the night.', 'Thank you for playing  ·  Enter to begin again');
     setMode('credits');
   });
 }
@@ -757,6 +912,7 @@ if (!DEMO) menu.open('title');
 let manualClock = false;
 let closeT = 0; // seconds the close-quarters lean still holds
 let restartHold = 0; // seconds R has been held
+let stillAll = 0; // 1 once the loop closes: time stops everywhere
 let boltT = 9; // seconds to the next lightning // trailer capture drives the game with exact steps (tick) instead of rAF
 function frame(now: number): void {
   if (!manualClock) update(now);
@@ -876,6 +1032,8 @@ function update(now: number): void {
   }
   hearth.update(dt, t, glow, smoke, stage.camera);
   levelView?.update(dt, t, stage.camera, world.shrines.map((s) => s.active), world.checkpointsLit);
+  placeGhost();
+  if (mode === 'play') storyBeats();
   if (mode !== 'paused') {
     knight.update(world.knight, dt, t, smoke, glow, stage.camera);
     // contact shadows: under him, and under every shade that is up and walking
@@ -892,8 +1050,9 @@ function update(now: number): void {
     shadeViews.update(live ? world.shades : [], dt, t, smoke, glow);
     ambient(dt);
     drawProjectiles(dt);
-    glow.update(dt, t);
-    smoke.update(dt, t);
+    // once the loop closes, time stops: every ember and wisp hangs where it is
+    glow.update(dt * (1 - stillAll), t);
+    smoke.update(dt * (1 - stillAll), t);
   }
   // sun wash on the ground for the dawn choice
   const washOn = mode === 'choice' || mode === 'ending';
@@ -941,6 +1100,9 @@ function update(now: number): void {
   stage.rain = rain.level;
   const L0 = world.light;
   rain.update(t, stage.camera.position, { x: L0.x, y: L0.y, z: L0.z, radius: L0.radius, on: hearth.lit || knight.torchOn });
+  // the story's other tell: inside the firelight the rain has stopped falling (time stopped there first)
+  const lightOn = hearth.lit || knight.torchOn;
+  rain.setStill(L0.x, L0.z, lightOn ? L0.radius * 0.8 : 0, stillAll);
   const ringOn = (mode === 'play' || mode === 'intro') && memories.active < 0 && (world.torch ? knight.torchOn : hearth.lit);
   lightRing.update(t, rawDt, L0.x, world.floorAt(L0.x, L0.z, 0.2, (world.torch ? world.knight.y : 0) + 0.5), L0.z, L0.radius, ringOn, world.torch ? 1 : hearth.strength);
   rain.mesh.visible = rain.mesh.visible && memories.active < 0;
@@ -1048,6 +1210,8 @@ function ambient(dt: number): void {
       const r = 1 + Math.sqrt(Math.random()) * 13;
       const x = rig.target.x + Math.cos(a) * r;
       const z = rig.target.z + Math.sin(a) * r;
+      // no drop lands where time has stopped (inside the firelight, or anywhere once the loop has closed)
+      if (stillAll > 0.5 || ((hearth.lit || knight.torchOn) && Math.hypot(x - world.light.x, z - world.light.z) < world.light.radius * 0.8)) continue;
       const y = world.floorAt(x, z, 0.02);
       smoke.emit({ x, y: y + 0.03, z, vy: 0.9, spread: 0.25, life: 0.22, size: 0.05, sizeEnd: 0.13, r: 0.42, g: 0.45, b: 0.55, alpha: 0.45, drag: 3 });
     }
@@ -1136,7 +1300,7 @@ if (DEBUG) {
     rig,
     THREE,
     /** Live objects for profiling from the console (wrap a method, time it). */
-    parts: { get world() { return world; }, get level() { return levelView; }, glow, smoke, shadeViews, hud, worldUi, rain, memories, hearth },
+    parts: { get world() { return world; }, get level() { return levelView; }, glow, smoke, shadeViews, hud, worldUi, rain, memories, hearth, frozen, FROZEN, ghost, bakeStill },
   };
 }
 
