@@ -185,6 +185,8 @@ export class KnightView {
   }
   /** The Still City: no sword; the off hand raised toward a flame held here (world space), or null. */
   carry: THREE.Vector3 | null = null;
+  /** False where the stage has no use for the sword (the Still City): it is never shown, flame in hand or not. */
+  armed = true;
   readonly trailColor = new THREE.Color(1.6, 1.3, 3.4);
   private eyeWorld = new THREE.Vector3();
   private tmp = new THREE.Vector3();
@@ -712,7 +714,7 @@ export class KnightView {
     this.elbow.rotation.z = c.elbow;
     this.sword.rotation.z = c.swordRel;
     this.trail.rotation.x = c.armTilt;
-    this.sword.visible = !this.carry;
+    this.sword.visible = this.armed && !this.carry;
     if (this.carry) {
       // reach for the flame with the off arm: two bones in his profile plane (upper 0.44, fore 0.42), the elbow
       // bending down and back; the flame then sits on the palm (see handPos), never floating apart from it

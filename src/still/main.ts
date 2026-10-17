@@ -81,6 +81,7 @@ stage.world.add(knight.root);
 stage.outline.selection.set(knight.outlineTargets);
 // his walk, his sprint and his stillness, and the armour he wears here (render/gait.ts)
 knight.gait = stillGait();
+knight.armed = false; // nothing in the Still City uses the sword
 const dressed = dressKnight(knight);
 const rain = new StillRain();
 stage.scene.add(rain.group);
