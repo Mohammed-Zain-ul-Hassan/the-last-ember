@@ -2,34 +2,45 @@
 
 ## `ember_climb.glb`
 
-**Market Ash** — bounded ring district (hub → walled bowl → west alley / east roof / undercroft → north court → hearth plaza). Designed per `docs/level_design.md`: mid-fight mode swaps, multi-route nodes, stair/roof XY non-overlap.
+**Ashen Cloister** — gothic-industrial ring district (south gate → cloister courtyard → cathedral narthex → west street / east roof / undercroft → north court → hearth plaza).
 
-Materials (Poly Haven CC0 + custom emissives):
+Art direction: `docs/environment-art-direction.md`. Layout: `docs/level_design.md` §8. Modular kits: `docs/modular-environment-assets.md`.
 
-| Set | Use |
-|-----|-----|
-| `stone_brick_wall_001` | Primary stone |
-| `brick_wall_02` | Red brick walls |
-| `cobblestone_floor_03` | Mossy cobble floors |
-| `roof_slates_02` | Grey slate roofs |
-| `weathered_planks` / `blue_painted_planks` | Wood + blue gallery rails |
-| `plastered_wall_05` | Cool plaster walls |
-| `wooden_rough_planks` | Mossy timber accents |
-| `green_metal_rust` | Green copper/metal roofs & hearth |
-| Custom | Ember, teal, violet, bone, chrono-green trims |
+### Courtyard architecture (modular)
+
+- **SigilsVault Modular Cathedral Kit** — CC0  
+  https://sigilsvault.itch.io/modular-cathedral-kit  
+  Assembled by `scripts/assemble-ashen-courtyard.py` → `ashen_courtyard.glb`, merged by `scripts/build-ember-level.py`.
+
+### Outer ring (still cube blockout this pass)
+
+Solid-color / Poly Haven materials when present in the Blender session at export time. Prefer Poly Haven CC0: https://polyhaven.com
+
+## `ashen_courtyard.glb`
+
+Intermediate courtyard-only export (kit VIS + COL AABBs + `Enemy_03`–`09`).
 
 ## `demo_course.glb`
 
-Linear verb curriculum (walk → jump → chrono-dash → hop → slide → still → stairs → combo → finish).
-Ash training yard with chronomancer green accents on dash/slide beats; ember trim on finish.
-Metrics: `docs/level-pipeline.md` / `DEMO_METRICS` in `src/world/DemoCourse.ts`.
+Linear verb curriculum. Metrics: `docs/level-pipeline.md`.
 
-## Materials (Poly Haven, CC0)
+## loafbrr — Gothic-Like Structures (CC0 1.0)
 
-Poly Haven: https://polyhaven.com — CC0.
+https://loafbrr.itch.io/gothic-like-structures · Local: `vendor/kits/loafbrr-gothic/`
+
+Used for the **west tower-side gallery only** (`VIS_BalW`, `VIS_GalW_*`, `VIS_LeanLand`, `VIS_LeanToBal`,
+`VIS_LeanJoin_*`): Floor_6x6_B / Floor_3x3_B / Floor_6x3_B, Wall_F_B (pointed-arch arcade), Wall_F_A (blind
+door niche), Buttress_A, Post_B_6m + Post_B_Cap, GuardRail_A/B, GuardRail_C_CornerPost_B.
+Textures: 1K diffuse only, pre-graded (`scripts/grade-loafbrr-textures.py`). Details: `docs/review/west-gallery-asset-swap.md`.
+
+## Supplement kit (vendored, not used in courtyard mesh)
+
+- **Quaternius Medieval Village MegaKit (Standard)** — CC0  
+  https://opengameart.org/content/medieval-village-megakit  
+  Local: `vendor/kits/quaternius-medieval-village/`
 
 ## Rebuild
 
-- Demo: `scripts/build-demo-course.py` (Blender MCP or `blender --background --python …`)
-- Story: `scripts/build-ember-level.py` (import Poly Haven textures first, then run script)
-- Design bible: `docs/level_design.md`
+1. `scripts/assemble-ashen-courtyard.py` (requires SigilsVault under `vendor/kits/modular-cathedral/`)
+2. `scripts/build-ember-level.py`
+3. Demo: `scripts/build-demo-course.py`

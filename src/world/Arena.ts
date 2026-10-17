@@ -17,6 +17,7 @@ export class Arena {
     wife: new THREE.Vector3(0, 23, -95),
     waveSpawns: [],
     bossArena: new THREE.Vector3(0, 22.5, -95),
+    playerEntry: null,
   };
   mode: ArenaMode = 'story';
 
@@ -26,6 +27,7 @@ export class Arena {
   private storySpawns!: LevelSpawns;
   private demo!: DemoCourse;
   private plinthLight: THREE.PointLight | null = null;
+  private readonly brazierLights: THREE.PointLight[] = [];
 
   private constructor(private readonly scene: THREE.Scene) {}
 
@@ -66,6 +68,7 @@ export class Arena {
     if (this.storyRoot) this.storyRoot.visible = mode === 'story';
     this.demo.root.visible = mode === 'demo';
     if (this.plinthLight) this.plinthLight.visible = mode === 'story';
+    for (const light of this.brazierLights) light.visible = mode === 'story';
 
     const srcColliders = mode === 'demo' ? this.demo.colliders : this.storyColliders;
     const srcSpawns = mode === 'demo' ? this.demo.spawns : this.storySpawns;
@@ -78,6 +81,7 @@ export class Arena {
     this.spawns.wife.copy(srcSpawns.wife);
     this.spawns.waveSpawns = srcSpawns.waveSpawns.map((v) => v.clone());
     this.spawns.bossArena = srcSpawns.bossArena ? srcSpawns.bossArena.clone() : null;
+    this.spawns.playerEntry = srcSpawns.playerEntry ? srcSpawns.playerEntry.clone() : null;
   }
 
   /** Demo HUD line from course checkpoints (empty string outside demo). */
@@ -92,9 +96,117 @@ export class Arena {
     this.storyColliders = level.colliders.slice();
     this.storySpawns = cloneSpawns(level.spawns);
     const wife = level.spawns.wife;
-    this.plinthLight = new THREE.PointLight(COLORS.ember, 60, 28, 1.4);
+    // Softer hearth accent — fire is local, not a global key.
+    this.plinthLight = new THREE.PointLight(COLORS.ember, 28, 22, 1.6);
     this.plinthLight.position.set(wife.x, wife.y + 3, wife.z);
     this.scene.add(this.plinthLight);
+    this.muteChalkyMaterials(level.root);
+    this.attachBrazierLights(level.root);
+    this.attachGalleryFillLights(level.root);
+    this.attachEncounterAccents(level.root);
+  }
+
+  /**
+   * Runtime safety net: crush blown-out kit albedo / emissive so windows and
+   * trim sheets don't read as chalk white under moonlight.
+   */
+  private muteChalkyMaterials(root: THREE.Object3D): void {
+    const seen = new Set<THREE.Material>();
+    root.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const mat of mats) {
+        if (!mat || seen.has(mat)) continue;
+        seen.add(mat);
+        // Lantern cores are meant to glow; muting them leaves a tan "cardboard" block.
+        if (/EmberGlow/.test(mat.name)) continue;
+        const std = mat as THREE.MeshStandardMaterial;
+        if (!('color' in std) || !std.color) continue;
+        const c = std.color;
+        const maxCh = Math.max(c.r, c.g, c.b);
+        if (maxCh > 0.72) {
+          c.multiplyScalar(0.45 / maxCh);
+          c.r *= 0.92;
+          c.b = Math.min(1, c.b * 1.08);
+        }
+        if (std.emissive) {
+          const eMax = Math.max(std.emissive.r, std.emissive.g, std.emissive.b);
+          if (eMax > 0.55) std.emissive.multiplyScalar(0.35 / eMax);
+          if (std.emissiveIntensity != null && std.emissiveIntensity > 0.5) {
+            std.emissiveIntensity = Math.min(std.emissiveIntensity, 0.4);
+          }
+        }
+      }
+    });
+  }
+
+  /** Local warm pools on VIS_*Brazier* / VIS_*Lamp* meshes (GLB has no lights). */
+  private attachBrazierLights(root: THREE.Object3D): void {
+    for (const light of this.brazierLights) {
+      light.parent?.remove(light);
+      light.dispose();
+    }
+    this.brazierLights.length = 0;
+    const pos = new THREE.Vector3();
+    root.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const n = obj.name;
+      if (!/Brazier|LampGlow|LanternGlow/i.test(n)) return;
+      if (!n.startsWith('VIS_')) return;
+      obj.getWorldPosition(pos);
+      // Wall lanterns on the west gallery are close to the walk: keep their pool small.
+      const lantern = /GalW_LanternGlow/.test(n);
+      const light = new THREE.PointLight(COLORS.ember, lantern ? 5 : 18, lantern ? 6 : 14, 1.8);
+      light.position.copy(pos).add(new THREE.Vector3(0, 0.35, 0));
+      light.castShadow = false;
+      this.scene.add(light);
+      this.brazierLights.push(light);
+    });
+  }
+
+  /**
+   * Cool fill only on tower-side gallery decks (VIS_BalW / VIS_BalE) so walk
+   * edges read without a global atmosphere redo.
+   */
+  private attachGalleryFillLights(root: THREE.Object3D): void {
+    const pos = new THREE.Vector3();
+    root.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      if (obj.name !== 'VIS_BalW' && obj.name !== 'VIS_BalE') return;
+      obj.getWorldPosition(pos);
+      const light = new THREE.PointLight(COLORS.moonlight, 10, 12, 1.6);
+      light.position.copy(pos).add(new THREE.Vector3(0, 2.2, 0));
+      light.castShadow = false;
+      this.scene.add(light);
+      this.brazierLights.push(light);
+    });
+  }
+
+  /**
+   * West encounter only: a cool rim grazing the gallery arcade and a low fill on the court floor
+   * between the two west columns. Local (short range, no shadows) so the mood stays dark.
+   */
+  private attachEncounterAccents(root: THREE.Object3D): void {
+    const arcade = root.getObjectByName('VIS_GalW_Arcade');
+    const pillar = root.getObjectByName('VIS_CourtPillar_A');
+    const pier = root.getObjectByName('VIS_CloisterBridge_PierW');
+    const pos = new THREE.Vector3();
+    const add = (p: THREE.Vector3, intensity: number, range: number): void => {
+      const light = new THREE.PointLight(COLORS.moonlight, intensity, range, 1.6);
+      light.position.copy(p);
+      light.castShadow = false;
+      this.scene.add(light);
+      this.brazierLights.push(light);
+    };
+    if (arcade) {
+      arcade.getWorldPosition(pos);
+      add(pos.clone().add(new THREE.Vector3(2.4, 3.0, 0)), 7, 8);
+    }
+    if (pillar && pier) {
+      const mid = pillar.getWorldPosition(new THREE.Vector3()).add(pier.getWorldPosition(pos)).multiplyScalar(0.5);
+      // Court side of the pair (+x), so the column fronts and the floor between them catch it.
+      add(mid.add(new THREE.Vector3(1.6, 3.0, 0)), 36, 9);
+    }
   }
 
   private buildFallback(): void {
@@ -127,34 +239,33 @@ export class Arena {
         new THREE.Vector3(0, 22.6, -103),
       ],
       bossArena: new THREE.Vector3(0, 22.6, -95),
+      playerEntry: null,
     };
     this.storyColliders = this.colliders.slice();
     this.colliders.length = 0;
   }
 
   private buildLights(): void {
-    this.scene.add(new THREE.HemisphereLight(0x6a5a9a, 0x0a0810, 0.55));
-    this.scene.add(new THREE.AmbientLight(0x1a1528, 0.45));
+    // Cool, low fill so moonlight carries form (art direction).
+    this.scene.add(new THREE.HemisphereLight(0x8a9aac, 0x0e1014, 0.32));
+    this.scene.add(new THREE.AmbientLight(0x161a20, 0.14));
 
-    const moon = new THREE.DirectionalLight(0x9fb0ff, 1.15);
-    moon.position.set(-18, 55, 30);
+    const moon = new THREE.DirectionalLight(COLORS.moonlight, 1.15);
+    moon.position.set(-28, 55, 18);
     moon.castShadow = true;
     moon.shadow.camera.layers.enable(WRAITH.bodyLayer);
     moon.shadow.mapSize.set(2048, 2048);
-    const s = 100;
+    const s = 80;
     moon.shadow.camera.left = -s;
     moon.shadow.camera.right = s;
     moon.shadow.camera.top = s;
     moon.shadow.camera.bottom = -s;
     moon.shadow.camera.near = 1;
-    moon.shadow.camera.far = 280;
+    moon.shadow.camera.far = 220;
     moon.shadow.bias = -0.0005;
     moon.shadow.normalBias = 0.03;
     this.scene.add(moon);
-
-    const emberKey = new THREE.DirectionalLight(COLORS.ember, 0.6);
-    emberKey.position.set(35, 40, -50);
-    this.scene.add(emberKey);
+    // No global ember directional — warmth is local braziers / wife only.
   }
 
   private addBox(
@@ -197,5 +308,6 @@ function cloneSpawns(s: LevelSpawns): LevelSpawns {
     wife: s.wife.clone(),
     waveSpawns: s.waveSpawns.map((v) => v.clone()),
     bossArena: s.bossArena ? s.bossArena.clone() : null,
+    playerEntry: s.playerEntry ? s.playerEntry.clone() : null,
   };
 }

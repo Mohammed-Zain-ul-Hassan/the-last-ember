@@ -7,3 +7,6 @@ playtest-out/
 .env.*
 !.env.example
 
+# Large kit archives (extracted meshes + ATTRIBUTION stay; re-fetch via scripts/docs)
+vendor/kits/**/*.zip
+

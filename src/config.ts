@@ -101,19 +101,34 @@ export const CAMERA = {
 
 export type CameraMode = 'fp' | 'tp';
 
-/** The Last Ember palette: ink void, ember fire, gold accents (only fire carries colour). */
+/**
+ * Cool gothic-industrial base; ember/gold are fire accents only
+ * (see docs/environment-art-direction.md).
+ */
 export const COLORS = {
   ink: 0x07060a,
-  ember: 0xff7a2f,
+  ember: 0xe46b2b,
   gold: 0xffd27a,
   bone: 0xe9dfd0,
-  floor: 0x0e0c12,
-  panel: 0x17141b,
-  panelDark: 0x0e0c12,
-  fog: 0x1b1730,
-  /** Legacy aliases remapped to ember/gold so older callers stay on-brand. */
-  cyan: 0xff7a2f,
+  moonlight: 0xa8b8c8,
+  charcoal: 0x292c32,
+  slate: 0x414b56,
+  floor: 0x2a2e34,
+  panel: 0x363b42,
+  panelDark: 0x242529,
+  fog: 0x1e252c,
+  /** Night sky zenith / horizon for gradient dome (cool slate, not purple). */
+  skyZenith: 0x0c1016,
+  skyHorizon: 0x2a3540,
+  /** Legacy aliases → fire accents. */
+  cyan: 0xe46b2b,
   amber: 0xffd27a,
+} as const;
+
+/** Linear fog distances (m) — court walls hold edge; distance softens. */
+export const ATMOSPHERE = {
+  fogNear: 28,
+  fogFar: 110,
 } as const;
 
 export const CHARACTER = {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMERA, COLORS, PLAYER, SHADOW_MOVE, SPELL } from './config';
+import { ATMOSPHERE, CAMERA, COLORS, PLAYER, SHADOW_MOVE, SPELL } from './config';
 import { SoundSynth } from './fx/SoundSynth';
 import { BackgroundMusic } from './fx/BackgroundMusic';
 import { VoiceLines } from './fx/VoiceLines';
@@ -37,8 +37,47 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 container.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(COLORS.fog);
-scene.fog = new THREE.Fog(COLORS.fog, 40, 140);
+scene.fog = new THREE.Fog(COLORS.fog, ATMOSPHERE.fogNear, ATMOSPHERE.fogFar);
+// Cool night gradient sky (replaces flat gray void).
+{
+  const skyGeo = new THREE.SphereGeometry(320, 24, 16);
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    uniforms: {
+      topColor: { value: new THREE.Color(COLORS.skyZenith) },
+      bottomColor: { value: new THREE.Color(COLORS.skyHorizon) },
+      offset: { value: 0.15 },
+      exponent: { value: 0.7 },
+    },
+    vertexShader: `
+      varying vec3 vWorldPos;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 topColor;
+      uniform vec3 bottomColor;
+      uniform float offset;
+      uniform float exponent;
+      varying vec3 vWorldPos;
+      void main() {
+        float h = normalize(vWorldPos + vec3(0.0, offset, 0.0)).y;
+        float t = max(pow(max(h, 0.0), exponent), 0.0);
+        gl_FragColor = vec4(mix(bottomColor, topColor, t), 1.0);
+      }
+    `,
+  });
+  const sky = new THREE.Mesh(skyGeo, skyMat);
+  sky.name = 'NightSky';
+  sky.frustumCulled = false;
+  scene.add(sky);
+  scene.background = null;
+}
 
 const camera = new THREE.PerspectiveCamera(
   CAMERA.baseFov,

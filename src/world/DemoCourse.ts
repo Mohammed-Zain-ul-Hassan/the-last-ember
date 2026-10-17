@@ -212,6 +212,7 @@ export function buildDemoCourse(): DemoCourse {
     wife: new THREE.Vector3(0, -80, 0),
     waveSpawns: [],
     bossArena: null,
+    playerEntry: null,
   };
 
   root.updateMatrixWorld(true);

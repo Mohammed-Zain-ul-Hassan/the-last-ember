@@ -4,7 +4,7 @@ Encounter design → Graybox → Playtest → Revise → Environment art.
 
 Demo Course is authored and frozen first; story climb reuses the same movement grammar.
 
-**Story / narrative authority:** [`level_design.md`](level_design.md) — mode tradeoffs, encounter rules, Market Ash map, palette mandate. Always read that bible before redesigning `ember_climb`.
+**Story / narrative authority:** [`level_design.md`](level_design.md) — mode tradeoffs, encounter rules, Ashen Cloister map. **Look / lighting:** [`environment-art-direction.md`](environment-art-direction.md). Always read both before redesigning `ember_climb`.
 
 ## Player metrics (authority)
 

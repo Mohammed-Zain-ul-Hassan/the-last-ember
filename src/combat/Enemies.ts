@@ -165,7 +165,7 @@ export class Enemies {
     root.rotation.y = yaw;
     const stone = new THREE.MeshStandardMaterial({ color: 0x1a1418, roughness: 0.9 });
     const bodyMat = new THREE.MeshStandardMaterial({
-      color: kind === 'rusher' ? 0x2a1018 : DUMMY.bodyColor,
+      color: kind === 'rusher' ? 0x2a1018 : SENTINEL_ROBE,
       emissive: kind === 'rusher' ? 0x4a1010 : 0x000000,
       emissiveIntensity: kind === 'rusher' ? 0.35 : 0,
       roughness: 0.85,
@@ -179,29 +179,29 @@ export class Enemies {
       return m;
     };
 
-    root.add(mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.1, 16), stone, 0, 0.05, 0));
     const body = new THREE.Group();
     root.add(body);
     const pivot = new THREE.Group();
     pivot.position.y = 0.1;
     body.add(pivot);
-    pivot.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 10), stone, 0, 0.3, 0));
-    pivot.add(mesh(new THREE.CapsuleGeometry(0.27, 0.55, 4, 12), bodyMat, 0, 1.05, 0));
-    pivot.add(mesh(new THREE.SphereGeometry(0.17, 12, 10), bodyMat, 0, 1.6, 0));
     if (kind === 'static') {
-      for (const [r, t] of [[0.16, 0.025], [0.08, 0.02]] as const) {
-        pivot.add(mesh(new THREE.TorusGeometry(r, t, 6, 20), ring, 0, 1.12, -0.27));
-      }
+      buildSentinel(root, pivot, bodyMat, stone, ring, mesh);
+    } else {
+      root.add(mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.1, 16), stone, 0, 0.05, 0));
+      pivot.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 10), stone, 0, 0.3, 0));
+      pivot.add(mesh(new THREE.CapsuleGeometry(0.27, 0.55, 4, 12), bodyMat, 0, 1.05, 0));
+      pivot.add(mesh(new THREE.SphereGeometry(0.17, 12, 10), bodyMat, 0, 1.6, 0));
     }
 
     const bar = new THREE.Group();
-    bar.position.set(0, 2.05, 0);
+    bar.position.set(0, kind === 'static' ? 2.0 : 2.05, 0);
+    const barW = kind === 'static' ? 0.44 : 0.6;
     const back = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.64, 0.07),
-      new THREE.MeshBasicMaterial({ color: 0x05070d, transparent: true, opacity: 0.75, depthWrite: false }),
+      new THREE.PlaneGeometry(barW + 0.04, 0.05),
+      new THREE.MeshBasicMaterial({ color: 0x05070d, transparent: true, opacity: 0.45, depthWrite: false }),
     );
     const fill = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.6, 0.045),
+      new THREE.PlaneGeometry(barW, 0.03),
       new THREE.MeshBasicMaterial({ color: 0xff7a2f, depthWrite: false }),
     );
     fill.position.z = 0.001;
@@ -232,6 +232,54 @@ export class Enemies {
     this.list.push(enemy);
     return enemy;
   }
+}
+
+/** Desaturated charcoal-violet: reads against slate without a black-hole silhouette. */
+const SENTINEL_ROBE = 0x3a3442;
+
+type MeshFn = (geo: THREE.BufferGeometry, mat: THREE.Material, px: number, py: number, pz: number) => THREE.Mesh;
+
+/**
+ * Static enemy look: a hooded ash sentinel on a low plinth. Fits inside the same DUMMY hit
+ * capsule as the old dummy shape; the front (eyes) faces local -Z like the old target rings.
+ */
+function buildSentinel(
+  root: THREE.Group,
+  pivot: THREE.Group,
+  robe: THREE.MeshStandardMaterial,
+  stone: THREE.MeshStandardMaterial,
+  ember: THREE.MeshStandardMaterial,
+  mesh: MeshFn,
+): void {
+  const lathe = (pts: Array<[number, number]>, segments = 20): THREE.LatheGeometry =>
+    new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), segments);
+
+  root.add(mesh(new THREE.CylinderGeometry(0.4, 0.45, 0.07, 24), stone, 0, 0.035, 0));
+  // Robe: flared hem, narrow waist, sloped shoulders (pivot space; pivot sits 0.1 above the root).
+  pivot.add(
+    mesh(
+      lathe([[0, -0.03], [0.36, -0.03], [0.34, 0.1], [0.29, 0.45], [0.24, 0.85], [0.22, 1.12], [0.25, 1.3], [0.19, 1.43], [0, 1.47]]),
+      robe,
+      0,
+      0,
+      0,
+    ),
+  );
+  // Hood: peaked, slightly forward; the dark face disc sits inside its front opening.
+  const hood = mesh(lathe([[0.15, 1.36], [0.2, 1.4], [0.2, 1.56], [0.16, 1.72], [0.07, 1.86], [0, 1.92]], 16), robe, 0, 0, -0.02);
+  pivot.add(hood);
+  const face = mesh(new THREE.CircleGeometry(0.115, 16), new THREE.MeshBasicMaterial({ color: 0x030304 }), 0, 1.58, -0.185);
+  face.rotation.y = Math.PI;
+  face.castShadow = false;
+  pivot.add(face);
+  for (const x of [-0.045, 0.045]) {
+    const eye = mesh(new THREE.BoxGeometry(0.04, 0.014, 0.01), ember, x, 1.61, -0.19);
+    eye.castShadow = false;
+    pivot.add(eye);
+  }
+  // Faint ember hem so the base reads in the dark without a bright bullseye.
+  const hemMat = new THREE.MeshStandardMaterial({ color: 0x1a0c06, emissive: DUMMY.ringColor, emissiveIntensity: 0.1, roughness: 0.9 });
+  pivot.add(mesh(new THREE.CylinderGeometry(0.355, 0.365, 0.035, 24, 1, true), hemMat, 0, 0.0, 0));
 }
 
 function segmentCapsuleHit(

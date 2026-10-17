@@ -8,6 +8,8 @@ export interface LevelSpawns {
   wife: THREE.Vector3;
   waveSpawns: THREE.Vector3[];
   bossArena: THREE.Vector3 | null;
+  /** South entrance of the boss plaza. Null on the demo course. */
+  playerEntry: THREE.Vector3 | null;
 }
 
 export interface LoadedLevel {
@@ -26,12 +28,13 @@ const DEFAULT_SPAWNS: LevelSpawns = {
     new THREE.Vector3(0, 22.5, -102),
   ],
   bossArena: new THREE.Vector3(0, 22.5, -95),
+  playerEntry: null,
 };
 
 /**
  * Loads the Blender-authored ember climb GLB. Meshes named COL_* become invisible
- * AABB colliders; empties (PlayerSpawn, Enemy_*, WifeAnchor, WaveSpawn_*, BossArena)
- * become spawn points.
+ * AABB colliders; empties (PlayerSpawn, Enemy_*, WifeAnchor, WaveSpawn_*, BossArena,
+ * PlayerEntry) become spawn points.
  */
 export async function loadLevel(url: string = LEVEL.url): Promise<LoadedLevel | null> {
   try {
@@ -47,6 +50,7 @@ export async function loadLevel(url: string = LEVEL.url): Promise<LoadedLevel | 
       wife: DEFAULT_SPAWNS.wife.clone(),
       waveSpawns: [],
       bossArena: null,
+      playerEntry: null,
     };
 
     root.traverse((obj) => {
@@ -67,6 +71,7 @@ export async function loadLevel(url: string = LEVEL.url): Promise<LoadedLevel | 
       if (name === 'PlayerSpawn') spawns.player.copy(worldPos(obj));
       else if (name === 'WifeAnchor') spawns.wife.copy(worldPos(obj));
       else if (name === 'BossArena') spawns.bossArena = worldPos(obj);
+      else if (name === 'PlayerEntry') spawns.playerEntry = worldPos(obj);
       else if (name.startsWith('Enemy_')) enemyNamed.push({ name, pos: worldPos(obj) });
       else if (name.startsWith('WaveSpawn_')) spawns.waveSpawns.push(worldPos(obj));
     });

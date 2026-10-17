@@ -127,56 +127,58 @@ Prefer Poly Haven CC0 PBR sets when available; procedural fallbacks must still h
 
 ---
 
-## 8. Story district map — Market Ash (current `ember_climb`)
+## 8. Story district map — Ashen Cloister (`ember_climb`)
 
-Compact **ring** district (~55–65 m), not a northbound spine. Objective: reach the **hearth plaza** (`WifeAnchor`) via any ring path.
+Art direction: [`environment-art-direction.md`](environment-art-direction.md). Compact **ring** around a ruined cathedral cloister—not a northbound spine. Objective: **hearth plaza** (`WifeAnchor`).
 
-**Bounded streets rule:** outer walls + building shells keep streets as canyons (~6–8 m wide). No open field strips. No single “spine corridor” to the plaza.
+**Bounded / supported architecture:** walls 0.6–0.9 m thick; elevated decks on piers, arches, or facade brackets. No floating slabs.
 
-**Stair / roof rule:** stair AABBs and roof walk pads must **not overlap in XY**. East climb uses a dedicated tower → bridge → nest → separate bypass pads along the outer wall.
+**Stair / roof rule:** stair AABBs must **not overlap** roof walk pads in XY.
 
 ```
               [Hearth Plaza]
                  ↗    ↑    ↖
-        [West alley] [North court] [East roof lane]
+        [West street] [North court] [East roof]
                  ↖    ↑    ↗
-                    [Bowl]
-                 ↗  ↕  ↖
-           lean-to   undercroft
-                    ↕
-               [Hub spawn]
+           ┌──── Ashen Cloister ────┐
+           │ W balcony ←bridge→ E   │
+           │         courtyard      │
+           │    ↑ cathedral steps   │
+           │         undercroft     │
+           └───────────┬────────────┘
+                  [South gate spawn]
 ```
 
-| Node | Intent | Empties (typical) |
-|------|--------|-------------------|
-| Courtyard hub | Orient; light intro; 2 ways into bowl | `PlayerSpawn`, `Enemy_01`–`02` |
-| Market Bowl | Walled arena; nest / kite / exits | `Enemy_03`–`08` |
-| Mid gallery + nest | Nest A; tower climb clear of roofs | `Enemy_09` optional |
-| East roof lane | Bypass C → north / plaza | — |
-| West alley | Bounded street → north / plaza | — |
-| Undercroft | Kite escape / optional slide → north | — |
-| North court | Converge; ground or roof drop | — |
-| Hearth plaza | Defense → wife boss | `WifeAnchor`, `WaveSpawn_*`, `BossArena` |
+| Node | Intent | Empties |
+|------|--------|---------|
+| South gate | Orient; light intro | `PlayerSpawn`, `Enemy_01`–`02` |
+| Cloister courtyard | Primary fight; kite / nest / bypass | `Enemy_03`–`08` |
+| W / E balconies + arch bridge | Nest A; runner relocate / bypass | `Enemy_09` optional on bridge |
+| Cathedral narthex (N) | Elevated entrance landmark | — |
+| Undercroft | Kite escape / optional slide | — |
+| West street / east roof | Ring exits → north | — |
+| North court → plaza | Converge → defense | `WifeAnchor`, `WaveSpawn_*`, `BossArena` |
 
-### Multi-route beats (every major node ≥2 options)
+### Multi-route beats
 
 | From → To | Route A | Route B |
 |-----------|---------|---------|
-| Hub → Bowl | Ground gate | West lean-to climb → balcony |
-| Bowl fight | Ground kite + cover | Gallery nest (stairs ≠ roofs) |
-| Bowl → Plaza | West alley | East roof lane |
-| Bowl → Plaza | Undercroft | — |
-| North → Plaza | Ground arch | Roof drop from east lane |
+| Gate → court | Ground arch | West lean stairs → balcony |
+| Court fight | Ground kite + cover | Balcony nest (standing cast) |
+| Court → ring | West street | East roof / bridge |
+| Court → ring | Undercroft under narthex | — |
+| North → plaza | Ground | Roof drop |
 
-### Market Bowl — three strategies (verify these)
+### Cloister — three strategies (verify)
 
-1. **Nest:** Runner → gallery (clear stairs) → Q shadow → hold-cast → relocate if rushed.
-2. **Kite:** Shadow behind cover / undercroft → Recall or Q-runner → re-angle.
-3. **Bypass:** East tower → nest bridge → roof pads (no stair overlap) → north/plaza; bowl skippable.
+1. **Nest:** Runner → balcony stairs → Q shadow → hold-cast into court → Q relocate via bridge.
+2. **Kite:** Shadow behind pillars / undercroft → Recall or Q-runner → re-angle.
+3. **Bypass:** Bridge + east roof (stairs clear of pads) → north; court enemies skippable.
 
-No mandatory jumps on continuous shadow ground paths. All air gaps sit on runner routes only.
+No mandatory jumps on shadow ground paths. Air gaps runner-only.
 
 ### Rebuild
 
 - Script: [`scripts/build-ember-level.py`](../scripts/build-ember-level.py) → `public/models/levels/ember_climb.glb`
-- Pipeline pointer: [`level-pipeline.md`](level-pipeline.md)
+- Look: [`environment-art-direction.md`](environment-art-direction.md)
+- Pipeline: [`level-pipeline.md`](level-pipeline.md)

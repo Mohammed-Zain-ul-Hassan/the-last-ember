@@ -1,0 +1,2786 @@
+[
+ {
+  "file": "churchparts/Ambulatory_Buttress_A.fbx",
+  "tris": 768,
+  "dims": [
+   0.15,
+   0.231,
+   0.038
+  ],
+  "min": [
+   -0.147,
+   -0.116,
+   0.001
+  ],
+  "mats": [
+   "Roof",
+   "Wall",
+   "WallTrim"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Buttress_B.fbx",
+  "tris": 660,
+  "dims": [
+   0.149,
+   0.231,
+   0.037
+  ],
+  "min": [
+   -0.147,
+   -0.116,
+   0.001
+  ],
+  "mats": [
+   "Roof.001",
+   "Wall.001",
+   "WallTrim.001"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Buttress_C.fbx",
+  "tris": 156,
+  "dims": [
+   0.15,
+   0.231,
+   0.024
+  ],
+  "min": [
+   -0.147,
+   -0.116,
+   0.015
+  ],
+  "mats": [
+   "Roof.002",
+   "WallTrim.002"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Buttress_D.fbx",
+  "tris": 48,
+  "dims": [
+   0.149,
+   0.231,
+   0.023
+  ],
+  "min": [
+   -0.147,
+   -0.116,
+   0.015
+  ],
+  "mats": [
+   "WallTrim.003"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Ceiling.fbx",
+  "tris": 724,
+  "dims": [
+   0.101,
+   0.121,
+   0.056
+  ],
+  "min": [
+   -0.101,
+   -0.061,
+   -0.0
+  ],
+  "mats": [
+   "ChurchCeiling",
+   "WallTrim.004"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_A_A.fbx",
+  "tris": 7970,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass",
+   "Wall.002",
+   "WallTrim.005"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_A_B.fbx",
+  "tris": 7970,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.001",
+   "Wall.003",
+   "WallTrim.006"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_A_C.fbx",
+  "tris": 7700,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.002",
+   "Wall.004",
+   "WallTrim.007"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_A_D.fbx",
+  "tris": 560,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.003",
+   "Wall.005",
+   "WallTrim.008"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_A_E.fbx",
+  "tris": 830,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.004",
+   "Wall.006",
+   "WallTrim.009"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_A_F.fbx",
+  "tris": 830,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.005",
+   "Wall.007",
+   "WallTrim.010"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_B_A.fbx",
+  "tris": 9990,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.006",
+   "Wall.008",
+   "WallTrim.011"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_B_B.fbx",
+  "tris": 10030,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.007",
+   "Wall.009",
+   "WallTrim.012"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_B_C.fbx",
+  "tris": 9840,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.008",
+   "Wall.010",
+   "WallTrim.013"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_B_D.fbx",
+  "tris": 320,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.009",
+   "Wall.011",
+   "WallTrim.014"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_B_E.fbx",
+  "tris": 470,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.010",
+   "Wall.012",
+   "WallTrim.015"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_B_F.fbx",
+  "tris": 470,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.011",
+   "Wall.013",
+   "WallTrim.016"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_C_A.fbx",
+  "tris": 21600,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.012",
+   "Wall.014",
+   "WallTrim.017"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_C_B.fbx",
+  "tris": 10800,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.013",
+   "Wall.015",
+   "WallTrim.018"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_C_C.fbx",
+  "tris": 10720,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.014",
+   "Wall.016",
+   "WallTrim.019"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_C_D.fbx",
+  "tris": 380,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.015",
+   "Wall.017",
+   "WallTrim.020"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_C_E.fbx",
+  "tris": 560,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.016",
+   "Wall.018",
+   "WallTrim.021"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_C_F.fbx",
+  "tris": 560,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.017",
+   "Wall.019",
+   "WallTrim.022"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_D_A.fbx",
+  "tris": 1470,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "Wall.020",
+   "WallTrim.023"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_D_C.fbx",
+  "tris": 180,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "Wall.021",
+   "WallTrim.024"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_D_D.fbx",
+  "tris": 270,
+  "dims": [
+   0.103,
+   0.126,
+   0.06
+  ],
+  "min": [
+   -0.103,
+   -0.063,
+   -0.0
+  ],
+  "mats": [
+   "Wall.022",
+   "WallTrim.025"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_Floor.fbx",
+  "tris": 14,
+  "dims": [
+   0.1,
+   0.12,
+   0.0
+  ],
+  "min": [
+   -0.1,
+   -0.06,
+   0.0
+  ],
+  "mats": [
+   "Floor"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_Post_1m.fbx",
+  "tris": 144,
+  "dims": [
+   0.107,
+   0.132,
+   0.01
+  ],
+  "min": [
+   -0.104,
+   -0.066,
+   -0.0
+  ],
+  "mats": [
+   "WallTrim.026"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_Post_2m.fbx",
+  "tris": 144,
+  "dims": [
+   0.107,
+   0.132,
+   0.02
+  ],
+  "min": [
+   -0.104,
+   -0.066,
+   -0.0
+  ],
+  "mats": [
+   "WallTrim.027"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_Post_3m.fbx",
+  "tris": 144,
+  "dims": [
+   0.107,
+   0.132,
+   0.03
+  ],
+  "min": [
+   -0.104,
+   -0.066,
+   -0.0
+  ],
+  "mats": [
+   "WallTrim.028"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_Post_6m.fbx",
+  "tris": 144,
+  "dims": [
+   0.107,
+   0.132,
+   0.06
+  ],
+  "min": [
+   -0.104,
+   -0.066,
+   -0.0
+  ],
+  "mats": [
+   "WallTrim.029"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_Post_Cap.fbx",
+  "tris": 840,
+  "dims": [
+   0.11,
+   0.135,
+   0.005
+  ],
+  "min": [
+   -0.106,
+   -0.067,
+   -0.003
+  ],
+  "mats": [
+   "WallTrim.030"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_Post_Top.fbx",
+  "tris": 1572,
+  "dims": [
+   0.11,
+   0.135,
+   0.046
+  ],
+  "min": [
+   -0.106,
+   -0.067,
+   -0.001
+  ],
+  "mats": [
+   "Roof.003",
+   "Wall.023",
+   "WallTrim.031"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Inner_Wall_3m.fbx",
+  "tris": 20,
+  "dims": [
+   0.101,
+   0.123,
+   0.03
+  ],
+  "min": [
+   -0.101,
+   -0.061,
+   -0.0
+  ],
+  "mats": [
+   "Wall.024"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_A_A.fbx",
+  "tris": 19472,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.018",
+   "Wall.025",
+   "WallTrim.032"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_A_B.fbx",
+  "tris": 19472,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.019",
+   "Wall.026",
+   "WallTrim.033"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_A_C.fbx",
+  "tris": 19328,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.020",
+   "Wall.027",
+   "WallTrim.034"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_A_D.fbx",
+  "tris": 716,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.021",
+   "Wall.028",
+   "WallTrim.035"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_A_E.fbx",
+  "tris": 1040,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.022",
+   "Wall.029",
+   "WallTrim.036"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_A_F.fbx",
+  "tris": 1040,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.023",
+   "Wall.030",
+   "WallTrim.037"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_B_A.fbx",
+  "tris": 18014,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.024",
+   "Wall.031",
+   "WallTrim.038"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_B_B.fbx",
+  "tris": 18086,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.025",
+   "Wall.032",
+   "WallTrim.039"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_B_C.fbx",
+  "tris": 17744,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.026",
+   "Wall.033",
+   "WallTrim.040"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_B_D.fbx",
+  "tris": 608,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.027",
+   "Wall.034",
+   "WallTrim.041"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_B_E.fbx",
+  "tris": 878,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.028",
+   "Wall.035",
+   "WallTrim.042"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_B_F.fbx",
+  "tris": 878,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.029",
+   "Wall.036",
+   "WallTrim.043"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_C_A.fbx",
+  "tris": 14378,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.030",
+   "Wall.037",
+   "WallTrim.044"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_C_B.fbx",
+  "tris": 14378,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.031",
+   "Wall.038",
+   "WallTrim.045"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_C_C.fbx",
+  "tris": 13892,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.032",
+   "Wall.039",
+   "WallTrim.046"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_C_D.fbx",
+  "tris": 1040,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.033",
+   "Wall.040",
+   "WallTrim.047"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_C_E.fbx",
+  "tris": 1526,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.034",
+   "Wall.041",
+   "WallTrim.048"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_C_F.fbx",
+  "tris": 1526,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.035",
+   "Wall.042",
+   "WallTrim.049"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Ceiling.fbx",
+  "tris": 1810,
+  "dims": [
+   0.19,
+   0.254,
+   0.02
+  ],
+  "min": [
+   -0.188,
+   -0.127,
+   0.04
+  ],
+  "mats": [
+   "ChurchCeiling.001",
+   "StainedGlass.036",
+   "WallTrim.050"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_D_A.fbx",
+  "tris": 18050,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.037",
+   "Wall.043",
+   "WallTrim.051"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_D_B.fbx",
+  "tris": 18050,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.038",
+   "Wall.044",
+   "WallTrim.052"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_D_C.fbx",
+  "tris": 17744,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.039",
+   "Wall.045",
+   "WallTrim.053"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_D_D.fbx",
+  "tris": 608,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.040",
+   "Wall.046",
+   "WallTrim.054"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_D_E.fbx",
+  "tris": 878,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.041",
+   "Wall.047",
+   "WallTrim.055"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_D_F.fbx",
+  "tris": 878,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.042",
+   "Wall.048",
+   "WallTrim.056"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_E_A.fbx",
+  "tris": 6926,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.043",
+   "Wall.049",
+   "WallTrim.057"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_E_B.fbx",
+  "tris": 6926,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.044",
+   "Wall.050",
+   "WallTrim.058"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_E_C.fbx",
+  "tris": 6620,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.045",
+   "Wall.051",
+   "WallTrim.059"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_E_D.fbx",
+  "tris": 608,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.046",
+   "Wall.052",
+   "WallTrim.060"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_E_E.fbx",
+  "tris": 914,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.047",
+   "Wall.053",
+   "WallTrim.061"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_E_F.fbx",
+  "tris": 914,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.048",
+   "Wall.054",
+   "WallTrim.062"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_F_A.fbx",
+  "tris": 19472,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.049",
+   "Wall.055",
+   "WallTrim.063"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_F_B.fbx",
+  "tris": 19472,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.050",
+   "Wall.056",
+   "WallTrim.064"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_F_C.fbx",
+  "tris": 19148,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.051",
+   "Wall.057",
+   "WallTrim.065"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_F_D.fbx",
+  "tris": 720,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.052",
+   "Wall.058",
+   "WallTrim.066"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_F_E.fbx",
+  "tris": 1040,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.053",
+   "Wall.059",
+   "WallTrim.067"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_F_F.fbx",
+  "tris": 1040,
+  "dims": [
+   0.19,
+   0.256,
+   0.06
+  ],
+  "min": [
+   -0.19,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.054",
+   "Wall.060",
+   "WallTrim.068"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Floor.fbx",
+  "tris": 92,
+  "dims": [
+   0.187,
+   0.253,
+   0.0
+  ],
+  "min": [
+   -0.187,
+   -0.127,
+   -0.0
+  ],
+  "mats": [
+   "Floor.001"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Post_A_1m.fbx",
+  "tris": 1008,
+  "dims": [
+   0.199,
+   0.265,
+   0.01
+  ],
+  "min": [
+   -0.193,
+   -0.133,
+   -0.0
+  ],
+  "mats": [
+   "WallTrim.069"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Post_A_2m.fbx",
+  "tris": 1008,
+  "dims": [
+   0.199,
+   0.265,
+   0.02
+  ],
+  "min": [
+   -0.193,
+   -0.133,
+   -0.0
+  ],
+  "mats": [
+   "WallTrim.070"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Post_A_3m.fbx",
+  "tris": 1008,
+  "dims": [
+   0.199,
+   0.265,
+   0.03
+  ],
+  "min": [
+   -0.193,
+   -0.133,
+   -0.0
+  ],
+  "mats": [
+   "WallTrim.071"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Post_A_6m.fbx",
+  "tris": 1008,
+  "dims": [
+   0.199,
+   0.265,
+   0.06
+  ],
+  "min": [
+   -0.193,
+   -0.133,
+   -0.0
+  ],
+  "mats": [
+   "WallTrim.072"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Post_B.fbx",
+  "tris": 336,
+  "dims": [
+   0.162,
+   0.251,
+   0.06
+  ],
+  "min": [
+   -0.156,
+   -0.126,
+   -0.0
+  ],
+  "mats": [
+   "WallTrim.073"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Post_Cap_A.fbx",
+  "tris": 5976,
+  "dims": [
+   0.202,
+   0.268,
+   0.005
+  ],
+  "min": [
+   -0.195,
+   -0.134,
+   -0.003
+  ],
+  "mats": [
+   "WallTrim.074"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Post_Cap_B.fbx",
+  "tris": 1992,
+  "dims": [
+   0.165,
+   0.254,
+   0.005
+  ],
+  "min": [
+   -0.158,
+   -0.127,
+   -0.003
+  ],
+  "mats": [
+   "WallTrim.075"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Post_Top.fbx",
+  "tris": 3348,
+  "dims": [
+   0.166,
+   0.254,
+   0.045
+  ],
+  "min": [
+   -0.159,
+   -0.127,
+   -0.0
+  ],
+  "mats": [
+   "Roof.004",
+   "Wall.061",
+   "WallTrim.076"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ambulatory_Outer_Wall_3m.fbx",
+  "tris": 34,
+  "dims": [
+   0.188,
+   0.256,
+   0.03
+  ],
+  "min": [
+   -0.188,
+   -0.128,
+   -0.0
+  ],
+  "mats": [
+   "StainedGlass.055",
+   "Wall.062",
+   "WallTrim.077"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ceiling_Vaulted_A.fbx",
+  "tris": 36,
+  "dims": [
+   0.06,
+   0.12,
+   0.055
+  ],
+  "min": [
+   -0.03,
+   -0.06,
+   -0.0
+  ],
+  "mats": [
+   "ChurchCeiling.002"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ceiling_Vaulted_B.fbx",
+  "tris": 36,
+  "dims": [
+   0.03,
+   0.12,
+   0.055
+  ],
+  "min": [
+   -0.015,
+   -0.06,
+   -0.0
+  ],
+  "mats": [
+   "ChurchCeiling.003"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ceiling_Vaulted_C.fbx",
+  "tris": 438,
+  "dims": [
+   0.06,
+   0.12,
+   0.056
+  ],
+  "min": [
+   -0.03,
+   -0.06,
+   -0.0
+  ],
+  "mats": [
+   "ChurchCeiling.004",
+   "WallTrim.078"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "churchparts/Ceiling_Vaulted_D.fbx",
+  "tris": 438,
+  "dims": [
+   0.03,
+   0.12,
+   0.056
+  ],
+  "min": [
+   -0.015,
+   -0.06,
+   -0.0
+  ],
+  "mats": [
+   "ChurchCeiling.005",
+   "Wall.063"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/Floor_3x3_A.fbx",
+  "tris": 2,
+  "dims": [
+   0.03,
+   0.03,
+   0.0
+  ],
+  "min": [
+   -0.015,
+   -0.015,
+   0.0
+  ],
+  "mats": [
+   "Floor.002"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/Floor_3x3_B.fbx",
+  "tris": 4,
+  "dims": [
+   0.03,
+   0.03,
+   0.003
+  ],
+  "min": [
+   -0.015,
+   -0.015,
+   -0.003
+  ],
+  "mats": [
+   "Ceiling",
+   "Floor.003"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/Floor_6x3_A.fbx",
+  "tris": 4,
+  "dims": [
+   0.06,
+   0.03,
+   0.0
+  ],
+  "min": [
+   -0.03,
+   -0.015,
+   0.0
+  ],
+  "mats": [
+   "Floor.004"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/Floor_6x3_B.fbx",
+  "tris": 8,
+  "dims": [
+   0.06,
+   0.03,
+   0.003
+  ],
+  "min": [
+   -0.03,
+   -0.015,
+   -0.003
+  ],
+  "mats": [
+   "Ceiling.001",
+   "Floor.005"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/Floor_6x6_A.fbx",
+  "tris": 8,
+  "dims": [
+   0.06,
+   0.06,
+   0.0
+  ],
+  "min": [
+   -0.03,
+   -0.03,
+   0.0
+  ],
+  "mats": [
+   "Floor.006"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/Floor_6x6_B.fbx",
+  "tris": 16,
+  "dims": [
+   0.06,
+   0.06,
+   0.003
+  ],
+  "min": [
+   -0.03,
+   -0.03,
+   -0.003
+  ],
+  "mats": [
+   "Ceiling.002",
+   "Floor.007"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/GuardRail_A.fbx",
+  "tris": 944,
+  "dims": [
+   0.06,
+   0.003,
+   0.015
+  ],
+  "min": [
+   -0.03,
+   -0.002,
+   -0.005
+  ],
+  "mats": [
+   "WallTrim.079"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/GuardRail_B.fbx",
+  "tris": 488,
+  "dims": [
+   0.03,
+   0.003,
+   0.015
+  ],
+  "min": [
+   -0.015,
+   -0.002,
+   -0.005
+  ],
+  "mats": [
+   "WallTrim.080"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/GuardRail_C.fbx",
+  "tris": 942,
+  "dims": [
+   0.06,
+   0.003,
+   0.011
+  ],
+  "min": [
+   -0.03,
+   -0.002,
+   -0.001
+  ],
+  "mats": [
+   "WallTrim.081"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/GuardRail_C_CornerPost_A.fbx",
+  "tris": 222,
+  "dims": [
+   0.005,
+   0.005,
+   0.011
+  ],
+  "min": [
+   -0.003,
+   -0.003,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.082"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/GuardRail_C_CornerPost_B.fbx",
+  "tris": 234,
+  "dims": [
+   0.008,
+   0.008,
+   0.016
+  ],
+  "min": [
+   -0.004,
+   -0.004,
+   -0.006
+  ],
+  "mats": [
+   "WallTrim.083"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/GuardRail_D.fbx",
+  "tris": 486,
+  "dims": [
+   0.03,
+   0.003,
+   0.011
+  ],
+  "min": [
+   -0.015,
+   -0.002,
+   -0.001
+  ],
+  "mats": [
+   "WallTrim.084"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/Stair_Post_A.fbx",
+  "tris": 30,
+  "dims": [
+   0.003,
+   0.003,
+   0.021
+  ],
+  "min": [
+   -0.002,
+   -0.002,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.085"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/Stair_Post_B.fbx",
+  "tris": 10,
+  "dims": [
+   0.003,
+   0.003,
+   0.009
+  ],
+  "min": [
+   -0.002,
+   -0.002,
+   -0.004
+  ],
+  "mats": [
+   "WallTrim.086"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "floors/Stair_Post_C.fbx",
+  "tris": 12,
+  "dims": [
+   0.003,
+   0.003,
+   0.01
+  ],
+  "min": [
+   -0.002,
+   -0.002,
+   -0.005
+  ],
+  "mats": [
+   "WallTrim.087"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Buttress_A.fbx",
+  "tris": 128,
+  "dims": [
+   0.005,
+   0.051,
+   0.038
+  ],
+  "min": [
+   -0.003,
+   -0.056,
+   0.011
+  ],
+  "mats": [
+   "Roof.005",
+   "Wall.064",
+   "WallTrim.088"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Buttress_B.fbx",
+  "tris": 110,
+  "dims": [
+   0.004,
+   0.051,
+   0.036
+  ],
+  "min": [
+   -0.002,
+   -0.056,
+   0.011
+  ],
+  "mats": [
+   "Wall.065",
+   "WallTrim.089"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Buttress_C.fbx",
+  "tris": 26,
+  "dims": [
+   0.005,
+   0.051,
+   0.024
+  ],
+  "min": [
+   -0.003,
+   -0.056,
+   0.025
+  ],
+  "mats": [
+   "Roof.006",
+   "Wall.066",
+   "WallTrim.090"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Buttress_D.fbx",
+  "tris": 8,
+  "dims": [
+   0.004,
+   0.051,
+   0.023
+  ],
+  "min": [
+   -0.002,
+   -0.056,
+   0.025
+  ],
+  "mats": [
+   "WallTrim.091"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_A_1m.fbx",
+  "tris": 24,
+  "dims": [
+   0.005,
+   0.011,
+   0.01
+  ],
+  "min": [
+   -0.003,
+   -0.006,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.092"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_A_2m.fbx",
+  "tris": 24,
+  "dims": [
+   0.005,
+   0.011,
+   0.02
+  ],
+  "min": [
+   -0.003,
+   -0.006,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.093"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_A_3m.fbx",
+  "tris": 24,
+  "dims": [
+   0.005,
+   0.011,
+   0.03
+  ],
+  "min": [
+   -0.003,
+   -0.006,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.094"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_A_6m.fbx",
+  "tris": 24,
+  "dims": [
+   0.005,
+   0.011,
+   0.06
+  ],
+  "min": [
+   -0.003,
+   -0.006,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.095"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_A_Cap.fbx",
+  "tris": 140,
+  "dims": [
+   0.008,
+   0.014,
+   0.005
+  ],
+  "min": [
+   -0.004,
+   -0.007,
+   -0.003
+  ],
+  "mats": [
+   "WallTrim.096"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_A_Top.fbx",
+  "tris": 262,
+  "dims": [
+   0.008,
+   0.014,
+   0.045
+  ],
+  "min": [
+   -0.004,
+   -0.007,
+   0.0
+  ],
+  "mats": [
+   "Roof.007",
+   "Wall.067",
+   "WallTrim.097"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_B_1m.fbx",
+  "tris": 56,
+  "dims": [
+   0.011,
+   0.011,
+   0.01
+  ],
+  "min": [
+   -0.006,
+   -0.006,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.098"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_B_2m.fbx",
+  "tris": 56,
+  "dims": [
+   0.011,
+   0.011,
+   0.02
+  ],
+  "min": [
+   -0.006,
+   -0.006,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.099"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_B_3m.fbx",
+  "tris": 56,
+  "dims": [
+   0.011,
+   0.011,
+   0.03
+  ],
+  "min": [
+   -0.006,
+   -0.006,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.100"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_B_6m.fbx",
+  "tris": 56,
+  "dims": [
+   0.011,
+   0.011,
+   0.06
+  ],
+  "min": [
+   -0.006,
+   -0.006,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.101"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_B_Cap.fbx",
+  "tris": 332,
+  "dims": [
+   0.014,
+   0.014,
+   0.005
+  ],
+  "min": [
+   -0.007,
+   -0.007,
+   -0.003
+  ],
+  "mats": [
+   "WallTrim.102"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_B_Top.fbx",
+  "tris": 558,
+  "dims": [
+   0.014,
+   0.014,
+   0.045
+  ],
+  "min": [
+   -0.007,
+   -0.007,
+   0.0
+  ],
+  "mats": [
+   "Roof.008",
+   "Wall.068",
+   "WallTrim.103"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_C_1m.fbx",
+  "tris": 56,
+  "dims": [
+   0.006,
+   0.006,
+   0.01
+  ],
+  "min": [
+   -0.003,
+   -0.003,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.104"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_C_2m.fbx",
+  "tris": 56,
+  "dims": [
+   0.006,
+   0.006,
+   0.02
+  ],
+  "min": [
+   -0.003,
+   -0.003,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.105"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_C_3m.fbx",
+  "tris": 56,
+  "dims": [
+   0.006,
+   0.006,
+   0.03
+  ],
+  "min": [
+   -0.003,
+   -0.003,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.106"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_C_6m.fbx",
+  "tris": 56,
+  "dims": [
+   0.006,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.003,
+   -0.003,
+   0.0
+  ],
+  "mats": [
+   "WallTrim.107"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "posts/Post_C_Cap.fbx",
+  "tris": 332,
+  "dims": [
+   0.007,
+   0.007,
+   0.005
+  ],
+  "min": [
+   -0.004,
+   -0.004,
+   -0.003
+  ],
+  "mats": [
+   "WallTrim.108"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_1m.fbx",
+  "tris": 2,
+  "dims": [
+   0.015,
+   0.0,
+   0.01
+  ],
+  "min": [
+   -0.0,
+   0.001,
+   -0.0
+  ],
+  "mats": [
+   "Wall.069"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_2m.fbx",
+  "tris": 2,
+  "dims": [
+   0.015,
+   0.0,
+   0.02
+  ],
+  "min": [
+   -0.0,
+   0.001,
+   -0.0
+  ],
+  "mats": [
+   "Wall.070"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_3m.fbx",
+  "tris": 2,
+  "dims": [
+   0.015,
+   0.0,
+   0.03
+  ],
+  "min": [
+   -0.0,
+   0.001,
+   -0.0
+  ],
+  "mats": [
+   "Wall.071"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_6m.fbx",
+  "tris": 4,
+  "dims": [
+   0.015,
+   0.003,
+   0.06
+  ],
+  "min": [
+   -0.0,
+   -0.001,
+   -0.0
+  ],
+  "mats": [
+   "Wall.072"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_A.fbx",
+  "tris": 312,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.073",
+   "WallTrim.109"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_B.fbx",
+  "tris": 312,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.074",
+   "WallTrim.110"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_C.fbx",
+  "tris": 294,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.075",
+   "WallTrim.111"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_Corner_1m.fbx",
+  "tris": 6,
+  "dims": [
+   0.001,
+   0.001,
+   0.01
+  ],
+  "min": [
+   -0.0,
+   0.0,
+   -0.0
+  ],
+  "mats": [
+   "Wall.076"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_Corner_2m.fbx",
+  "tris": 6,
+  "dims": [
+   0.001,
+   0.001,
+   0.02
+  ],
+  "min": [
+   -0.0,
+   0.0,
+   -0.0
+  ],
+  "mats": [
+   "Wall.077"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_Corner_3m.fbx",
+  "tris": 6,
+  "dims": [
+   0.001,
+   0.001,
+   0.03
+  ],
+  "min": [
+   -0.0,
+   0.0,
+   -0.0
+  ],
+  "mats": [
+   "Wall.078"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_Corner_6m.fbx",
+  "tris": 6,
+  "dims": [
+   0.001,
+   0.001,
+   0.06
+  ],
+  "min": [
+   -0.0,
+   0.0,
+   -0.0
+  ],
+  "mats": [
+   "Wall.079"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_D.fbx",
+  "tris": 36,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.080",
+   "WallTrim.112"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_E.fbx",
+  "tris": 54,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.081",
+   "WallTrim.113"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_D_F.fbx",
+  "tris": 54,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.082",
+   "WallTrim.114"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_E_A.fbx",
+  "tris": 312,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.083",
+   "WallTrim.115"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_E_B.fbx",
+  "tris": 312,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.084",
+   "WallTrim.116"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_E_C.fbx",
+  "tris": 294,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.085",
+   "WallTrim.117"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_E_D.fbx",
+  "tris": 36,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.086",
+   "WallTrim.118"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_E_E.fbx",
+  "tris": 54,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.087",
+   "WallTrim.119"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_E_F.fbx",
+  "tris": 54,
+  "dims": [
+   0.03,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.015,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.088",
+   "WallTrim.120"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_F_A.fbx",
+  "tris": 314,
+  "dims": [
+   0.06,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.03,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.089",
+   "WallTrim.121"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_F_B.fbx",
+  "tris": 296,
+  "dims": [
+   0.06,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.03,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.090",
+   "WallTrim.122"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_F_C.fbx",
+  "tris": 36,
+  "dims": [
+   0.06,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.03,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.091",
+   "WallTrim.123"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_F_D.fbx",
+  "tris": 56,
+  "dims": [
+   0.06,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.03,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.092",
+   "WallTrim.124"
+  ],
+  "objs": 1
+ },
+ {
+  "file": "wall/Wall_F_E.fbx",
+  "tris": 56,
+  "dims": [
+   0.06,
+   0.006,
+   0.06
+  ],
+  "min": [
+   -0.03,
+   -0.003,
+   -0.0
+  ],
+  "mats": [
+   "Wall.093",
+   "WallTrim.125"
+  ],
+  "objs": 1
+ }
+]
