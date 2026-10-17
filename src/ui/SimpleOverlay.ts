@@ -1,22 +1,18 @@
 import type { RecallState } from '../player/RecallSystem';
 
-/** DOM HUD: ability status badge and the "Click to Play" pointer-lock blocker. */
+/**
+ * Thin HUD layer: recall status badge only.
+ * Menu / pause / pointer-lock chrome lives in MainMenu, PauseMenu, and main.ts.
+ */
 export class SimpleOverlay {
-  private readonly blocker: HTMLElement;
   private readonly status: HTMLElement;
   private readonly statusText: HTMLElement;
   private lastText = '';
   private lastClass = '';
 
-  constructor(onPlay: () => void) {
-    this.blocker = document.getElementById('blocker')!;
+  constructor() {
     this.status = document.getElementById('status')!;
     this.statusText = document.getElementById('status-text')!;
-    this.blocker.addEventListener('click', onPlay);
-  }
-
-  setLocked(locked: boolean): void {
-    this.blocker.classList.toggle('hidden', locked);
   }
 
   update(state: RecallState, cooldownRemaining: number): void {

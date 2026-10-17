@@ -29,6 +29,10 @@ const SFX_FILES: Record<SfxId, string> = {
 export class SoundSynth {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  /** SFX / procedural cues route here; music and voice stay on master. */
+  private sfxBus: GainNode | null = null;
+  private masterVol = 0.5;
+  private sfxVol = 1;
   private noiseBuffer: AudioBuffer | null = null;
   private buffers: Partial<Record<SfxId, AudioBuffer>> = {};
   private slideLoop: { src: AudioBufferSourceNode; filter: BiquadFilterNode; gain: GainNode } | null = null;
@@ -46,12 +50,27 @@ export class SoundSynth {
     if (!this.ctx) {
       this.ctx = new AudioContext();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.5;
+      this.master.gain.value = this.masterVol;
+      this.sfxBus = this.ctx.createGain();
+      this.sfxBus.gain.value = this.sfxVol;
+      this.sfxBus.connect(this.master);
       this.master.connect(this.ctx.destination);
       this.noiseBuffer = this.createNoiseBuffer(this.ctx, 1.5);
       void this.loadSamples(this.ctx);
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
+  }
+
+  /** Overall output level (0..1). Affects SFX, music, and voice. */
+  setMasterVolume(v: number): void {
+    this.masterVol = Math.min(1, Math.max(0, v));
+    if (this.master) this.master.gain.value = this.masterVol;
+  }
+
+  /** SFX bus level (0..1). Does not scale music or voice. */
+  setSfxVolume(v: number): void {
+    this.sfxVol = Math.min(1, Math.max(0, v));
+    if (this.sfxBus) this.sfxBus.gain.value = this.sfxVol;
   }
 
   /** Ascending reverse-whoosh sample, or procedural sweep if missing. */
@@ -441,6 +460,36 @@ export class SoundSynth {
     osc.stop(t + 0.15);
   }
 
+  /**
+   * Soft claw / body contact when a rusher lands a hit. Quiet and dry — never the
+   * magic fireball boom (`impact`).
+   */
+  meleeHit(distance = 2): void {
+    const near = Math.min(1, 1.4 / (1 + distance * 0.2));
+    if (this.playBuffer('enemy-hit', { gain: 0.1 * near, rate: 0.78 + Math.random() * 0.12 })) return;
+    const audio = this.ready();
+    if (!audio || !this.noiseBuffer) return;
+    const { ctx, out } = audio;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(90, t);
+    osc.frequency.exponentialRampToValueAtTime(48, t + 0.09);
+    const og = this.envelope(ctx, t, 0.004, 0.1, 0.045 * near);
+    osc.connect(og).connect(out);
+    osc.start(t);
+    osc.stop(t + 0.12);
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 600;
+    const ng = this.envelope(ctx, t, 0.002, 0.07, 0.03 * near);
+    src.connect(lp).connect(ng).connect(out);
+    src.start(t, Math.random());
+    src.stop(t + 0.1);
+  }
+
   /** A spell let go before it was charged: a short hiss. */
   fizzle(): void {
     this.stats.fizzles++;
@@ -612,8 +661,8 @@ export class SoundSynth {
   }
 
   private ready(): { ctx: AudioContext; out: GainNode } | null {
-    if (!this.ctx || !this.master || this.ctx.state !== 'running') return null;
-    return { ctx: this.ctx, out: this.master };
+    if (!this.ctx || !this.master || !this.sfxBus || this.ctx.state !== 'running') return null;
+    return { ctx: this.ctx, out: this.sfxBus };
   }
 
   private blip(ctx: AudioContext, out: AudioNode, freq: number, t: number, len: number, vol: number): void {

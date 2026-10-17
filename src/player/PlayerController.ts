@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CAMERA, PLAYER, SHADOW_MOVE, type CameraMode } from '../config';
 import { AUTOTEST } from '../debug/TestHooks';
+import { runtimeControls } from '../ui/Settings';
 
 /** Keys whose default browser behaviour (sticky keys, scrolling, focus change) must be suppressed. */
 const BLOCKED_CODES = new Set(['ShiftLeft', 'ShiftRight', 'Space', 'Tab', 'KeyC', 'KeyQ']);
@@ -183,15 +184,16 @@ export class PlayerController {
     if (!this.isLocked() || !this.enabled) return;
     // Drop occasional bogus spikes some browsers emit on pointer-lock transitions.
     if (Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;
+    const sens = runtimeControls.mouseSensitivity;
     if (this.cameraMode === 'tp') {
       this.orbitLook(
-        this.orbitYaw - e.movementX * PLAYER.mouseSensitivity,
-        this.orbitPitch - e.movementY * PLAYER.mouseSensitivity,
+        this.orbitYaw - e.movementX * sens,
+        this.orbitPitch - e.movementY * sens,
       );
       return;
     }
-    this.yaw -= e.movementX * PLAYER.mouseSensitivity;
-    this.pitch -= e.movementY * PLAYER.mouseSensitivity;
+    this.yaw -= e.movementX * sens;
+    this.pitch -= e.movementY * sens;
     this.pitch = THREE.MathUtils.clamp(this.pitch, -PLAYER.maxPitch, PLAYER.maxPitch);
   };
 

@@ -7,7 +7,7 @@ import type { SoundSynth } from '../fx/SoundSynth';
 import type { SpellHands } from '../combat/SpellHands';
 import type { FormController } from '../player/FormController';
 import type { Shadowballs } from '../combat/Shadowballs';
-import type { TrainingDummies } from '../world/TrainingDummies';
+import type { Enemies } from '../combat/Enemies';
 import type { DamageNumbers } from '../ui/DamageNumbers';
 import { OrbitCamera } from '../player/OrbitCamera';
 
@@ -65,7 +65,7 @@ interface Deps {
   spells: SpellHands;
   forms: FormController;
   balls: Shadowballs;
-  dummies: TrainingDummies;
+  dummies: Enemies;
   damageNumbers: DamageNumbers;
   orbit: OrbitCamera;
 }

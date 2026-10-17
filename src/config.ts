@@ -17,7 +17,7 @@ export const PLAYER = {
   maxFrameDt: 1 / 30,
   maxSubstep: 1 / 120,
   respawnY: -15,
-  spawn: new THREE.Vector3(0, 0, 18),
+  spawn: new THREE.Vector3(0, 0, 22),
   spawnYaw: 0,
 
   /** Sprint starts at runSpeed and builds towards topSpeed while you keep running forward. */
@@ -89,13 +89,19 @@ export const CAMERA = {
 
 export type CameraMode = 'fp' | 'tp';
 
+/** The Last Ember palette: ink void, ember fire, gold accents (only fire carries colour). */
 export const COLORS = {
-  cyan: 0x00f0ff,
-  amber: 0xffa020,
-  floor: 0x0a1220,
-  panel: 0x1a2433,
-  panelDark: 0x111824,
-  fog: 0x060b16,
+  ink: 0x07060a,
+  ember: 0xff7a2f,
+  gold: 0xffd27a,
+  bone: 0xe9dfd0,
+  floor: 0x0e0c12,
+  panel: 0x17141b,
+  panelDark: 0x0e0c12,
+  fog: 0x1b1730,
+  /** Legacy aliases remapped to ember/gold so older callers stay on-brand. */
+  cyan: 0xff7a2f,
+  amber: 0xffd27a,
 } as const;
 
 export const TRAIL = {
@@ -327,23 +333,38 @@ export const SPELL = {
 } as const;
 
 export const DUMMY = {
-  /** Footprint centres (x, z) and facing yaw (rad) of the training dummies. */
+  /** Footprint centres (x, z) and facing yaw (rad) — overridden by level empties when present. */
   spots: [
-    [-5, 12, 0],
-    [7, 14, 0],
-    [-9, 1, Math.PI / 4],
-    [12, 3, -Math.PI / 4],
-    [-8, -4, 0],
+    [-4, 8, 0],
+    [5, -2, 0],
+    [-6, -14, Math.PI / 6],
   ] as const,
-  health: 100,
+  health: 80,
   resetDelay: 2.5,
   height: 1.8,
   /** Hit capsule: radius (m) from the post's axis between these heights. */
   hitRadius: 0.32,
   hitBottom: 0.55,
   hitTop: 1.85,
-  bodyColor: 0xd8cfbd,
-  ringColor: 0xff7a2a,
+  bodyColor: 0x2a2228,
+  ringColor: 0xff7a2f,
+} as const;
+
+/** Ember Climb story beats / combat tuning. */
+export const LEVEL = {
+  url: '/models/levels/ember_climb.glb',
+  /** Legacy height hint; defense now arms by proximity to WifeAnchor. */
+  summitY: 22,
+  wifeMaxHp: 200,
+  bossMaxHp: 600,
+  rusherSpeed: 4.2,
+  rusherDamage: 8,
+  rusherHealth: 60,
+  contactRange: 1.1,
+  /** Slightly longer gap so melee hits don't machine-gun. */
+  contactCooldown: 1.05,
+  defenseWaves: 3,
+  defensePerWave: 4,
 } as const;
 
 /** Shadow form: dedicated wraith GLB + accent wisps + casting palm anchors. */

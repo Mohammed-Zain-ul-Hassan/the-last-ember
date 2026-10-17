@@ -10,10 +10,16 @@ import { RecallSystem } from './player/RecallSystem';
 import { PlayerController } from './player/PlayerController';
 import { CharacterRig } from './player/CharacterRig';
 import { SimpleOverlay } from './ui/SimpleOverlay';
+import { MainMenu } from './ui/MainMenu';
+import { PauseMenu } from './ui/PauseMenu';
+import { SettingsPanel, BASE_MOUSE_SENSITIVITY, runtimeControls, type GameSettings } from './ui/Settings';
+import { GameHud } from './ui/GameHud';
 import { AUTOTEST, TestHooks } from './debug/TestHooks';
-import { TrainingDummies } from './world/TrainingDummies';
 import { Shadowballs } from './combat/Shadowballs';
 import { SpellHands } from './combat/SpellHands';
+import { Enemies } from './combat/Enemies';
+import { WaveDirector } from './combat/WaveDirector';
+import { FireWife } from './world/FireWife';
 import { DamageNumbers } from './ui/DamageNumbers';
 import { FormController } from './player/FormController';
 import { FormHud } from './ui/FormHud';
@@ -27,13 +33,13 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
+renderer.toneMappingExposure = 1.05;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 container.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(COLORS.fog);
-scene.fog = new THREE.Fog(COLORS.fog, 35, 110);
+scene.fog = new THREE.Fog(COLORS.fog, 40, 140);
 
 const camera = new THREE.PerspectiveCamera(
   CAMERA.baseFov,
@@ -43,10 +49,11 @@ const camera = new THREE.PerspectiveCamera(
 );
 
 // --- Systems --------------------------------------------------------------------
-const arena = new Arena(scene, renderer);
-// Shadowballs hit the level boxes; dummies are hit-tested by capsule, so snapshot before adding theirs.
+const arena = await Arena.create(scene, renderer);
 const worldColliders = arena.colliders.slice();
-const dummies = new TrainingDummies(scene, arena.colliders);
+const enemies = new Enemies(scene);
+const wife = new FireWife(scene, arena.spawns.wife);
+const waves = new WaveDirector(enemies, wife, arena.spawns);
 const trail = new BreadcrumbTrail(scene);
 const recall = new RecallSystem();
 const sound = new SoundSynth();
@@ -55,9 +62,11 @@ const voice = new VoiceLines(sound);
 voice.bindMusic(music);
 const chrono = new ChronoFX(camera);
 const player = new PlayerController(camera, renderer.domElement, arena.colliders);
+PLAYER.spawn.copy(arena.spawns.player);
+player.teleport(arena.spawns.player, PLAYER.spawnYaw, 0);
 const character = new CharacterRig(scene, arena.colliders);
-const balls = new Shadowballs(scene, worldColliders, dummies);
-const spells = new SpellHands(balls, worldColliders, dummies, sound);
+const balls = new Shadowballs(scene, worldColliders, enemies);
+const spells = new SpellHands(balls, worldColliders, enemies, sound);
 const damageNumbers = new DamageNumbers();
 const forms = new FormController();
 const formHud = new FormHud();
@@ -76,18 +85,110 @@ const testHooks = AUTOTEST
       spells,
       forms,
       balls,
-      dummies,
+      dummies: enemies,
       damageNumbers,
       orbit,
     })
   : null;
-if (AUTOTEST) document.getElementById('blocker')?.classList.add('hidden');
+const menuShell = document.getElementById('menu-shell')!;
+if (AUTOTEST) menuShell.classList.add('hidden');
 
-const overlay = new SimpleOverlay(() => {
-  sound.unlock();
-  music.start();
-  requestLock(renderer.domElement);
+const overlay = new SimpleOverlay();
+const gameHud = new GameHud();
+
+function applySettings(s: GameSettings): void {
+  runtimeControls.mouseSensitivity = BASE_MOUSE_SENSITIVITY * s.mouseSensitivity;
+  sound.setMasterVolume(s.masterVolume);
+  sound.setSfxVolume(s.sfxVolume);
+  music.setMusicVolume(s.musicVolume);
+}
+
+/** True after the player has pressed Play at least once this session. */
+let gameStarted = false;
+
+function showMenuShell(): void {
+  if (!AUTOTEST) menuShell.classList.remove('hidden');
+}
+
+function hideMenuShell(): void {
+  menuShell.classList.add('hidden');
+}
+
+let settings!: SettingsPanel;
+let mainMenu!: MainMenu;
+let pauseMenu!: PauseMenu;
+
+mainMenu = new MainMenu({
+  onPlay: () => {
+    gameStarted = true;
+    hideAllMenuPanels();
+    hideMenuShell();
+    gameHud.show();
+    gameHud.hideVictory();
+    gameHud.hideWifeHp();
+    gameHud.hideBossHp();
+    gameHud.setObjective('Ascend');
+    waves.begin();
+    sound.unlock();
+    music.start();
+    music.setIntensity(0);
+    requestLock(renderer.domElement);
+  },
+  onSettings: () => {
+    mainMenu.hide();
+    settings.show('main');
+    showMenuShell();
+  },
 });
+
+pauseMenu = new PauseMenu({
+  onResume: () => {
+    hideAllMenuPanels();
+    hideMenuShell();
+    requestLock(renderer.domElement);
+  },
+  onSettings: () => {
+    pauseMenu.hide();
+    settings.show('pause');
+    showMenuShell();
+  },
+  onMainMenu: () => {
+    gameStarted = false;
+    hideAllMenuPanels();
+    mainMenu.show();
+    showMenuShell();
+  },
+});
+
+settings = new SettingsPanel({
+  onChange: applySettings,
+  onBack: (returnTo) => {
+    if (returnTo === 'pause') {
+      pauseMenu.show();
+      showMenuShell();
+    } else {
+      mainMenu.show();
+      showMenuShell();
+    }
+  },
+});
+
+function hideAllMenuPanels(): void {
+  mainMenu.hide();
+  pauseMenu.hide();
+  settings.hide();
+}
+
+if (!AUTOTEST) {
+  mainMenu.show();
+  pauseMenu.hide();
+  settings.hide();
+  showMenuShell();
+} else {
+  hideAllMenuPanels();
+  hideMenuShell();
+  gameHud.show();
+}
 
 /** Simulation clock in ms; only advances while playing so pausing doesn't eat history. */
 let simTime = 0;
@@ -146,11 +247,68 @@ balls.onImpact = (e) => {
   if (e.dummy) {
     sound.dummyHit();
     damageNumbers.show(e.point, e.damage, e.power > 0.5 ? 'charged' : 'hit');
+  } else if (wife.mode === 'boss' && e.point.distanceTo(wife.root.position) < 2.8) {
+    wife.damageBoss(e.damage);
+    sound.dummyHit();
+    damageNumbers.show(e.point, e.damage, e.power > 0.5 ? 'charged' : 'hit');
+    gameHud.setBossHp(wife.hp, wife.maxHp);
   }
   for (const s of e.splash) {
     damageNumbers.show(s.dummy.position.clone().setY(1.4), s.amount, 'splash');
   }
 };
+
+enemies.onContact = (dmg, target) => {
+  if (target === 'wife') {
+    wife.hurt(dmg);
+    gameHud.setWifeHp(wife.hp, wife.maxHp);
+    sound.meleeHit(4);
+  } else {
+    sound.meleeHit(player.feet.distanceTo(camera.position) || 1.2);
+  }
+};
+
+wife.onDefeated = () => {
+  gameHud.hideBossHp();
+  gameHud.showVictory();
+  music.setIntensity(0);
+};
+
+wife.onBossAttack = (kind, origin) => {
+  if (kind === 'burst' || kind === 'slam') {
+    const dist = player.feet.distanceTo(origin);
+    if (dist < (kind === 'slam' ? 4.5 : 3.2)) {
+      // Soft ember thump — not a full shadowball boom.
+      sound.meleeHit(dist);
+    }
+  } else if (kind === 'bolt') {
+    sound.meleeHit(player.feet.distanceTo(origin));
+  }
+};
+
+waves.onObjective = (text) => gameHud.setObjective(text);
+waves.onIntensity = (n) => music.setIntensity(n);
+waves.onPhase = (phase) => {
+  if (phase === 'defense') {
+    gameHud.hideBossHp();
+    gameHud.setWifeHp(wife.hp, wife.maxHp);
+  } else if (phase === 'boss') {
+    gameHud.hideWifeHp();
+    gameHud.setBossHp(wife.hp, wife.maxHp);
+  } else if (phase === 'win') {
+    gameHud.hideWifeHp();
+    gameHud.hideBossHp();
+    gameHud.showVictory();
+  } else {
+    gameHud.hideWifeHp();
+    gameHud.hideBossHp();
+  }
+};
+
+if (AUTOTEST) {
+  waves.begin();
+  music.setIntensity(0);
+}
 
 recall.onStart = () => {
   sound.recallStart();
@@ -164,8 +322,29 @@ recall.onLand = (pose) => {
 recall.onReady = () => sound.cooldownReady();
 
 document.addEventListener('pointerlockchange', () => {
-  overlay.setLocked(player.isLocked());
-  if (!player.isLocked()) spells.cancel();
+  if (player.isLocked()) {
+    hideAllMenuPanels();
+    hideMenuShell();
+    return;
+  }
+  spells.cancel();
+  if (AUTOTEST) return;
+  // Settings open: keep the panel; don't swap to pause underneath.
+  if (settings.visible) {
+    showMenuShell();
+    return;
+  }
+  if (gameStarted) {
+    mainMenu.hide();
+    settings.hide();
+    pauseMenu.show();
+    showMenuShell();
+  } else {
+    pauseMenu.hide();
+    settings.hide();
+    mainMenu.show();
+    showMenuShell();
+  }
 });
 
 function requestLock(el: HTMLElement): void {
@@ -279,7 +458,14 @@ renderer.setAnimationLoop(() => {
     spells.lateUpdate(character.spellHands, viewCam.position, forward, player.velocity);
     balls.update(dt);
   }
-  dummies.update(dt, viewCam);
+  const wifeTarget = waves.phase === 'defense' || waves.phase === 'boss' ? wife.root.position : null;
+  enemies.update(dt, viewCam, player.feet, wifeTarget, waves.phase);
+  wife.update(dt, player.feet);
+  if (gameStarted || AUTOTEST) {
+    waves.update(dt, player.feet);
+    if (waves.phase === 'defense') gameHud.setWifeHp(wife.hp, wife.maxHp);
+    if (waves.phase === 'boss') gameHud.setBossHp(wife.hp, wife.maxHp);
+  }
   damageNumbers.update(dt, viewCam);
 
   renderer.render(scene, viewCam);

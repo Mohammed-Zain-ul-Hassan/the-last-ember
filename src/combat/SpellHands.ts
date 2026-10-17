@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { SPELL, WEAPON } from '../config';
 import type { BallSpec, Shadowballs } from './Shadowballs';
-import type { TrainingDummies } from '../world/TrainingDummies';
+import type { Enemies } from './Enemies';
 import type { SoundSynth } from '../fx/SoundSynth';
 
 export type HandState = 'idle' | 'charging' | 'ready' | 'release';
@@ -66,7 +66,7 @@ export class SpellHands {
   constructor(
     private readonly balls: Shadowballs,
     private readonly colliders: THREE.Box3[],
-    private readonly dummies: TrainingDummies,
+    private readonly dummies: Enemies,
     private readonly sound: SoundSynth,
   ) {}
 

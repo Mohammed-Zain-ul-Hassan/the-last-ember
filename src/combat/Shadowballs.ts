@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { WEAPON } from '../config';
 import { NOISE_GLSL } from '../player/ShadowMaterial';
 import { ShadowWisps } from '../fx/ShadowWisps';
-import type { TrainingDummies, Dummy } from '../world/TrainingDummies';
+import type { Dummy } from '../world/TrainingDummies';
+import type { Enemies } from './Enemies';
 
 const lerp = THREE.MathUtils.lerp;
 
@@ -151,7 +152,7 @@ export class Shadowballs {
     scene: THREE.Scene,
     /** World boxes the balls hit (dummies are tested separately, by capsule). */
     private readonly colliders: THREE.Box3[],
-    private readonly dummies: TrainingDummies,
+    private readonly dummies: Enemies,
   ) {
     const geo = new THREE.IcosahedronGeometry(1, 4);
     for (let i = 0; i < 3; i++) {
