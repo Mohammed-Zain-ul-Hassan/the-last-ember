@@ -37,6 +37,7 @@ export class WaveDirector {
     this.defenseStarted = false;
     this.enemies.clear();
     this.wife.setMode('sleep');
+    this.wife.root.visible = true;
     this.onIntensity?.(0);
   }
 
@@ -50,28 +51,30 @@ export class WaveDirector {
       else this.enemies.spawnRusher(p);
     });
     this.wife.setMode('sleep');
+    this.wife.root.visible = true;
+    this.wife.root.position.copy(this.spawns.wife);
     this.onObjective?.('Ascend');
     this.onPhase?.('climb');
     this.onIntensity?.(0);
   }
 
   /**
-   * Sandbox for testing: spawn a ring of enemies near the player start,
-   * no plaza defense / boss progression. Respawns when the ring is cleared.
+   * Demo course: static enemies at level markers only. No story / defense progression.
    */
   beginDemo(): void {
     this.reset();
     this.phase = 'demo';
     this.wife.setMode('sleep');
-    this.spawnDemoRing();
-    this.onObjective?.('Demo — test combat & movement');
+    this.wife.root.visible = false;
+    for (const p of this.spawns.enemies) this.enemies.spawnStatic(p);
+    this.onObjective?.('Demo — walk forward');
     this.onPhase?.('demo');
     this.onIntensity?.(0);
   }
 
   update(_dt: number, playerFeet: THREE.Vector3): void {
     if (this.phase === 'demo') {
-      if (this.enemies.aliveCount() === 0) this.spawnDemoRing();
+      // Soft combat bed only while a course dummy is still up.
       this.onIntensity?.(this.enemies.aliveCount() > 0 ? 1 : 0);
       return;
     }
@@ -112,21 +115,6 @@ export class WaveDirector {
     if (this.phase === 'boss') {
       this.onIntensity?.(1);
       if (this.wife.mode === 'dead') this.enterWin();
-    }
-  }
-
-  private spawnDemoRing(): void {
-    const origin = this.spawns.player;
-    const n = 5;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      const p = new THREE.Vector3(
-        origin.x + Math.cos(a) * 7,
-        origin.y,
-        origin.z + Math.sin(a) * 7 - 2,
-      );
-      if (i % 2 === 0) this.enemies.spawnStatic(p, a + Math.PI);
-      else this.enemies.spawnRusher(p, origin.clone());
     }
   }
 

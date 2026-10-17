@@ -50,7 +50,8 @@ const camera = new THREE.PerspectiveCamera(
 
 // --- Systems --------------------------------------------------------------------
 const arena = await Arena.create(scene, renderer);
-const worldColliders = arena.colliders.slice();
+/** Shared with Arena so story↔demo swaps stay in sync for spells / balls. */
+const worldColliders = arena.colliders;
 const enemies = new Enemies(scene);
 const wife = new FireWife(scene, arena.spawns.wife);
 const waves = new WaveDirector(enemies, wife, arena.spawns);
@@ -126,9 +127,11 @@ function startSession(mode: 'story' | 'demo'): void {
   gameHud.hideVictory();
   gameHud.hideWifeHp();
   gameHud.hideBossHp();
+  arena.setMode(mode === 'demo' ? 'demo' : 'story');
+  PLAYER.spawn.copy(arena.spawns.player);
   player.teleport(arena.spawns.player, PLAYER.spawnYaw, 0);
   if (mode === 'demo') {
-    gameHud.setObjective('Demo — test combat & movement');
+    gameHud.setObjective('Demo — walk forward');
     waves.beginDemo();
   } else {
     gameHud.setObjective('Ascend');
@@ -164,6 +167,7 @@ pauseMenu = new PauseMenu({
   onMainMenu: () => {
     gameStarted = false;
     waves.reset();
+    arena.setMode('story');
     music.setIntensity(0);
     gameHud.hideVictory();
     gameHud.hideWifeHp();
@@ -477,6 +481,10 @@ renderer.setAnimationLoop(() => {
   wife.update(dt, player.feet);
   if (gameStarted || AUTOTEST) {
     waves.update(dt, player.feet);
+    if (waves.phase === 'demo') {
+      const line = arena.demoObjective(player.feet);
+      if (line) gameHud.setObjective(line);
+    }
     if (waves.phase === 'defense') gameHud.setWifeHp(wife.hp, wife.maxHp);
     if (waves.phase === 'boss') gameHud.setBossHp(wife.hp, wife.maxHp);
   }
