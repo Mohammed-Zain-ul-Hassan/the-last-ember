@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMERA, PLAYER, SHADOW_MOVE, type CameraMode } from '../config';
+import { CAMERA, CHRONO_DASH, PLAYER, SHADOW_MOVE, type CameraMode } from '../config';
 import { AUTOTEST } from '../debug/TestHooks';
 import { runtimeControls } from '../ui/Settings';
 
@@ -61,6 +61,8 @@ export class PlayerController {
   /** T: toggle first-person / third-person camera. */
   onCameraToggle: (() => void) | null = null;
   onJump: (() => void) | null = null;
+  /** Air chrono-dash (second jump) — horizontal burst. */
+  onChronoDash: (() => void) | null = null;
   onRespawn: (() => void) | null = null;
   onSlide: (() => void) | null = null;
   /** Fires on touchdown with the fall speed (m/s, positive). */
@@ -71,9 +73,12 @@ export class PlayerController {
   private slideBuffer = 0;
   private staminaWait = 0;
   private exhausted = false;
+  /** Remaining air chrono-dashes; refilled on landing. */
+  private airCharges = CHRONO_DASH.airCharges;
   /** Visual-only camera offset that smooths out stair step-ups. */
   private stepSmooth = 0;
   private readonly wish = new THREE.Vector3();
+  private readonly dashDir = new THREE.Vector3();
   private hasMoveInput = false;
 
   constructor(
@@ -278,13 +283,17 @@ export class PlayerController {
       else this.stepRun(h, hasInput, fwd);
     }
 
-    // Jump (buffered so a slightly-early press still counts on landing). Keeps all momentum.
-    if (this.jumpBuffer > 0 && this.onGround && this.hasHeadroom(PLAYER.height)) {
-      this.velocity.y = this.profile === 'shadow' ? SHADOW_MOVE.jumpVelocity : PLAYER.jumpVelocity;
-      this.onGround = false;
-      this.jumpBuffer = 0;
-      if (this.sliding) this.endSlide();
-      this.onJump?.();
+    // Jump / chrono-dash (buffered so a slightly-early press still counts on landing).
+    if (this.jumpBuffer > 0) {
+      if (this.onGround && this.hasHeadroom(PLAYER.height)) {
+        this.velocity.y = this.profile === 'shadow' ? SHADOW_MOVE.jumpVelocity : PLAYER.jumpVelocity;
+        this.onGround = false;
+        this.jumpBuffer = 0;
+        if (this.sliding) this.endSlide();
+        this.onJump?.();
+      } else if (!this.onGround && this.airCharges > 0) {
+        this.fireChronoDash();
+      }
     }
 
     this.velocity.y += PLAYER.gravity * h;
@@ -513,9 +522,32 @@ export class PlayerController {
         this.feet.y = support;
         this.velocity.y = 0;
         this.onGround = true;
-        if (!wasOnGround) this.onLand?.(fallSpeed);
+        if (!wasOnGround) {
+          this.airCharges = CHRONO_DASH.airCharges;
+          this.onLand?.(fallSpeed);
+        }
       }
     }
+  }
+
+  /** Horizontal chronomancer dash — consumes one air charge. */
+  private fireChronoDash(): void {
+    // Prefer wish if WASD is held; else camera forward on XZ.
+    if (this.hasMoveInput) {
+      this.dashDir.copy(this.wish);
+    } else {
+      const basis = this.cameraMode === 'tp' && this.orbitLock === null ? this.orbitYaw : this.yaw;
+      this.dashDir.set(-Math.sin(basis), 0, -Math.cos(basis));
+    }
+    if (this.dashDir.lengthSq() < 1e-6) this.dashDir.set(0, 0, -1);
+    else this.dashDir.normalize();
+
+    this.velocity.x = this.dashDir.x * CHRONO_DASH.speed;
+    this.velocity.z = this.dashDir.z * CHRONO_DASH.speed;
+    this.velocity.y = CHRONO_DASH.lift;
+    this.airCharges -= 1;
+    this.jumpBuffer = 0;
+    this.onChronoDash?.();
   }
 
   // ---------------------------------------------------------------------------
@@ -538,6 +570,7 @@ export class PlayerController {
     this.slideBuffer = 0;
     this.sliding = false;
     this.momentum = 0;
+    this.airCharges = CHRONO_DASH.airCharges;
     this.onGround = false;
     // Landing somewhere low (e.g. a Recall that ends under a bar): stay crouched.
     this.height = this.hasHeadroom(PLAYER.height) ? PLAYER.height : PLAYER.crouchHeight;

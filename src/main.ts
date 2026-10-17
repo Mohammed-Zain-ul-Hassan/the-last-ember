@@ -59,7 +59,7 @@ const sound = new SoundSynth();
 const music = new BackgroundMusic(sound);
 const voice = new VoiceLines(sound);
 voice.bindMusic(music);
-const chrono = new ChronoFX(camera);
+const chrono = new ChronoFX(camera, scene);
 const player = new PlayerController(camera, renderer.domElement, arena.colliders);
 PLAYER.spawn.copy(arena.spawns.player);
 player.teleport(arena.spawns.player, PLAYER.spawnYaw, 0);
@@ -210,6 +210,10 @@ if (!AUTOTEST) {
 let simTime = 0;
 
 player.onJump = () => sound.jump();
+player.onChronoDash = () => {
+  sound.chronoDash();
+  chrono.pulseDash(player.feet);
+};
 player.onSlide = () => {
   sound.startSlide();
   character.puff(24);
@@ -364,16 +368,24 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 function requestLock(el: HTMLElement): void {
-  // Prefer raw (unaccelerated) mouse input where supported; fall back to a plain request.
+  // Plain lock only — `{ unadjustedMovement: true }` succeeds on some Chrome/Edge
+  // setups but never delivers movementX/Y (WASD works, camera stuck).
   try {
-    const result = el.requestPointerLock({ unadjustedMovement: true }) as unknown as Promise<void> | undefined;
-    result?.catch(() => {
-      (el.requestPointerLock() as unknown as Promise<void> | undefined)?.catch(() => undefined);
-    });
+    const result = el.requestPointerLock() as unknown as Promise<void> | undefined;
+    result?.catch(() => undefined);
   } catch {
-    el.requestPointerLock();
+    /* ignore */
   }
 }
+
+/** Click the canvas to re-engage look if lock failed or was lost mid-session. */
+renderer.domElement.addEventListener('click', () => {
+  if (AUTOTEST || !gameStarted || settings.visible) return;
+  if (player.isLocked()) return;
+  hideAllMenuPanels();
+  hideMenuShell();
+  requestLock(renderer.domElement);
+});
 
 function onResize(): void {
   const w = window.innerWidth;
@@ -430,7 +442,7 @@ renderer.setAnimationLoop(() => {
       : 0;
   speedFov += (fast * CAMERA.speedFov - speedFov) * Math.min(1, dt * 4);
   chrono.baseFov = CAMERA.baseFov + speedFov;
-  chrono.update(recall.state === 'recalling' ? recall.progress : null);
+  chrono.update(recall.state === 'recalling' ? recall.progress : null, dt);
   overlay.update(recall.state, recall.cooldownRemaining);
   formHud.update(dt, forms.form, forms.dissolve, spells.magicka / SPELL.magickaMax, player.stamina / SHADOW_MOVE.staminaMax);
 

@@ -1,13 +1,13 @@
 import * as THREE from 'three';
-import { COLORS, WRAITH } from '../config';
-import { buildDemoCourse, type DemoCourse } from './DemoCourse';
+import { COLORS, LEVEL, WRAITH } from '../config';
+import { buildDemoCourse, demoObjectiveFor, type DemoCourse } from './DemoCourse';
 import { loadLevel, type LevelSpawns, type LoadedLevel } from './LevelLoader';
 
 export type ArenaMode = 'story' | 'demo';
 
 /**
- * World container: story ember_climb GLB (or fallback courtyard) plus a separate
- * procedural Demo Course. `setMode` swaps which geometry / colliders / spawns are live.
+ * World container: story ember_climb GLB (or fallback courtyard) plus demo course
+ * (demo_course.glb when present, else procedural graybox). `setMode` swaps live colliders/spawns.
  */
 export class Arena {
   readonly colliders: THREE.Box3[] = [];
@@ -33,11 +33,23 @@ export class Arena {
     const arena = new Arena(scene);
     arena.buildLights();
 
-    const loaded = await loadLevel();
+    const loaded = await loadLevel(LEVEL.url);
     if (loaded) arena.applyLoaded(loaded);
     else arena.buildFallback();
 
-    arena.demo = buildDemoCourse();
+    const demoGlb = await loadLevel(LEVEL.demoUrl);
+    if (demoGlb) {
+      arena.demo = {
+        root: demoGlb.root,
+        colliders: demoGlb.colliders,
+        spawns: demoGlb.spawns,
+        objectiveFor: demoObjectiveFor,
+      };
+      console.info('[Arena] demo_course.glb loaded');
+    } else {
+      arena.demo = buildDemoCourse();
+      console.info('[Arena] demo graybox fallback');
+    }
     arena.demo.root.visible = false;
     scene.add(arena.demo.root);
 

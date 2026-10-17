@@ -1,7 +1,10 @@
 """
-Build The Last Ember dusk-city level in Blender (Z-up) and export ember_climb.glb.
-Run via Blender MCP execute_blender_code by loading this file, or:
-  blender --background --python scripts/build-ember-level.py
+Build ember_climb.glb — Market Ash bounded RING district (level_design.md §8).
+
+Blender Z-up, Y-forward. Export Y-up GLB for Three.js.
+
+Ring (~60 m): hub → walled bowl → west alley / east roof / undercroft → north court
+→ hearth plaza. No linear spine. Stair AABBs never overlap roof walk pads.
 """
 import bpy
 import math
@@ -9,7 +12,6 @@ import os
 
 OUT = r"D:\Projects\the-last-ember\public\models\levels\ember_climb.glb"
 
-# --- clear ---
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
 for b in list(bpy.data.meshes):
@@ -29,14 +31,59 @@ def ensure_mat(name, color, emit=0.0, emit_color=None, rough=0.85):
     return m
 
 
-# Prefer Poly Haven materials if already imported; else procedural stand-ins.
-STONE = bpy.data.materials.get("stone_brick_wall_001") or ensure_mat("StoneProc", (0.12, 0.1, 0.11))
-COBBLE = bpy.data.materials.get("cobblestone_floor_08") or ensure_mat("CobbleProc", (0.18, 0.16, 0.15))
-ROOF = bpy.data.materials.get("grey_roof_01") or ensure_mat("RoofProc", (0.08, 0.08, 0.09))
-WOOD = bpy.data.materials.get("wood_planks") or ensure_mat("WoodProc", (0.2, 0.12, 0.07))
-EMBER = ensure_mat("EmberTrim", (0.05, 0.02, 0.01), emit=6.0, emit_color=(1.0, 0.48, 0.18))
-GOLD = ensure_mat("GoldTrim", (0.08, 0.06, 0.02), emit=2.5, emit_color=(1.0, 0.82, 0.48))
+def pick(*names, fallback_name, fallback_color, rough=0.85):
+    for n in names:
+        m = bpy.data.materials.get(n)
+        if m:
+            return m
+    return ensure_mat(fallback_name, fallback_color, rough=rough)
+
+
+STONE = pick(
+    "stone_brick_wall_001", "stone_brick_wall_001.001", "medieval_blocks_06",
+    fallback_name="StoneProc", fallback_color=(0.22, 0.2, 0.19),
+)
+BRICK = pick(
+    "brick_wall_02", "brick_wall_13", "brick_wall_11",
+    fallback_name="BrickProc", fallback_color=(0.45, 0.18, 0.12),
+)
+COBBLE = pick(
+    "cobblestone_floor_03", "cobblestone_floor_03.001", "cobblestone_floor_08",
+    fallback_name="CobbleProc", fallback_color=(0.28, 0.26, 0.24),
+)
+ROOF = pick(
+    "roof_slates_02", "grey_roof_01", "grey_roof_tiles",
+    fallback_name="RoofProc", fallback_color=(0.14, 0.16, 0.18),
+)
+WOOD = pick(
+    "weathered_planks", "wood_plank_wall", "raw_plank_wall",
+    fallback_name="WoodProc", fallback_color=(0.32, 0.2, 0.1),
+)
+BLUEWOOD = pick(
+    "blue_painted_planks",
+    fallback_name="BlueWoodProc", fallback_color=(0.15, 0.25, 0.45),
+)
+MOSS = pick(
+    "wooden_rough_planks", "forest_leaves_03", "grass",
+    fallback_name="MossProc", fallback_color=(0.12, 0.22, 0.1),
+)
+PLASTER = pick(
+    "plastered_wall_05", "plastered_wall_02", "plastered_wall_04",
+    fallback_name="PlasterProc", fallback_color=(0.55, 0.52, 0.48),
+)
+COPPER = pick(
+    "green_metal_rust", "rusty_metal_05", "metal_plate_02",
+    fallback_name="CopperProc", fallback_color=(0.25, 0.35, 0.32), rough=0.55,
+)
+
+EMBER = ensure_mat("EmberTrim", (0.05, 0.02, 0.01), emit=5.0, emit_color=(1.0, 0.48, 0.18))
+GOLD = ensure_mat("GoldTrim", (0.08, 0.06, 0.02), emit=2.2, emit_color=(1.0, 0.82, 0.48))
 INK = ensure_mat("InkDark", (0.04, 0.035, 0.05), rough=0.92)
+TEAL = ensure_mat("TealAccent", (0.04, 0.1, 0.12), emit=2.4, emit_color=(0.25, 0.75, 0.7))
+VIOLET = ensure_mat("VioletAccent", (0.08, 0.04, 0.14), emit=2.8, emit_color=(0.55, 0.35, 0.95))
+BONE = ensure_mat("BoneLight", (0.55, 0.5, 0.42), emit=1.2, emit_color=(0.9, 0.85, 0.75))
+CHRONO = ensure_mat("ChronoGreen", (0.04, 0.08, 0.05), emit=3.5, emit_color=(0.235, 1.0, 0.416))
+SLATE = ensure_mat("SlateBlue", (0.12, 0.16, 0.22), rough=0.8)
 
 
 def box(name, loc, scale, mat, coll=False):
@@ -67,158 +114,287 @@ def empty(name, loc):
     return o
 
 
-def trim(name, loc, scale):
-    box("VIS_" + name, loc, scale, EMBER, False)
+def trim(name, loc, scale, mat=None):
+    box("VIS_" + name, loc, scale, mat or EMBER, False)
 
 
-# ===== 1 Courtyard =====
-both("CourtFloor", (0, 0, -0.4), (26, 22, 0.8), COBBLE)
-both("CourtWall_N", (0, 11.2, 2.2), (26, 0.7, 4.4), STONE)
-both("CourtWall_S", (0, -11.2, 2.2), (26, 0.7, 4.4), STONE)
-both("CourtWall_W", (-13.2, 0, 2.2), (0.7, 22, 4.4), STONE)
-both("CourtWall_E", (13.2, 0, 2.2), (0.7, 22, 4.4), STONE)
-both("GatePost_L", (-3.2, 11.2, 1.5), (1.2, 0.8, 3.0), STONE)
-both("GatePost_R", (3.2, 11.2, 1.5), (1.2, 0.8, 3.0), STONE)
-both("GateBar", (0, 11.2, 1.2), (5.0, 1.0, 0.35), WOOD)
-for x in (-8, 8):
-    box(f"VIS_Brazier_{x}", (x, -6, 0.6), (0.7, 0.7, 1.2), INK, False)
-    trim(f"BrazierGlow_{x}", (x, -6, 1.35), (0.45, 0.45, 0.25))
-empty("PlayerSpawn", (0, -6, 0.05))
+def stairs_y(prefix, x, y0, z0, y1, rise, steps, width=3.0, mat=STONE):
+    """Stairs along +Y. |riser| ≤0.35; tread from run length. rise may be negative (down)."""
+    run = y1 - y0
+    raw = rise / max(steps, 1)
+    riser = max(-0.35, min(0.35, raw))
+    # If clamped, stretch tread count conceptually via riser*steps ≈ rise
+    tread = run / max(steps, 1)
+    for i in range(steps):
+        y = y0 + (i + 0.5) * tread
+        z = z0 + (i + 0.5) * riser
+        both(f"{prefix}_{i}", (x, y, z), (width, max(abs(tread) * 0.92, 0.55), abs(riser)), mat)
 
-# ===== 2 Streets =====
-both("StreetFloor", (0, 28, -0.35), (14, 30, 0.7), COBBLE)
-both("StreetWall_W", (-7.5, 28, 2.5), (1.0, 30, 5.0), STONE)
-both("StreetWall_E", (7.5, 28, 2.5), (1.0, 30, 5.0), STONE)
-both("House_W", (-12, 22, 3.5), (8, 12, 7), STONE)
-both("House_E", (12, 30, 3.5), (8, 14, 7), STONE)
-box("VIS_House_W_roof", (-12, 22, 7.4), (8.5, 12.5, 0.4), ROOF, False)
-box("VIS_House_E_roof", (12, 30, 7.4), (8.5, 14.5, 0.4), ROOF, False)
-both("AlleyFloor", (14, 18, -0.35), (10, 8, 0.7), COBBLE)
-both("AlleyStair", (14, 24, 1.0), (4, 3, 2.0), STONE)
-trim("StreetTrim", (0, 20, 0.04), (3.5, 0.2, 0.08))
-both("StreetToRamp", (0, 40, 0.5), (8, 5, 1.0), STONE)
-for i, (x, y) in enumerate([(-3, 26), (3, 32), (-2, 36)]):
-    both(f"Crate_{i}", (x, y, 0.55), (1.2, 1.2, 1.1), WOOD)
 
-for i, y in enumerate(range(10, 45, 6)):
-    h = 5 + (i % 3) * 2
-    both(f"Facade_W_{i}", (-11, y, h / 2), (4, 5, h), STONE)
-    box(f"VIS_Facade_W_roof_{i}", (-11, y, h + 0.3), (4.5, 5.5, 0.4), ROOF, False)
-    both(f"Facade_E_{i}", (11, y + 2, h / 2 + 0.5), (4, 5, h + 1), STONE)
-    box(f"VIS_Facade_E_roof_{i}", (11, y + 2, h + 1.3), (4.5, 5.5, 0.4), ROOF, False)
+def stairs_x(prefix, x0, y, z0, x1, rise, steps, depth=3.0, mat=STONE):
+    """Stairs along +X (or −X)."""
+    run = x1 - x0
+    riser = min(0.35, rise / max(steps, 1))
+    tread = abs(run) / max(steps, 1)
+    sign = 1 if run >= 0 else -1
+    for i in range(steps):
+        x = x0 + sign * (i + 0.5) * tread
+        z = z0 + (i + 0.5) * riser
+        both(f"{prefix}_{i}", (x, y, z), (max(tread * 0.92, 0.55), depth, riser), mat)
 
-# ===== 3 Market =====
-both("MarketFloor", (0, 52, 2.5), (18, 18, 1.0), COBBLE)
-both("MarketRamp", (0, 42, 1.0), (6, 6, 2.0), STONE)
-both("MarketWall_N", (0, 61.2, 5.0), (18, 0.8, 5.0), STONE)
-both("MarketWall_W", (-9.2, 52, 5.0), (0.8, 18, 5.0), STONE)
-both("MarketWall_E", (9.2, 52, 5.0), (0.8, 18, 5.0), STONE)
-for i, (x, y) in enumerate([(-5, 48), (5, 48), (-6, 56), (6, 56), (0, 58)]):
-    both(f"Stall_{i}", (x, y, 3.7), (2.0, 1.4, 1.4), WOOD)
-both("Gallery", (-9.5, 52, 6.5), (2.5, 14, 0.4), WOOD)
-trim("GalleryTrim", (-9.5, 52, 6.75), (1.8, 12, 0.08))
-for i, (x, y, h) in enumerate([(-14, 52, 8), (14, 52, 9), (-14, 60, 7), (14, 60, 8)]):
-    both(f"MarketBldg_{i}", (x, y, h / 2 + 3), (5, 6, h), STONE)
-    box(f"VIS_MarketBldg_roof_{i}", (x, y, 3 + h + 0.3), (5.5, 6.5, 0.4), ROOF, False)
-empty("Enemy_01", (-3, 52, 3.05))
-empty("Enemy_02", (4, 55, 3.05))
 
-# ===== 4 Rooftops =====
-both("Roof_A", (8, 58, 7.2), (8, 6, 0.5), ROOF)
-both("Roof_B", (10, 65, 7.8), (6, 6, 0.5), ROOF)
-both("Roof_C", (6, 72, 8.4), (7, 6, 0.5), ROOF)
-both("RoofStep", (9, 61.5, 7.5), (4, 2.5, 0.45), WOOD)
-both("Pipe", (4, 72, 8.7), (1.0, 5, 0.5), INK)
-both("Roof_D", (0, 78, 8.6), (6, 5, 0.5), ROOF)
-for n, loc, sc in [
-    ("RoofTrim_A", (8, 58, 7.5), (5, 0.25, 0.08)),
-    ("RoofTrim_B", (10, 65, 8.1), (4, 0.25, 0.08)),
-    ("RoofTrim_C", (6, 72, 8.7), (4, 0.25, 0.08)),
-    ("RoofTrim_D", (0, 78, 8.9), (3.5, 0.25, 0.08)),
-]:
-    trim(n, loc, sc)
-empty("Enemy_03", (6, 72, 8.7))
-empty("Enemy_04", (0, 78, 8.9))
+# =====================================================================
+# 1) HUB — enclosed court, two ways into bowl
+# =====================================================================
+both("HubFloor", (0, 0, -0.35), (16, 14, 0.7), COBBLE)
+both("HubWall_S", (0, -7.2, 2.5), (16, 0.6, 5.0), STONE)
+both("HubWall_W", (-8.2, 0, 2.5), (0.6, 14, 5.0), BRICK)
+both("HubWall_E", (8.2, 0, 2.5), (0.6, 14, 5.0), PLASTER)
+# North wall with gate gap (open |x|<3)
+both("HubWall_N_L", (-5.5, 7.2, 2.5), (5, 0.6, 5.0), STONE)
+both("HubWall_N_R", (5.5, 7.2, 2.5), (5, 0.6, 5.0), STONE)
+both("HubGateLint", (0, 7.2, 4.6), (6.5, 0.7, 0.8), WOOD)
+trim("HubTeal", (0, 1, 0.05), (4, 0.15, 0.06), TEAL)
+for x in (-5, 5):
+    box(f"VIS_HubBrazier_{x}", (x, -4, 0.5), (0.55, 0.55, 1.0), INK, False)
+    trim(f"HubGlow_{x}", (x, -4, 1.1), (0.35, 0.35, 0.2))
+empty("PlayerSpawn", (0, -5, 0.05))
+empty("Enemy_01", (-3, 2, 0.05))
+empty("Enemy_02", (3, 3, 0.05))
 
-# ===== 5 Aqueduct =====
-both("AqPier_S", (0, 82, 4.0), (3, 3, 8.0), STONE)
-both("AqPier_N", (0, 102, 4.0), (3, 3, 8.0), STONE)
-both("AqDeck", (0, 92, 8.8), (5, 22, 0.7), STONE)
-trim("AqTrim", (0, 92, 9.2), (2.5, 18, 0.1))
-both("ArchL", (-4, 92, 12), (1.5, 2, 6), STONE)
-both("ArchR", (4, 92, 12), (1.5, 2, 6), STONE)
-box("VIS_ArchTop", (0, 92, 15.5), (9, 2, 1.2), STONE, False)
-for y in (86, 92, 98):
-    box(f"VIS_Lantern_{y}", (2.2, y, 10.2), (0.35, 0.35, 0.6), INK, False)
-    trim(f"LanternGlow_{y}", (2.2, y, 10.55), (0.25, 0.25, 0.2))
-both("AqToCrypt", (0, 105, 8.5), (5, 6, 0.6), STONE)
-empty("Enemy_05", (0, 92, 9.2))
+# Short enclosed approach corridor (canyon, not open field)
+both("ApproachFloor", (0, 12, 0.0), (7, 6, 0.6), COBBLE)
+both("ApproachWall_W", (-3.8, 12, 2.4), (0.5, 6, 4.8), BRICK)
+both("ApproachWall_E", (3.8, 12, 2.4), (0.5, 6, 4.8), PLASTER)
+trim("ApproachViolet", (0, 12, 0.4), (4, 0.15, 0.06), VIOLET)
 
-# ===== 6 Crypt =====
-both("CryptEntry", (0, 108, 7.5), (5, 6, 0.6), STONE)
-both("CryptCorridor", (0, 114, 6.5), (4, 10, 0.6), STONE)
-both("CryptCeil", (0, 114, 9.5), (4.5, 10, 0.5), STONE)
-both("CryptWall_W", (-2.5, 114, 8.0), (0.5, 10, 3.0), STONE)
-both("CryptWall_E", (2.5, 114, 8.0), (0.5, 10, 3.0), STONE)
-both("CryptChamber", (0, 124, 6.5), (10, 10, 0.6), STONE)
-both("CryptChamberCeil", (0, 124, 10.5), (10.5, 10.5, 0.5), STONE)
-for x in (-3, 3):
-    for y in (121, 127):
-        both(f"Col_{x}_{y}", (x, y, 8.5), (0.8, 0.8, 3.5), STONE)
-box("VIS_RitualRing", (0, 124, 6.85), (3.5, 3.5, 0.1), GOLD, False)
-trim("CryptTrim", (0, 124, 6.9), (2.0, 0.2, 0.08))
-both("CryptExit", (0, 132, 7.0), (5, 5, 0.6), STONE)
-both("CryptToStair", (0, 134, 7.2), (5, 4, 0.6), STONE)
-empty("Enemy_06", (0, 124, 6.85))
+# Route B: west lean-to climb → west balcony of bowl
+both("LeanFloor", (-11, 8, 0.0), (5, 8, 0.5), WOOD)
+both("LeanWall_W", (-13.6, 8, 2.2), (0.5, 8, 4.4), BRICK)
+stairs_y("LeanStairs", -11, 4, 0.2, 14, 3.8, 12, width=2.8, mat=WOOD)
+both("LeanLanding", (-11, 16, 4.0), (4, 3, 0.4), WOOD)
+trim("LeanChrono", (-11, 12, 2.0), (0.2, 4, 0.08), CHRONO)
 
-# ===== 7 Stairs (end ~ y=170, z=22) =====
-zy, yy = 7.5, 136
-for i in range(14):
-    zy += 1.05
-    yy += 2.4
-    xoff = -3 if i % 2 == 0 else 3
-    both(f"Stair_{i}", (xoff, yy, zy - 0.25), (5, 2.6, 0.5), STONE)
-    if i % 2 == 0:
-        both(f"Landing_{i}", (0, yy + 1.5, zy - 0.2), (8, 2.0, 0.45), STONE)
-both("StairToPlaza", (0, 172, 22.0), (8, 6, 0.6), STONE)
+# =====================================================================
+# 2) MARKET BOWL — walled arena (~16×14), gated exits only
+# =====================================================================
+bowl_y, bowl_z = 26, 0.5
+both("BowlFloor", (0, bowl_y, bowl_z - 0.35), (16, 14, 0.7), COBBLE)
+# Four walls with gate gaps
+both("BowlWall_S_L", (-5.5, bowl_y - 7.2, 2.8), (5, 0.55, 5.0), STONE)
+both("BowlWall_S_R", (5.5, bowl_y - 7.2, 2.8), (5, 0.55, 5.0), STONE)
+both("BowlWall_N_L", (-5.5, bowl_y + 7.2, 2.8), (5, 0.55, 5.0), STONE)
+both("BowlWall_N_R", (5.5, bowl_y + 7.2, 2.8), (5, 0.55, 5.0), STONE)
+both("BowlWall_W_S", (-8.2, bowl_y - 3.5, 2.8), (0.55, 6, 5.0), BRICK)
+both("BowlWall_W_N", (-8.2, bowl_y + 3.5, 2.8), (0.55, 6, 5.0), BRICK)
+both("BowlWall_E_S", (8.2, bowl_y - 3.5, 2.8), (0.55, 6, 5.0), PLASTER)
+both("BowlWall_E_N", (8.2, bowl_y + 3.5, 2.8), (0.55, 6, 5.0), PLASTER)
+both("BowlLint_S", (0, bowl_y - 7.2, 4.8), (6, 0.6, 0.7), WOOD)
+both("BowlLint_N", (0, bowl_y + 7.2, 4.8), (6, 0.6, 0.7), WOOD)
+both("BowlLint_W", (-8.2, bowl_y, 4.8), (0.6, 5, 0.7), WOOD)
+both("BowlLint_E", (8.2, bowl_y, 4.8), (0.6, 5, 0.7), WOOD)
 
-# ===== 8 Plaza @ y=175, z=22.5 =====
-plaza_z, plaza_y = 22.5, 175
-both("PlazaFloor", (0, plaza_y, plaza_z - 0.5), (24, 24, 1.0), COBBLE)
-both("PlazaRim_N", (0, plaza_y + 12.2, plaza_z + 0.8), (24, 0.7, 1.6), STONE)
-both("PlazaRim_W", (-12.2, plaza_y, plaza_z + 0.8), (0.7, 22, 1.6), STONE)
-both("PlazaRim_E", (12.2, plaza_y, plaza_z + 0.8), (0.7, 22, 1.6), STONE)
-for i, (x, y) in enumerate([(-7, plaza_y - 4), (7, plaza_y - 4), (-8, plaza_y + 5), (8, plaza_y + 5)]):
-    both(f"PlazaCover_{i}", (x, y, plaza_z + 0.7), (2.4, 2.0, 1.4), STONE)
-both("Plinth", (0, plaza_y, plaza_z + 0.4), (4, 4, 0.8), STONE)
-trim("PlinthGlow", (0, plaza_y, plaza_z + 0.85), (3.6, 3.6, 0.1))
-for a in range(16):
-    ang = a * math.pi * 2 / 16
-    trim(f"PlazaRing_{a}", (math.cos(ang) * 10, plaza_y + math.sin(ang) * 10, plaza_z + 0.05), (0.7, 0.35, 0.1))
-both("PlazaApproach", (0, plaza_y - 14, plaza_z - 0.4), (8, 6, 0.8), STONE)
+# Cover stalls (kite)
+for i, (x, y) in enumerate([(-4, 22), (4, 22), (-5, 28), (5, 28), (0, 30)]):
+    both(f"BowlStall_{i}", (x, y, 1.5), (1.8, 1.3, 1.4), WOOD)
+    trim(f"BowlStallTrim_{i}", (x, y, 2.3), (1.1, 0.1, 0.05), TEAL if i % 2 == 0 else VIOLET)
+both("BowlCover_A", (-5.5, 24, 1.3), (1.6, 2.0, 1.6), STONE)
+both("BowlCover_B", (5.5, 29, 1.3), (1.6, 2.0, 1.6), STONE)
 
-# Hearth landmark behind plaza
-both("HearthBase", (0, 195, 8), (10, 10, 16), STONE)
-box("VIS_HearthDome", (0, 195, 20), (12, 12, 8), INK, False)
-trim("HearthGlow", (0, 195, 18), (6, 6, 1.5))
+# Interior balconies (statics) — west linked from lean-to
+both("Balcony_W", (-6.5, 26, 4.2), (2.5, 6, 0.4), STONE)
+both("BalconyRail_W", (-5.4, 26, 4.85), (0.25, 5.5, 0.85), BLUEWOOD)
+both("Balcony_E", (6.5, 26, 4.2), (2.5, 6, 0.4), STONE)
+both("BalconyRail_E", (5.4, 26, 4.85), (0.25, 5.5, 0.85), BLUEWOOD)
+# Link lean landing → west balcony
+both("LeanToBal", (-9, 18, 4.0), (3, 4, 0.4), WOOD)
 
-empty("WifeAnchor", (0, plaza_y, plaza_z + 0.9))
-empty("BossArena", (0, plaza_y, plaza_z + 0.05))
-empty("WaveSpawn_A", (-9, plaza_y - 6, plaza_z + 0.05))
-empty("WaveSpawn_B", (9, plaza_y - 6, plaza_z + 0.05))
-empty("WaveSpawn_C", (0, plaza_y + 9, plaza_z + 0.05))
+empty("Enemy_03", (-3, 23, 0.95))
+empty("Enemy_04", (3, 25, 0.95))
+empty("Enemy_05", (0, 29, 0.95))
+empty("Enemy_06", (-2, 27, 0.95))
+empty("Enemy_07", (-6.5, 26, 4.55))
+empty("Enemy_08", (6.5, 28, 4.55))
 
-# Terrain fill
-both("Terrain_Main", (0, 90, -1.5), (70, 220, 2.0), INK)
-both("Terrain_W", (-28, 90, 1.0), (20, 200, 6.0), STONE)
-both("Terrain_E", (28, 90, 1.0), (20, 200, 6.0), STONE)
+# Building shells outside walls (canyon massing)
+for i, (x, y, h, mat) in enumerate([
+    (-13, 22, 6.5, BRICK), (13, 22, 7, PLASTER),
+    (-13, 30, 6, STONE), (13, 30, 6.5, BRICK),
+]):
+    both(f"Shell_{i}", (x, y, h / 2 + 0.5), (4.5, 5, h), mat)
+    box(f"VIS_ShellRoof_{i}", (x, y, 0.5 + h + 0.2), (5, 5.5, 0.35), ROOF if i % 2 == 0 else COPPER, False)
+    box(f"VIS_ShellMoss_{i}", (x - 1, y, 2.5), (1, 2, 0.25), MOSS, False)
 
-for i, y in enumerate([15, 28, 50, 90, 150]):
-    box(f"VIS_Pole_{i}", (-6.5, y, 3), (0.2, 0.2, 6), INK, False)
-    box(f"VIS_Banner_{i}", (-5.5, y, 4.5), (1.5, 0.1, 2.2), INK, False)
-    box(f"VIS_BannerGlow_{i}", (-5.5, y, 4.5), (0.15, 0.12, 2.0), EMBER, False)
+# =====================================================================
+# 3) GALLERY NEST — stairs INSIDE west half of bowl (x≈-3), clear of east roofs
+# =====================================================================
+gal_z = 5.0
+# Gallery on north rim looking south into bowl
+both("GalleryFloor", (0, 34.5, gal_z), (12, 3.5, 0.4), WOOD)
+both("GalleryRail", (0, 33.0, gal_z + 0.5), (10, 0.28, 0.85), BLUEWOOD)
+box("VIS_GalleryNotch", (0, 33.0, gal_z + 0.65), (3.5, 0.12, 0.06), CHRONO, False)
+# Stairs along west side of bowl floor → gallery (x=-4, away from east tower/roofs)
+stairs_y("GalStairs", -4, 28, bowl_z + 0.1, 34, gal_z - bowl_z, 14, width=2.6, mat=STONE)
+both("GalLink_W", (-6, 33, gal_z), (3, 2.5, 0.35), STONE)
 
-# UV pass (batch)
+# =====================================================================
+# 4) EAST TOWER + NEST + BYPASS — stair XY never overlaps roof pads
+#    Tower climb at x=16, y=20→32. Nest at x=10,y=34. Bypass at x=22.
+# =====================================================================
+nest_z = 8.0
+# Ground east pocket outside bowl east gate
+both("EastPocket", (12, 26, 0.1), (5, 8, 0.55), COBBLE)
+both("EastPocketWall_E", (14.8, 26, 2.6), (0.5, 8, 5.0), PLASTER)
+both("EastPocketWall_S", (12, 21.5, 2.6), (5, 0.5, 5.0), STONE)
+
+# Tower stairs: x=16 only, y=20→31 — landing at (16, 32)
+stairs_y("TowerStairs", 16, 20, 0.3, 31.5, nest_z - 0.3, 22, width=2.8, mat=STONE)
+both("TowerLanding", (16, 32.5, nest_z), (3.5, 2.5, 0.4), STONE)
+trim("TowerChrono", (16, 26, 4), (0.15, 6, 0.08), CHRONO)
+
+# Bridge WEST from landing to nest (y=34 band) — no stair under nest
+both("NestBridge", (13, 34, nest_z), (4, 2.2, 0.35), WOOD)
+both("NestPad", (9, 34, nest_z), (4, 3.5, 0.4), ROOF)
+both("NestParapet", (9, 32.4, nest_z + 0.5), (3.5, 0.3, 0.9), STONE)
+trim("NestTeal", (9, 34, nest_z + 0.25), (2.5, 0.15, 0.06), TEAL)
+empty("Enemy_09", (9, 34.5, nest_z + 0.35))
+
+# Bypass pads along OUTER east wall (x=22) — clear of tower x=16
+both("Bypass_A", (22, 34, nest_z), (3.5, 3.5, 0.35), ROOF)
+# hop gap ~2.8 m clear between A and B
+both("Bypass_B", (22, 42, nest_z + 0.2), (3.5, 3.5, 0.35), COPPER)
+both("Bypass_C", (22, 50, nest_z + 0.4), (3.5, 4, 0.35), ROOF)
+box("VIS_BypassChrono", (22, 38, nest_z + 0.5), (2, 0.2, 0.06), CHRONO, False)
+# Link landing → Bypass_A (east from tower, same height, no stair under)
+both("BypassLink", (19.5, 33, nest_z), (3, 2.0, 0.35), WOOD)
+
+# Drop from Bypass_C into north court (pads clear of tower stairs at x=16)
+both("BypassToDrop", (18, 50, nest_z + 0.4), (4, 3, 0.35), ROOF)
+stairs_y("RoofDropStairs", 14, 50, nest_z + 0.4, 54, -(nest_z + 0.4 - 1.2), 18, width=3.0, mat=STONE)
+both("RoofDropLand", (14, 54.5, 1.2), (4, 2.5, 0.4), STONE)
+
+# =====================================================================
+# 5) WEST ALLEY — canyon street to north / plaza
+# =====================================================================
+both("WestAlleyFloor", (-14, 30, 0.1), (6, 22, 0.55), COBBLE)
+both("WestAlleyWall_W", (-17.2, 30, 2.8), (0.55, 22, 5.5), BRICK)
+both("WestAlleyWall_E", (-10.8, 30, 2.8), (0.55, 14, 5.5), STONE)  # gap near bowl gate
+# Alley continues north then doglegs toward plaza
+both("WestAlleyN", (-14, 48, 0.4), (6, 10, 0.55), COBBLE)
+both("WestAlleyWall_WN", (-17.2, 48, 3.0), (0.55, 10, 5.5), BRICK)
+both("WestAlleyWall_EN", (-10.8, 50, 3.0), (0.55, 6, 5.5), PLASTER)
+trim("WestViolet", (-14, 36, 0.45), (0.15, 8, 0.06), VIOLET)
+box("VIS_WestBone", (-14, 42, 0.45), (3, 0.2, 0.05), BONE, False)
+# Side alcove (second micro-choice inside alley)
+both("WestAlcove", (-18, 36, 0.1), (4, 5, 0.5), WOOD)
+both("WestAlcoveCeil", (-18, 36, 3.2), (3.8, 4.5, 0.3), WOOD)
+
+# =====================================================================
+# 6) UNDERCROFT — under bowl → north exit
+# =====================================================================
+uc_z = -1.4
+both("UCFloor", (0, 26, uc_z), (8, 12, 0.45), STONE)
+both("UCCeil", (0, 26, 0.35), (8, 12, 0.35), STONE)
+both("UCMouth_S", (0, 18, -0.4), (4.5, 3, 0.45), STONE)
+both("UCRamp_S", (0, 19.5, -0.6), (4, 3.5, 1.0), STONE)
+both("UCMouth_N", (0, 34, -0.5), (4.5, 3, 0.5), STONE)
+# Flat walk pads climbing out (no thick ramp embedding the capsule)
+both("UCStep_N1", (0, 35.5, -0.1), (4, 2.5, 0.4), STONE)
+both("UCStep_N2", (0, 37.5, 0.4), (4, 2.5, 0.4), STONE)
+both("UCStep_N3", (0, 39.5, 0.85), (4, 2.5, 0.4), STONE)
+both("UCPillar_A", (-2.5, 24, -0.2), (0.7, 0.7, 2.0), STONE)
+both("UCPillar_B", (2.5, 28, -0.2), (0.7, 0.7, 2.0), STONE)
+# Optional slide alcove (runner)
+both("SlideFloor", (5, 26, uc_z), (4.5, 6, 0.45), STONE)
+both("SlideCeil", (5, 26, uc_z + 2.0), (4, 5.5, 0.3), STONE)
+box("VIS_SlideChrono", (5, 26, uc_z + 1.85), (3, 4, 0.06), CHRONO, False)
+trim("UCTeal", (0, 26, uc_z + 0.3), (3, 0.15, 0.06), TEAL)
+
+# =====================================================================
+# 7) NORTH COURT — converge node (bounded)
+# =====================================================================
+nc_y = 48
+both("NorthFloor", (0, nc_y, 1.0), (14, 10, 0.6), COBBLE)
+both("NorthWall_N", (0, nc_y + 5.2, 3.2), (14, 0.55, 5.0), STONE)
+both("NorthWall_W", (-7.2, nc_y, 3.2), (0.55, 8, 5.0), BRICK)
+both("NorthWall_E", (7.2, nc_y, 3.2), (0.55, 8, 5.0), PLASTER)
+# South: gaps from undercroft / bowl north gate already open
+both("NorthArch", (0, nc_y + 5.2, 5.0), (5, 0.7, 1.0), WOOD)
+trim("NorthChrono", (0, nc_y, 1.4), (5, 0.15, 0.06), CHRONO)
+# Connect west alley into north court
+both("WestToNorth", (-10, 48, 0.7), (5, 5, 0.55), COBBLE)
+
+# =====================================================================
+# 8) HEARTH PLAZA — NW of ring, outside 28 m arm radius from north court
+# =====================================================================
+plaza_x, plaza_y, plaza_z = -12, 74, 3.5
+both("PlazaApproach", (-8, 66, 2.2), (10, 8, 0.55), COBBLE)
+both("PlazaFloor", (plaza_x, plaza_y, plaza_z - 0.45), (18, 16, 0.9), COBBLE)
+both("PlazaRim_N", (plaza_x, plaza_y + 8.2, plaza_z + 0.7), (18, 0.55, 1.5), STONE)
+both("PlazaRim_W", (plaza_x - 9.2, plaza_y, plaza_z + 0.7), (0.55, 14, 1.5), BRICK)
+both("PlazaRim_E", (plaza_x + 9.2, plaza_y, plaza_z + 0.7), (0.55, 14, 1.5), PLASTER)
+both("PlazaRim_S_L", (plaza_x - 5.5, plaza_y - 8.2, plaza_z + 0.7), (6, 0.55, 1.5), STONE)
+both("PlazaRim_S_R", (plaza_x + 5.5, plaza_y - 8.2, plaza_z + 0.7), (6, 0.55, 1.5), STONE)
+for i, (x, y) in enumerate([
+    (plaza_x - 5, plaza_y - 3), (plaza_x + 5, plaza_y - 3),
+    (plaza_x - 6, plaza_y + 4), (plaza_x + 6, plaza_y + 4),
+]):
+    both(f"PlazaCover_{i}", (x, y, plaza_z + 0.65), (2.0, 1.8, 1.3), BLUEWOOD if i % 2 else WOOD)
+both("Plinth", (plaza_x, plaza_y, plaza_z + 0.3), (3.5, 3.5, 0.65), STONE)
+trim("PlinthGlow", (plaza_x, plaza_y, plaza_z + 0.7), (3, 3, 0.08))
+for a in range(10):
+    ang = a * math.pi * 2 / 10
+    mat = TEAL if a % 3 == 0 else (VIOLET if a % 3 == 1 else EMBER)
+    trim(
+        f"PlazaRing_{a}",
+        (plaza_x + math.cos(ang) * 7, plaza_y + math.sin(ang) * 7, plaza_z + 0.05),
+        (0.5, 0.25, 0.08),
+        mat,
+    )
+for i, (x, y) in enumerate([
+    (plaza_x - 7, plaza_y - 5), (plaza_x + 7, plaza_y - 5),
+    (plaza_x - 7, plaza_y + 5), (plaza_x + 7, plaza_y + 5),
+]):
+    box(f"VIS_PlazaLantern_{i}", (x, y, plaza_z + 1.8), (0.3, 0.3, 0.55), INK, False)
+    trim(f"PlazaLanternGlow_{i}", (x, y, plaza_z + 2.15), (0.2, 0.2, 0.15), BONE)
+
+both("HearthBase", (plaza_x, plaza_y + 10, 4), (7, 7, 10), STONE)
+box("VIS_HearthDome", (plaza_x, plaza_y + 10, 12), (9, 9, 5), INK, False)
+trim("HearthGlow", (plaza_x, plaza_y + 10, 10), (4, 4, 1.0))
+box("VIS_HearthCopper", (plaza_x, plaza_y + 10, 8.5), (6, 6, 0.25), COPPER, False)
+
+empty("WifeAnchor", (plaza_x, plaza_y, plaza_z + 0.75))
+empty("BossArena", (plaza_x, plaza_y, plaza_z + 0.05))
+empty("WaveSpawn_A", (plaza_x - 6, plaza_y - 4, plaza_z + 0.05))
+empty("WaveSpawn_B", (plaza_x + 6, plaza_y - 4, plaza_z + 0.05))
+empty("WaveSpawn_C", (plaza_x, plaza_y + 6, plaza_z + 0.05))
+
+# West alley → plaza connector (extends past north court)
+both("WestToPlaza", (-14, 60, 1.2), (5, 12, 0.55), COBBLE)
+stairs_y("PlazaWestStairs", -14, 64, 1.0, 70, plaza_z - 1.0, 12, width=4.0, mat=STONE)
+
+# East roof → north → plaza soft ramp
+both("EastToNorth", (10, 52, 1.2), (6, 5, 0.5), COBBLE)
+both("NorthToPlaza", (-4, 58, 1.5), (10, 10, 0.55), COBBLE)
+both("NorthToPlaza2", (-8, 66, 2.2), (8, 6, 0.55), COBBLE)
+stairs_y("PlazaEastStairs", -6, 68, 2.0, 72, plaza_z - 2.0, 10, width=5.0, mat=STONE)
+
+# =====================================================================
+# Outer bounding + terrain
+# =====================================================================
+both("Outer_W", (-22, 30, 3), (2, 55, 8), MOSS)
+both("Outer_E", (26, 35, 3), (2, 50, 8), SLATE)
+both("Outer_S", (0, -10, 2), (40, 2, 6), INK)
+both("Outer_N", (-6, 84, 4), (40, 2, 8), STONE)
+both("Terrain", (0, 40, -3), (55, 100, 2.5), INK)
+
+for i, (x, y, mat) in enumerate([
+    (-16, 0, VIOLET), (0, 26, TEAL), (16, 34, CHRONO), (-14, 48, BONE), (-12, 74, EMBER),
+]):
+    box(f"VIS_Pole_{i}", (x, y, 3), (0.18, 0.18, 5.5), INK, False)
+    box(f"VIS_Banner_{i}", (x + 0.9, y, 4.2), (1.3, 0.08, 2.0), mat, False)
+
+# UV unwrap
 for obj in bpy.data.objects:
     if obj.type != "MESH":
         continue
@@ -245,4 +421,4 @@ bpy.ops.export_scene.gltf(
 print("BUILT", len(bpy.data.objects), "bytes", os.path.getsize(OUT))
 for n in sorted(o.name for o in bpy.data.objects if o.type == "EMPTY"):
     x, y, z = bpy.data.objects[n].location
-    print(n, "gltf~", (round(x, 2), round(z, 2), round(-y, 2)))
+    print(n, "three~", (round(x, 2), round(z, 2), round(-y, 2)))

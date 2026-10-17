@@ -33,13 +33,14 @@ const DEFAULT_SPAWNS: LevelSpawns = {
  * AABB colliders; empties (PlayerSpawn, Enemy_*, WifeAnchor, WaveSpawn_*, BossArena)
  * become spawn points.
  */
-export async function loadLevel(url = LEVEL.url): Promise<LoadedLevel | null> {
+export async function loadLevel(url: string = LEVEL.url): Promise<LoadedLevel | null> {
   try {
     const gltf = await new GLTFLoader().loadAsync(url);
     const root = gltf.scene;
     root.updateMatrixWorld(true);
 
     const colliders: THREE.Box3[] = [];
+    const enemyNamed: Array<{ name: string; pos: THREE.Vector3 }> = [];
     const spawns: LevelSpawns = {
       player: DEFAULT_SPAWNS.player.clone(),
       enemies: [],
@@ -66,9 +67,13 @@ export async function loadLevel(url = LEVEL.url): Promise<LoadedLevel | null> {
       if (name === 'PlayerSpawn') spawns.player.copy(worldPos(obj));
       else if (name === 'WifeAnchor') spawns.wife.copy(worldPos(obj));
       else if (name === 'BossArena') spawns.bossArena = worldPos(obj);
-      else if (name.startsWith('Enemy_')) spawns.enemies.push(worldPos(obj));
+      else if (name.startsWith('Enemy_')) enemyNamed.push({ name, pos: worldPos(obj) });
       else if (name.startsWith('WaveSpawn_')) spawns.waveSpawns.push(worldPos(obj));
     });
+
+    // Stable order so WaveDirector even=static / odd=rusher matches Enemy_01, Enemy_02, …
+    enemyNamed.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    spawns.enemies = enemyNamed.map((e) => e.pos);
 
     if (!spawns.waveSpawns.length) spawns.waveSpawns = DEFAULT_SPAWNS.waveSpawns.map((v) => v.clone());
     if (!spawns.bossArena) spawns.bossArena = DEFAULT_SPAWNS.bossArena!.clone();

@@ -171,6 +171,39 @@ export class SoundSynth {
     osc.stop(t + 0.22);
   }
 
+  /** Chronomancer air-dash whoosh — brighter and sharper than a normal jump. */
+  chronoDash(): void {
+    const audio = this.ready();
+    if (!audio) return;
+    const { ctx, out } = audio;
+    const t = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(220, t);
+    osc.frequency.exponentialRampToValueAtTime(60, t + 0.18);
+    const og = this.envelope(ctx, t, 0.005, 0.14, 0.08);
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.frequency.setValueAtTime(900, t);
+    filt.frequency.exponentialRampToValueAtTime(280, t + 0.16);
+    filt.Q.value = 2.2;
+    osc.connect(filt).connect(og).connect(out);
+    osc.start(t);
+    osc.stop(t + 0.22);
+
+    if (!this.noiseBuffer) return;
+    const noise = ctx.createBufferSource();
+    noise.buffer = this.noiseBuffer;
+    const ng = this.envelope(ctx, t, 0.002, 0.1, 0.12);
+    const nf = ctx.createBiquadFilter();
+    nf.type = 'highpass';
+    nf.frequency.value = 1200;
+    noise.connect(nf).connect(ng).connect(out);
+    noise.start(t);
+    noise.stop(t + 0.16);
+  }
+
   /**
    * Sampled footfall. `intensity` 0..1 picks walk vs run (threshold 0.45) and scales volume;
    * every step is slightly rate-varied so loops don't machine-gun.

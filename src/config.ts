@@ -49,6 +49,18 @@ export const PLAYER = {
   slideTurnRate: 0.9,
 } as const;
 
+/** Air chrono-dash (second jump): horizontal burst with black/green chronomancer FX. */
+export const CHRONO_DASH = {
+  /** Horizontal speed applied on dash (m/s). */
+  speed: 16,
+  /** Small upward kick so it reads as a jump-dash (m/s). */
+  lift: 1.5,
+  /** Dashes available each time you leave the ground. */
+  airCharges: 1,
+  ink: 0x05080a,
+  green: 0x3cff6a,
+} as const;
+
 export const RECALL = {
   historyMs: 3000,
   sampleMs: 20,
@@ -268,9 +280,9 @@ export const WEAPON = {
   decalLife: 8,
 } as const;
 
-/** Q switches between the runner vessel and the shadow entity. */
+/** Q switches between the runner vessel and the shadow entity (near-instant). */
 export const FORMS = {
-  transitionTime: 0.6,
+  transitionTime: 0.14,
 } as const;
 
 /**
@@ -346,6 +358,8 @@ export const DUMMY = {
 /** Ember Climb story beats / combat tuning. */
 export const LEVEL = {
   url: '/models/levels/ember_climb.glb',
+  /** Demo verb course; Arena falls back to procedural graybox if missing. */
+  demoUrl: '/models/levels/demo_course.glb',
   /** Legacy height hint; defense now arms by proximity to WifeAnchor. */
   summitY: 22,
   wifeMaxHp: 200,
