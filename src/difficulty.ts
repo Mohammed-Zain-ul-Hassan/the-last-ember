@@ -10,7 +10,7 @@ const KEY = 'lastember.difficulty';
 let current: Difficulty = 'easy';
 try {
   const v = localStorage.getItem(KEY);
-  if (v === 'easy' || v === 'hard') current = v;
+  if (v === 'easy' || v === 'medium' || v === 'hard') current = v;
 } catch {
   /* storage unavailable */
 }
@@ -19,6 +19,7 @@ const listeners: ((d: Difficulty) => void)[] = [];
 /** One line for the menus: what the choice means. */
 export const DIFFICULTY_NOTE: Record<Difficulty, string> = {
   easy: 'Some leverage: a wider true angle, a slower Wrong Shadow, a hardier flame, an ember trail to follow.',
+  medium: 'As designed: a fair true angle, a Wrong Shadow at its own pace, the ember trail on, hints after a normal wait.',
   hard: 'Strict: a narrow true angle, a faster Wrong Shadow, a fragile flame, no trail. The flame helps only when asked (H).',
 };
 

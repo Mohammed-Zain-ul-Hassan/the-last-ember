@@ -279,7 +279,7 @@ function setPaused(on: boolean): void {
 const title = document.createElement('div');
 title.id = 'sc-title';
 title.innerHTML = `<h1>THE STILL CITY</h1><p>Carry it carefully. It is all the time that is left.</p>
-  <div class="diff"><button data-d="easy">EASY</button><button data-d="hard">HARD</button><div class="dnote"></div></div><div class="begin">CLICK TO BEGIN</div>
+  <div class="diff"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button><div class="dnote"></div></div><div class="begin">CLICK TO BEGIN</div>
   <div class="keys">WASD walk &nbsp;·&nbsp; move the mouse to look and aim the flame &nbsp;·&nbsp; E wake &nbsp;·&nbsp; Shift draw the flame back &nbsp;·&nbsp; Esc pause</div>`;
 document.body.appendChild(title);
 // the difficulty, chosen here or in the pause menu (shared with the hearth act; src/difficulty.ts)

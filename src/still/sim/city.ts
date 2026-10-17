@@ -885,7 +885,7 @@ export class City {
     });
   }
 
-  /** Falling stones: one every period somewhere just ahead of him, warned by dust (1.2 s Easy, 0.7 s Hard) before it lands. */
+  /** Falling stones: one every period somewhere just ahead of him, warned by dust (1.2 s Easy, 0.9 s Medium, 0.7 s Hard) before it lands. */
   private stepDebris(): void {
     const s = this.s;
     (this.d.debris ?? []).forEach((db, i) => {

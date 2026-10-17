@@ -2,7 +2,7 @@ import { LAST_WORDS, WORDS_BY_DISTRICT } from '../../data/stillCity';
 import { persist, save, type HintMode } from '../save';
 import { DIFFICULTY_NOTE, getDifficulty, setDifficulty, type Difficulty } from '../../difficulty';
 
-// The pause menu: resume, the difficulty (Easy / Hard, shared with the hearth act), the hint setting (Off / Gentle / Guided, default Guided, changeable at any time), the
+// The pause menu: resume, the difficulty (Easy / Medium / Hard, shared with the hearth act), the hint setting (Off / Gentle / Guided, default Guided, changeable at any time), the
 // journal of Last Words, the controls, sound, and a way back to the last brazier.
 
 const DISTRICTS = ['The Gate Ward', 'The Market of Weights', 'The Temple of Hours', 'The Library of Whispers', 'The Heart'];
@@ -60,7 +60,7 @@ export class StillMenu {
     const rd = document.createElement('div');
     rd.className = 'row';
     p.appendChild(rd);
-    for (const [d, label] of [['easy', 'Easy'], ['hard', 'Hard']] as [Difficulty, string][])
+    for (const [d, label] of [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']] as [Difficulty, string][])
       this.button(rd, label, () => {
         setDifficulty(d);
         this.main();

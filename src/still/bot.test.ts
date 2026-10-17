@@ -79,15 +79,16 @@ describe('every district, played start to finish by its script', () => {
   });
 });
 
-describe('Hard: strict, and still passable', () => {
+describe('Medium and Hard: still passable', () => {
   const hard = DIFFICULTY.hard.still;
-  for (const [d, script] of [...RUNS, [HEART_D, HEART_SCRIPT] as [District, Goal[]]])
-    it(`${d.name}: played through on Hard, never dying`, () => {
-      const { city, bot } = play(d, script, 600, undefined, hard);
-      expect(bot.log).toEqual([]);
-      expect(city.s.status === 'exit' || city.flag('heart')).toBe(true);
-      expect(city.s.deaths).toBe(0);
-    });
+  for (const level of ['medium', 'hard'] as const)
+    for (const [d, script] of [...RUNS, [HEART_D, HEART_SCRIPT] as [District, Goal[]]])
+      it(`${d.name}: played through on ${level}, never dying`, () => {
+        const { city, bot } = play(d, script, 600, undefined, DIFFICULTY[level].still);
+        expect(bot.log).toEqual([]);
+        expect(city.s.status === 'exit' || city.flag('heart')).toBe(true);
+        expect(city.s.deaths).toBe(0);
+      });
 
   it('the quick (main path) scripts play every district through on Hard', () => {
     for (const [d, script] of [...RUNS, [HEART_D, HEART_SCRIPT] as [District, Goal[]]]) {
@@ -97,11 +98,16 @@ describe('Hard: strict, and still passable', () => {
     }
   });
 
-  it("Hard's numbers are stricter than Easy's", () => {
+  it('each level is stricter than the one before', () => {
     // the base true-angle tolerance is 12 degrees: Easy widens it past 14, Hard narrows it under 8
-    expect(12 * DIFFICULTY.easy.still.alignTol).toBeGreaterThan(14);
-    expect(12 * hard.alignTol).toBeLessThan(8);
-    expect(hard.alignHold).toBeGreaterThan(DIFFICULTY.easy.still.alignHold);
-    expect(hard.wrongSpeed).toBeGreaterThan(DIFFICULTY.easy.still.wrongSpeed);
+    const [e, m, h] = [DIFFICULTY.easy.still, DIFFICULTY.medium.still, hard];
+    expect(12 * e.alignTol).toBeGreaterThan(14);
+    expect(12 * h.alignTol).toBeLessThan(8);
+    for (const [a, b] of [[e, m], [m, h]]) {
+      expect(b.alignTol).toBeLessThan(a.alignTol);
+      expect(b.alignHold).toBeGreaterThan(a.alignHold);
+      expect(b.wrongSpeed).toBeGreaterThan(a.wrongSpeed);
+      expect(b.hintDelay).toBeGreaterThan(a.hintDelay);
+    }
   });
 });

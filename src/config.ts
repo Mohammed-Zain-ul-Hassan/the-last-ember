@@ -102,8 +102,8 @@ export interface MoveSpec {
 }
 export type ComboStep = (typeof CFG.combo)[number];
 
-// Difficulty: one setting for the whole game, stored by src/difficulty.ts. Easy gives the player some leverage, Hard
-// is strict. Each act reads its own section (`still` is the Still City; the hearth act adds `hearth` here when the
+// Difficulty: one setting for the whole game, stored by src/difficulty.ts. Easy gives the player some leverage, Medium
+// is the game as designed (every multiplier 1), Hard is strict. Each act reads its own section (`still` is the Still City; the hearth act adds `hearth` here when the
 // two are merged). Multipliers are against the act's own base tunables.
 export interface StillDifficulty {
   alignTol: number; // x the true-angle tolerance (degrees; base 12, or the figure's own)
@@ -119,9 +119,12 @@ export interface StillDifficulty {
   trail: boolean; // the ember trail to the next place
   coach: boolean; // the flame's coaching at a true angle (turn, raise, lower, hold)
 }
-export const DIFFICULTY: Record<'easy' | 'hard', { still: StillDifficulty }> = {
+export const DIFFICULTY: Record<'easy' | 'medium' | 'hard', { still: StillDifficulty }> = {
   easy: {
     still: { alignTol: 1.4, alignHold: 0.25, wrongSpeed: 0.8, wrongTouch: 0.25, caughtFatal: false, hazard: 0.65, stoneReach: 0.8, stoneWarn: 1.2, regen: 1.5, hintDelay: 0.55, trail: true, coach: true },
+  },
+  medium: {
+    still: { alignTol: 1, alignHold: 0.4, wrongSpeed: 1, wrongTouch: 0.35, caughtFatal: true, hazard: 1, stoneReach: 1, stoneWarn: 0.9, regen: 1, hintDelay: 1, trail: true, coach: true },
   },
   hard: {
     still: { alignTol: 0.65, alignHold: 0.6, wrongSpeed: 1.2, wrongTouch: 0.45, caughtFatal: true, hazard: 1.3, stoneReach: 1.1, stoneWarn: 0.7, regen: 0.6, hintDelay: 3, trail: false, coach: false },
