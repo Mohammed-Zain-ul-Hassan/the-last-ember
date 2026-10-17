@@ -1,14 +1,20 @@
 import * as THREE from 'three';
-import { PLAYER } from '../config';
+import { PLAYER, SHADOW_MOVE } from '../config';
+import { AUTOTEST } from '../debug/TestHooks';
 
 /** Keys whose default browser behaviour (sticky keys, scrolling, focus change) must be suppressed. */
-const BLOCKED_CODES = new Set(['ShiftLeft', 'ShiftRight', 'Space', 'Tab']);
+const BLOCKED_CODES = new Set(['ShiftLeft', 'ShiftRight', 'Space', 'Tab', 'KeyC', 'KeyQ']);
 const JUMP_BUFFER_SEC = 0.12;
 const EPS = 1e-4;
 
+export type MoveState = 'ground' | 'slide' | 'crouch' | 'air';
+/** Runner: Mirror's Edge momentum + slide. Shadow: Skyrim run / stamina sprint / sneak. */
+export type MoveProfile = 'runner' | 'shadow';
+
 /**
- * First-person controller: pointer-lock mouse look, WASD + sprint + jump, and
- * axis-separated AABB collision against static boxes.
+ * First-person controller: pointer-lock mouse look, WASD movement in one of two profiles
+ * (runner: momentum sprint + slide; shadow: stamina sprint + sneak), jump, and axis-separated
+ * AABB collision against static boxes.
  */
 export class PlayerController {
   readonly feet = PLAYER.spawn.clone();
@@ -18,13 +24,36 @@ export class PlayerController {
   onGround = false;
   /** When false, input and physics are ignored (e.g. during Recall). */
   enabled = true;
+  /** Current capsule height; shrinks while crouching or sliding. */
+  height: number = PLAYER.height;
+  /** Extra sprint speed built up by running, on top of PLAYER.runSpeed. */
+  momentum = 0;
+  sliding = false;
+  /** Seconds since the current slide started. */
+  slideT = 0;
+  profile: MoveProfile = 'runner';
+  /** Shadow-form sprint stamina. */
+  stamina: number = SHADOW_MOVE.staminaMax;
+  /** True while actually sprinting this frame (either profile). */
+  sprintActive = false;
 
   onRecall: (() => void) | null = null;
+  /** Mouse buttons by hand: 0 = left hand (LMB), 1 = right hand (RMB). */
+  onHandPress: ((hand: 0 | 1) => void) | null = null;
+  onHandRelease: ((hand: 0 | 1) => void) | null = null;
+  /** Q: switch between the runner and shadow forms. */
+  onFormToggle: (() => void) | null = null;
   onJump: (() => void) | null = null;
   onRespawn: (() => void) | null = null;
+  onSlide: (() => void) | null = null;
+  /** Fires on touchdown with the fall speed (m/s, positive). */
+  onLand: ((impact: number) => void) | null = null;
 
   private readonly keys = new Set<string>();
   private jumpBuffer = 0;
+  private slideBuffer = 0;
+  private staminaWait = 0;
+  private exhausted = false;
   /** Visual-only camera offset that smooths out stair step-ups. */
   private stepSmooth = 0;
   private readonly wish = new THREE.Vector3();
@@ -39,6 +68,14 @@ export class PlayerController {
     window.addEventListener('keyup', this.handleKeyUp, { passive: false });
     window.addEventListener('blur', () => this.keys.clear());
     document.addEventListener('mousemove', this.handleMouseMove);
+    document.addEventListener('mousedown', (e) => {
+      if ((e.button === 0 || e.button === 2) && this.isLocked()) this.press(`Mouse${e.button}`);
+    });
+    document.addEventListener('mouseup', (e) => {
+      if (e.button === 0 || e.button === 2) this.release(`Mouse${e.button}`);
+    });
+    // Right mouse is the right hand: never open the browser menu.
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('pointerlockchange', () => {
       if (!this.isLocked()) this.keys.clear();
     });
@@ -49,8 +86,19 @@ export class PlayerController {
     return Math.hypot(this.velocity.x, this.velocity.z);
   }
 
-  get walking(): boolean {
-    return this.keys.has('KeyV') && !this.sprinting;
+  get eyeHeight(): number {
+    return this.height - (PLAYER.height - PLAYER.eyeHeight);
+  }
+
+  get state(): MoveState {
+    if (!this.onGround) return 'air';
+    if (this.sliding) return 'slide';
+    return this.height < PLAYER.height - 0.05 ? 'crouch' : 'ground';
+  }
+
+  /** 0 when standing, 1 at full crouch / slide height. */
+  get crouchAmount(): number {
+    return THREE.MathUtils.clamp((PLAYER.height - this.height) / (PLAYER.height - PLAYER.crouchHeight), 0, 1);
   }
 
   get sprinting(): boolean {
@@ -58,7 +106,21 @@ export class PlayerController {
   }
 
   isLocked(): boolean {
-    return document.pointerLockElement === this.lockTarget;
+    return AUTOTEST || document.pointerLockElement === this.lockTarget;
+  }
+
+  /** Playtest only: replaces the held keys (added keys count as presses, removed ones as releases). */
+  setTestKeys(codes: string[]): void {
+    for (const c of codes) if (!this.keys.has(c)) this.press(c);
+    for (const c of this.keys) if (!codes.includes(c)) this.release(c);
+    this.keys.clear();
+    for (const c of codes) this.keys.add(c);
+  }
+
+  /** Playtest only: a single key press and release (jump, recall, a quick throw...). */
+  tapTestKey(code: string): void {
+    this.press(code);
+    this.release(code);
   }
 
   // ---------------------------------------------------------------------------
@@ -69,10 +131,30 @@ export class PlayerController {
     if (BLOCKED_CODES.has(e.code)) e.preventDefault();
     if (!this.isLocked()) return;
     this.keys.add(e.code);
-    if (e.repeat) return;
-    if (e.code === 'Space') this.jumpBuffer = JUMP_BUFFER_SEC;
-    if (e.code === 'KeyE') this.onRecall?.();
+    if (!e.repeat) this.press(e.code);
   };
+
+  private press(code: string): void {
+    if (code === 'Space') this.jumpBuffer = JUMP_BUFFER_SEC;
+    if (code === 'KeyC') this.slideBuffer = PLAYER.slideBuffer;
+    if (code === 'KeyE') this.onRecall?.();
+    if (code === 'KeyQ') this.onFormToggle?.();
+    if (code === 'Mouse0') this.onHandPress?.(0);
+    if (code === 'Mouse2') this.onHandPress?.(1);
+  }
+
+  private release(code: string): void {
+    if (code === 'Mouse0') this.onHandRelease?.(0);
+    if (code === 'Mouse2') this.onHandRelease?.(1);
+  }
+
+  /** Switches movement rules (called by the form controller at the swap point). */
+  setProfile(profile: MoveProfile): void {
+    if (this.sliding) this.endSlide();
+    this.profile = profile;
+    this.momentum = 0;
+    this.slideBuffer = 0;
+  }
 
   private handleKeyUp = (e: KeyboardEvent): void => {
     if (BLOCKED_CODES.has(e.code)) e.preventDefault();
@@ -100,6 +182,7 @@ export class PlayerController {
     for (let i = 0; i < steps; i++) this.step(h);
 
     this.jumpBuffer = Math.max(0, this.jumpBuffer - frameDt);
+    this.slideBuffer = Math.max(0, this.slideBuffer - frameDt);
     this.stepSmooth *= Math.exp(-frameDt * 18);
     if (Math.abs(this.stepSmooth) < 1e-3) this.stepSmooth = 0;
 
@@ -117,46 +200,191 @@ export class PlayerController {
     const hasInput = this.wish.lengthSq() > 0;
     if (hasInput) this.wish.normalize();
 
-    const sprinting = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
-    const walking = this.keys.has('KeyV') && !sprinting;
-    const speed = walking ? PLAYER.slowWalkSpeed : PLAYER.walkSpeed * (sprinting ? PLAYER.sprintMultiplier : 1);
-
-    // Horizontal velocity: snappy on the ground, limited air control that preserves momentum.
-    if (this.onGround || hasInput) {
-      const accel = this.onGround ? PLAYER.groundAccel : PLAYER.airAccel;
-      const tx = this.wish.x * speed;
-      const tz = this.wish.z * speed;
-      const dx = tx - this.velocity.x;
-      const dz = tz - this.velocity.z;
-      const dist = Math.hypot(dx, dz);
-      const maxDelta = accel * h;
-      if (dist <= maxDelta || dist < EPS) {
-        this.velocity.x = tx;
-        this.velocity.z = tz;
-      } else {
-        this.velocity.x += (dx / dist) * maxDelta;
-        this.velocity.z += (dz / dist) * maxDelta;
-      }
+    if (this.profile === 'shadow') {
+      this.stepShadow(h, hasInput, fwd);
+    } else {
+      this.updateSlide();
+      if (this.sliding) this.stepSlide(h, hasInput);
+      else this.stepRun(h, hasInput, fwd);
     }
 
-    // Jump (buffered so a slightly-early press still counts on landing).
-    if (this.jumpBuffer > 0 && this.onGround) {
-      this.velocity.y = PLAYER.jumpVelocity;
+    // Jump (buffered so a slightly-early press still counts on landing). Keeps all momentum.
+    if (this.jumpBuffer > 0 && this.onGround && this.hasHeadroom(PLAYER.height)) {
+      this.velocity.y = this.profile === 'shadow' ? SHADOW_MOVE.jumpVelocity : PLAYER.jumpVelocity;
       this.onGround = false;
       this.jumpBuffer = 0;
+      if (this.sliding) this.endSlide();
       this.onJump?.();
     }
 
     this.velocity.y += PLAYER.gravity * h;
+    this.updateHeight(h);
 
-    this.moveHorizontal('x', this.velocity.x * h);
-    this.moveHorizontal('z', this.velocity.z * h);
+    const vx = this.velocity.x;
+    const vz = this.velocity.z;
+    this.moveHorizontal('x', vx * h);
+    this.moveHorizontal('z', vz * h);
+    // A wall stopped us: most of the built-up momentum is gone.
+    if ((vx !== 0 && this.velocity.x === 0) || (vz !== 0 && this.velocity.z === 0)) {
+      this.momentum *= PLAYER.momentumWallKeep;
+    }
     this.moveVertical(this.velocity.y * h);
+  }
+
+  /** Normal running: snappy on the ground, momentum-preserving air control. */
+  private stepRun(h: number, hasInput: boolean, fwd: number): void {
+    const crouched = this.height < PLAYER.height - 0.2;
+    const sprinting = this.sprinting && fwd > 0 && !crouched;
+    const walking = this.keys.has('KeyV') && !sprinting;
+    const speed = this.speed;
+    this.sprintActive = sprinting && hasInput;
+
+    // Momentum builds while sprinting forward at (close to) full speed on the ground.
+    if (this.onGround) {
+      const turned = hasInput && speed > 1 && this.angleToVelocity() > PLAYER.momentumTurnAngle;
+      if (!sprinting || !hasInput) this.momentum -= PLAYER.momentumDecay * h;
+      else if (turned) this.momentum -= PLAYER.momentumTurnDecay * h;
+      else if (speed >= PLAYER.runSpeed + this.momentum - 0.5) this.momentum += PLAYER.momentumGain * h;
+      this.momentum = THREE.MathUtils.clamp(this.momentum, 0, PLAYER.topSpeed - PLAYER.runSpeed);
+    }
+
+    let target: number;
+    if (crouched) target = PLAYER.crouchSpeed;
+    else if (walking) target = PLAYER.slowWalkSpeed;
+    else if (sprinting) target = PLAYER.runSpeed + this.momentum;
+    else target = PLAYER.walkSpeed;
+
+    if (!this.onGround) {
+      if (!hasInput) return;
+      // In the air you can steer, but never brake below the speed you jumped with.
+      target = Math.max(target, speed);
+    }
+    this.accelerate(target, this.onGround ? PLAYER.groundAccel : PLAYER.airAccel, h);
+  }
+
+  /**
+   * Shadow form (Skyrim-like): running is the default, Shift sprints while stamina lasts,
+   * C sneaks. No slide, no momentum.
+   */
+  private stepShadow(h: number, hasInput: boolean, fwd: number): void {
+    const crouched = this.height < PLAYER.height - 0.2;
+    const wantSprint = this.sprinting && fwd > 0 && !crouched && hasInput;
+    if (this.exhausted && this.stamina > SHADOW_MOVE.staminaMax * 0.15) this.exhausted = false;
+    const sprint = wantSprint && !this.exhausted && this.stamina > 0;
+    this.sprintActive = sprint;
+    if (sprint && this.onGround) {
+      this.stamina = Math.max(0, this.stamina - SHADOW_MOVE.sprintDrain * h);
+      this.staminaWait = SHADOW_MOVE.staminaRegenDelay;
+      if (this.stamina === 0) this.exhausted = true;
+    } else {
+      this.staminaWait = Math.max(0, this.staminaWait - h);
+      if (this.staminaWait === 0) this.stamina = Math.min(SHADOW_MOVE.staminaMax, this.stamina + SHADOW_MOVE.staminaRegen * h);
+    }
+
+    let target: number;
+    if (crouched) target = SHADOW_MOVE.sneakSpeed;
+    else if (this.keys.has('KeyV')) target = SHADOW_MOVE.walkSpeed;
+    else if (sprint) target = SHADOW_MOVE.sprintSpeed;
+    else target = SHADOW_MOVE.runSpeed;
+
+    if (!this.onGround) {
+      if (!hasInput) return;
+      target = Math.max(target, this.speed);
+    }
+    this.accelerate(target, this.onGround ? SHADOW_MOVE.groundAccel : SHADOW_MOVE.airAccel, h);
+  }
+
+  /** Moves the horizontal velocity towards wish * target at up to `accel` m/s². */
+  private accelerate(target: number, accel: number, h: number): void {
+    const tx = this.wish.x * target;
+    const tz = this.wish.z * target;
+    const dx = tx - this.velocity.x;
+    const dz = tz - this.velocity.z;
+    const dist = Math.hypot(dx, dz);
+    const maxDelta = accel * h;
+    if (dist <= maxDelta || dist < EPS) {
+      this.velocity.x = tx;
+      this.velocity.z = tz;
+    } else {
+      this.velocity.x += (dx / dist) * maxDelta;
+      this.velocity.z += (dz / dist) * maxDelta;
+    }
+  }
+
+  /** Slide: low friction, slow steering towards the move keys. */
+  private stepSlide(h: number, hasInput: boolean): void {
+    this.slideT += h;
+    const speed = Math.max(0, this.speed - PLAYER.slideFriction * h);
+    let angle = Math.atan2(this.velocity.x, this.velocity.z);
+    if (hasInput) {
+      const want = Math.atan2(this.wish.x, this.wish.z);
+      const diff = THREE.MathUtils.euclideanModulo(want - angle + Math.PI, Math.PI * 2) - Math.PI;
+      // Only keys pointing roughly along the slide steer it; S does not brake it.
+      if (Math.abs(diff) < Math.PI / 2) {
+        angle += THREE.MathUtils.clamp(diff, -PLAYER.slideTurnRate * h, PLAYER.slideTurnRate * h);
+      }
+    }
+    this.velocity.x = Math.sin(angle) * speed;
+    this.velocity.z = Math.cos(angle) * speed;
+  }
+
+  /** Starts and ends slides. */
+  private updateSlide(): void {
+    if (this.sliding) {
+      if (!this.onGround || this.speed < PLAYER.slideEndSpeed || this.slideT > PLAYER.slideMaxTime) this.endSlide();
+      return;
+    }
+    if (this.slideBuffer > 0 && this.onGround && this.speed >= PLAYER.slideMinSpeed) {
+      this.slideBuffer = 0;
+      this.sliding = true;
+      this.slideT = 0;
+      const boosted = Math.min(this.speed + PLAYER.slideBoost, PLAYER.topSpeed + PLAYER.slideBoost);
+      const k = boosted / this.speed;
+      this.velocity.x *= k;
+      this.velocity.z *= k;
+      this.onSlide?.();
+    }
+  }
+
+  private endSlide(): void {
+    this.sliding = false;
+    // Whatever speed survived the slide carries on as sprint momentum.
+    this.momentum = THREE.MathUtils.clamp(this.speed - PLAYER.runSpeed, 0, PLAYER.topSpeed - PLAYER.runSpeed);
+  }
+
+  /** Shrinks to crouch height while sliding / crouching; only grows back where there is room. */
+  private updateHeight(h: number): void {
+    const target = this.sliding || this.keys.has('KeyC') ? PLAYER.crouchHeight : PLAYER.height;
+    if (target < this.height) {
+      this.height = Math.max(target, this.height - PLAYER.heightRate * h);
+    } else if (target > this.height) {
+      const next = Math.min(target, this.height + PLAYER.heightRate * h);
+      if (this.hasHeadroom(next)) this.height = next;
+    }
+  }
+
+  /** True if a capsule of the given height fits at the current position. */
+  private hasHeadroom(height: number): boolean {
+    for (const box of this.colliders) {
+      if (!this.overlapsFootprint(box)) continue;
+      if (box.min.y > this.feet.y + PLAYER.stepUp && box.min.y < this.feet.y + height && box.max.y > this.feet.y) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /** Angle between the wish direction and the current horizontal velocity. */
+  private angleToVelocity(): number {
+    const s = this.speed;
+    if (s < EPS) return 0;
+    const dot = (this.wish.x * this.velocity.x + this.wish.z * this.velocity.z) / s;
+    return Math.acos(THREE.MathUtils.clamp(dot, -1, 1));
   }
 
   /** A box blocks horizontally only if it rises above step height and reaches the body. */
   private isWall(box: THREE.Box3): boolean {
-    return box.max.y > this.feet.y + PLAYER.stepUp && box.min.y < this.feet.y + PLAYER.height;
+    return box.max.y > this.feet.y + PLAYER.stepUp && box.min.y < this.feet.y + this.height;
   }
 
   private overlapsFootprint(box: THREE.Box3): boolean {
@@ -183,15 +411,16 @@ export class PlayerController {
 
   private moveVertical(delta: number): void {
     const wasOnGround = this.onGround;
+    const fallSpeed = -this.velocity.y;
     this.feet.y += delta;
 
     // Ceiling: stop upward motion when the head enters a box overhead.
     if (this.velocity.y > 0) {
-      const head = this.feet.y + PLAYER.height;
+      const head = this.feet.y + this.height;
       for (const box of this.colliders) {
         if (!this.overlapsFootprint(box)) continue;
         if (box.min.y > this.feet.y + PLAYER.stepUp && head > box.min.y && this.feet.y < box.max.y) {
-          this.feet.y = box.min.y - PLAYER.height;
+          this.feet.y = box.min.y - this.height;
           this.velocity.y = 0;
         }
       }
@@ -214,6 +443,7 @@ export class PlayerController {
         this.feet.y = support;
         this.velocity.y = 0;
         this.onGround = true;
+        if (!wasOnGround) this.onLand?.(fallSpeed);
       }
     }
   }
@@ -235,7 +465,12 @@ export class PlayerController {
     this.velocity.set(0, 0, 0);
     this.stepSmooth = 0;
     this.jumpBuffer = 0;
+    this.slideBuffer = 0;
+    this.sliding = false;
+    this.momentum = 0;
     this.onGround = false;
+    // Landing somewhere low (e.g. a Recall that ends under a bar): stay crouched.
+    this.height = this.hasHeadroom(PLAYER.height) ? PLAYER.height : PLAYER.crouchHeight;
   }
 
   respawn(): void {
@@ -244,7 +479,7 @@ export class PlayerController {
   }
 
   syncCamera(bobY = 0, roll = 0): void {
-    this.camera.position.set(this.feet.x, this.feet.y + PLAYER.eyeHeight + this.stepSmooth + bobY, this.feet.z);
+    this.camera.position.set(this.feet.x, this.feet.y + this.eyeHeight + this.stepSmooth + bobY, this.feet.z);
     this.camera.rotation.set(this.pitch, this.yaw, roll, 'YXZ');
   }
 }

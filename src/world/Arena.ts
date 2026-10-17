@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COLORS } from '../config';
+import { COLORS, WRAITH } from '../config';
 
 interface BoxOptions {
   material: THREE.Material;
@@ -156,6 +156,14 @@ export class Arena {
     for (const [w, h, d, x, z] of blocks) {
       this.addBox(w, h, d, x, 0, z, { material: crate, edgeColor: COLORS.cyan });
     }
+
+    // Slide gate on the spawn sprint lane (x = 0): a 2m-deep slab 1.05m above the floor,
+    // too low to run under, high enough to slide under.
+    const gate = this.panelMaterial(0x202c3d);
+    this.addBox(4, 0.3, 2, 0, 1.05, 10.5, { material: gate, edgeColor: COLORS.amber });
+    for (const x of [-2.1, 2.1]) {
+      this.addBox(0.2, 1.35, 2, x, 0, 10.5, { material: gate, edgeColor: COLORS.amber });
+    }
   }
 
   private buildLights(): void {
@@ -165,6 +173,8 @@ export class Arena {
     const sun = new THREE.DirectionalLight(0xdfe8ff, 1.8);
     sun.position.set(18, 40, 22);
     sun.castShadow = true;
+    // The shadow wraith's cloak is hidden from the first-person camera but still casts a shadow.
+    sun.shadow.camera.layers.enable(WRAITH.bodyLayer);
     sun.shadow.mapSize.set(2048, 2048);
     const s = 36;
     sun.shadow.camera.left = -s;

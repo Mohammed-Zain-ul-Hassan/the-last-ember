@@ -6,7 +6,6 @@ export const PLAYER = {
   eyeHeight: 1.65,
   walkSpeed: 6.0,
   slowWalkSpeed: 2.2,
-  sprintMultiplier: 1.4,
   groundAccel: 60,
   airAccel: 14,
   groundFriction: 12,
@@ -20,6 +19,34 @@ export const PLAYER = {
   respawnY: -15,
   spawn: new THREE.Vector3(0, 0, 18),
   spawnYaw: 0,
+
+  /** Sprint starts at runSpeed and builds towards topSpeed while you keep running forward. */
+  runSpeed: 7.5,
+  topSpeed: 10.5,
+  /** m/s gained per second of uninterrupted sprinting. */
+  momentumGain: 1.6,
+  /** m/s lost per second when you stop sprinting, and when turning harder than momentumTurnAngle. */
+  momentumDecay: 5,
+  momentumTurnDecay: 7,
+  momentumTurnAngle: THREE.MathUtils.degToRad(45),
+  /** Fraction of momentum kept after running into a wall. */
+  momentumWallKeep: 0.25,
+
+  /** Crouch / slide capsule. */
+  crouchHeight: 0.9,
+  crouchSpeed: 2.8,
+  /** Height (m/s) the capsule shrinks / grows at. */
+  heightRate: 7,
+  /** A crouch press this long before landing still starts a slide. */
+  slideBuffer: 0.15,
+  slideMinSpeed: 5.5,
+  slideBoost: 1.2,
+  /** Deceleration (m/s²) while sliding, and the speed at which the slide ends. */
+  slideFriction: 3.2,
+  slideEndSpeed: 3.6,
+  slideMaxTime: 1.1,
+  /** How fast (rad/s) the slide can be steered towards the move keys. */
+  slideTurnRate: 0.9,
 } as const;
 
 export const RECALL = {
@@ -34,6 +61,8 @@ export const RECALL = {
 export const CAMERA = {
   baseFov: 75,
   punchFov: 92,
+  /** Extra FOV (deg) at top sprint speed. */
+  speedFov: 8,
   near: 0.03,
   far: 400,
 } as const;
@@ -55,49 +84,256 @@ export const TRAIL = {
 } as const;
 
 export const CHARACTER = {
-  modelUrl: '/models/character/soldier.glb',
-  /** GLTFLoader strips ':' from names, so 'mixamorig:Hips' is 'mixamorigHips'. */
-  bonePrefix: 'mixamorig',
-  glowColor: 0x00f0ff,
-  recallGlow: 0.12,
+  /**
+   * The runner "vessel" body. Today a Faith-style suit on the mannequin; later a knight's
+   * armour that the shadow entity lives inside. Swap the look here.
+   */
+  vessel: {
+    /** Material slot name in the GLB -> colour. */
+    colors: { M_Main: 0xe9e6df, M_Joints: 0xd8261c } as Record<string, number>,
+    roughness: 0.42,
+    metalness: 0.05,
+  },
+  /** Quaternius Universal Animation Library mannequin + clips; built by scripts/build-character.mjs. */
+  modelUrl: '/models/character/shadow.glb',
+  /** Yaw (rad) that turns the model to face -Z like the camera. */
+  modelYaw: Math.PI,
+  bones: {
+    hips: 'pelvis',
+    spine: ['spine_01', 'spine_02', 'spine_03'],
+    chest: 'spine_03',
+    head: 'Head',
+    /** Triangles skinned mostly to these are cut from the visible mesh (the shadow proxy keeps them). */
+    hidden: ['Head', 'neck_01'],
+    arms: {
+      left: ['upperarm_l', 'lowerarm_l', 'hand_l'],
+      right: ['upperarm_r', 'lowerarm_r', 'hand_r'],
+    },
+    /** Ankles, used to detect footfalls for the step sounds. */
+    feet: ['foot_l', 'foot_r'],
+  },
+  clips: {
+    idle: 'Idle_Loop',
+    walk: 'Walk_Loop',
+    jog: 'Jog_Fwd_Loop',
+    sprint: 'Sprint_Loop',
+    crouchIdle: 'Crouch_Idle_Loop',
+    crouchWalk: 'Crouch_Fwd_Loop',
+    slideStart: 'Slide_Start',
+    slideLoop: 'Slide_Loop',
+    slideExit: 'Slide_Exit',
+    jumpLoop: 'Jump_Loop',
+    land: 'Jump_Land',
+  },
 
-  /** Distance (m) covered by one full animation cycle; tune until feet stop sliding. */
-  walkStride: 1.5,
-  runStride: 3.6,
-  /** Speeds (m/s) between which the walk clip fades into the run clip. */
-  walkToRunStart: 2.4,
-  walkToRunEnd: 4.4,
-  /** Normalised run-cycle time used as the held pose while airborne. */
-  airPhase: 0.12,
-  /** Cycles per second the run clip plays backwards during a Recall. */
+  /** Distance (m) covered by one full cycle of each locomotion clip; tune until feet stop sliding. */
+  stride: { walk: 2.0, jog: 3.6, sprint: 4.6, crouchWalk: 1.6 },
+  /** Ground speeds (m/s) at which each locomotion clip is fully weighted; blends linearly between. */
+  speedPoints: { idle: 0, walk: 1.8, jog: 5.5, sprint: 8.0 },
+  /** Normalised Jump_Loop time held while airborne. */
+  airPhase: 0.3,
+  /** Landing overlay: start time (s) into Jump_Land, playback rate, and fall speed for full weight. */
+  landStart: 0.35,
+  landRate: 1.6,
+  landFullSpeed: 14,
+  /** A footstep fires when an ankle drops below contact height (m, above the model root); re-arms above rearm. */
+  footContact: 0.135,
+  footRearm: 0.19,
+  /** Crouch-walking barely lifts the feet, so the thresholds drop at full crouch. */
+  crouchFootContact: 0.112,
+  crouchFootRearm: 0.15,
+  /** Cycles per second the sprint clip plays backwards during a Recall. */
   recallCyclesPerSec: 2.6,
 
-  /** How far behind the camera (m) the hidden head sits; keeps the chest out of the lens. */
-  cameraBackOffset: 0.12,
+  /** How far behind the eye (m) the hidden head sits horizontally. */
+  cameraBackOffset: 0.08,
+  /**
+   * How far (m) the chest's front surface must stay behind the eye plane. Negative lets it lean
+   * ahead: it sits ~0.4 m below the eye, so only an extreme lean could bring it near the lens.
+   */
+  chestClearance: -0.1,
+  /** Approximate chest half-depth (m) in front of the chest bone. */
+  chestRadius: 0.14,
+  /** Head sits this far (m) below the eye when the vertical head-lock (crouch/slide) is active. */
+  headBelowEye: 0.08,
   /** Fraction of the camera pitch handed to the spine bones (split across three). */
-  spinePitchShare: 0.6,
-  /** Hand targets in eye space (m): sideways, down, forward. The hands are solved here with IK. */
-  handSide: 0.2,
-  handDown: 0.3,
-  handForward: 0.55,
+  spinePitchShare: 0.55,
+
+  /** Blend between the clip's hands (0) and the camera-space IK targets (1). */
+  armIkWeight: 0.75,
+  /** Hand targets in eye space (m): sideways, down, forward. */
+  handSide: 0.22,
+  handDown: 0.22,
+  handForward: 0.42,
   /** Run pump: forward/back and up/down travel (m), opposite phase per hand. */
-  handPumpForward: 0.1,
-  handPumpUp: 0.06,
+  handPumpForward: 0.14,
+  handPumpUp: 0.12,
   handAirUp: 0.2,
   handAirOut: 0.14,
   /** Recall casting pose (eye space, m). */
   recallHandSide: 0.16,
   recallHandUp: -0.06,
-  recallHandForward: 0.55,
+  recallHandForward: 0.5,
   /** Elbow pole vector (eye space): how far the elbows bend out, down and back. */
   elbowOut: 0.5,
   elbowDown: 0.8,
   elbowBack: 0.4,
-  /** Skin-weight share on head bones above which a vertex is removed from the visible mesh. */
-  headWeightThreshold: 0.5,
+  /** Hands stop this far (m) in front of a wall, so the palms brace on it. */
+  palmOffset: 0.06,
+  /** Skin-weight share on hidden bones above which a vertex is removed from the visible mesh. */
+  hiddenWeightThreshold: 0.5,
 
   headBob: 0.03,
   headRoll: 0.012,
+  slideRoll: 0.05,
   jumpKick: 0.6,
   landKick: 0.12,
+} as const;
+
+/** The ink-and-smoke look of the body. */
+export const SHADOW = {
+  baseColor: 0x030407,
+  /** Cool mist at the silhouette (no warm tones on the body). */
+  rimColor: 0x8a9ab3,
+  recallRimColor: 0x00f0ff,
+  rimStrength: 0.5,
+  recallRimStrength: 0.9,
+  /** Share of the silhouette edge eaten by noise (0..1). */
+  erosion: 0.55,
+  /** Erosion multiplier right in front of the eye (hands fray more). */
+  nearErosionBoost: 2.4,
+  /** World-space noise frequency and drift speed of the ink edge. */
+  noiseScale: 5.5,
+  noiseSpeed: 0.9,
+  /** The body dissolves between these distances (m) from the eye. */
+  nearFadeStart: 0.14,
+  nearFadeEnd: 0.28,
+
+  wispCount: 420,
+  /** Particles per second at rest and added per m/s of speed. */
+  wispRate: 30,
+  wispRatePerSpeed: 16,
+  wispLife: [0.55, 1.15] as const,
+  wispSize: [0.1, 0.42] as const,
+  wispColor: 0x2a3344,
+  emberColor: 0xff8a3a,
+  emberChance: 0.012,
+  /** Particles fade out between these distances (m) from the eye. */
+  wispNearStart: 0.12,
+  wispNearEnd: 0.35,
+} as const;
+
+/** Shadowball: tap to throw, hold to charge. Values lerp from quick (charge 0) to full (charge 1). */
+/** Shadowball projectiles: pools, looks and impacts (gameplay values are in SPELL). */
+export const WEAPON = {
+  /** Share of the player's velocity a ball inherits. */
+  inherit: 0.35,
+  lifetime: 3,
+  maxRange: 80,
+  poolSize: 12,
+  lightCount: 4,
+  coreColor: 0x040208,
+  flameColor: 0x3a1460,
+  lipColor: 0x9b4dff,
+  lightColor: 0x7a3cff,
+  decalCount: 16,
+  decalLife: 8,
+} as const;
+
+/** Q switches between the runner vessel and the shadow entity. */
+export const FORMS = {
+  transitionTime: 0.6,
+} as const;
+
+/**
+ * Shadow form moves like Skyrim, only heavier: the wraith glides slowly, takes a moment to get
+ * going, sprints on stamina and sneaks. No slide or momentum.
+ */
+export const SHADOW_MOVE = {
+  walkSpeed: 1.3,
+  runSpeed: 2.9,
+  sprintSpeed: 4.6,
+  sneakSpeed: 1.1,
+  groundAccel: 9,
+  airAccel: 3,
+  jumpVelocity: 6.0,
+  staminaMax: 100,
+  /** Stamina per second while sprinting, regenerated per second after the delay. */
+  sprintDrain: 20,
+  staminaRegen: 15,
+  staminaRegenDelay: 1.0,
+} as const;
+
+/** Skyrim-style shadowball: hold a hand's button to charge, release when charged to cast. */
+export const SPELL = {
+  chargeTime: 0.6,
+  /** A second hand pressed within this window (s) of the first merges into a dual-cast. */
+  dualWindow: 0.2,
+  cost: 25,
+  dualCostMul: 2.8,
+  dualDamageMul: 2.2,
+  dualSplashMul: 2,
+  magickaMax: 100,
+  magickaRegen: 12,
+  magickaRegenDelay: 1.5,
+  damage: 30,
+  splash: 1.0,
+  speed: 22,
+  gravity: 0.8,
+  radius: 0.16,
+  dualRadius: 0.26,
+  /** Orb sizes in the palm: idle, fully charged, and dual (between the hands). */
+  orbIdle: 0.022,
+  orbCharged: 0.036,
+  orbDual: 0.065,
+  /** Casting stance (eye space, m: right, up, forward) for the right hand; the left mirrors it. */
+  stanceHand: [0.24, -0.22, 0.42] as const,
+  /** Charging pulls the hand back/up; release punches it forward; dual brings both to centre. */
+  chargeHand: [0.21, -0.17, 0.4] as const,
+  releaseHand: [0.14, -0.12, 0.62] as const,
+  dualHand: [0.075, -0.22, 0.48] as const,
+  sprintHand: [0.26, -0.48, 0.3] as const,
+  releaseTime: 0.12,
+  recoverTime: 0.35,
+} as const;
+
+export const DUMMY = {
+  /** Footprint centres (x, z) and facing yaw (rad) of the training dummies. */
+  spots: [
+    [-5, 12, 0],
+    [7, 14, 0],
+    [-9, 1, Math.PI / 4],
+    [12, 3, -Math.PI / 4],
+    [-8, -4, 0],
+  ] as const,
+  health: 100,
+  resetDelay: 2.5,
+  height: 1.8,
+  /** Hit capsule: radius (m) from the post's axis between these heights. */
+  hitRadius: 0.32,
+  hitBottom: 0.55,
+  hitTop: 1.85,
+  bodyColor: 0xd8cfbd,
+  ringColor: 0xff7a2a,
+} as const;
+
+/** The shadow form's own body: a hooded, legless wraith of ink and smoke with long clawed arms. */
+export const WRAITH = {
+  /** Render layer for the cloak/hood: drawn by third-person views and the sun's shadow, not first person. */
+  bodyLayer: 1,
+  /** Hover height (m) of the hem above the floor, and the float bob. */
+  hover: 0.1,
+  bobAmp: 0.035,
+  bobHz: 0.55,
+  /** Shoulders relative to the feet (m): sideways, up, forward. */
+  shoulder: [0.2, 1.36, 0.02] as const,
+  upperArm: 0.34,
+  foreArm: 0.36,
+  /** Claw length (m) and how far they curl when relaxed. */
+  claw: 0.12,
+  relaxedCurl: 0.35,
+  eyeColor: 0x9b4dff,
+  /** Smoke from the hem: particles per second at rest and per m/s. */
+  hemSmoke: 34,
+  hemSmokePerSpeed: 22,
 } as const;

@@ -21,6 +21,17 @@
         border-radius: 50%; background: #00f0ff;
         box-shadow: 0 0 6px #00f0ff, 0 0 12px rgba(0, 240, 255, 0.6);
         pointer-events: none; z-index: 20;
+        --charge: 0;
+      }
+      /* Shadowball charge: a violet ring that fills clockwise around the crosshair. */
+      #crosshair::after {
+        content: ''; position: absolute; left: 50%; top: 50%;
+        width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%;
+        background: conic-gradient(#b27bff calc(var(--charge) * 360deg), rgba(178, 123, 255, 0.12) 0);
+        -webkit-mask: radial-gradient(circle, transparent 13px, #000 14px, #000 16px, transparent 17px);
+        mask: radial-gradient(circle, transparent 13px, #000 14px, #000 16px, transparent 17px);
+        opacity: min(1, calc(var(--charge) * 20));
+        filter: drop-shadow(0 0 4px rgba(155, 77, 255, 0.9));
       }
 
       #status {
@@ -98,13 +109,17 @@
           <tr><td>W A S D</td><td>Move</td></tr>
           <tr><td>Mouse</td><td>Look</td></tr>
           <tr><td>Space</td><td>Jump</td></tr>
-          <tr><td>Shift</td><td>Sprint</td></tr>
+          <tr><td>Shift</td><td>Sprint (builds speed)</td></tr>
+          <tr><td>C</td><td>Slide (runner) / sneak (shadow)</td></tr>
+          <tr><td>Q</td><td>Switch form: runner / shadow</td></tr>
+          <tr><td>LMB / RMB</td><td>Shadow: left / right hand spell (hold, release)</td></tr>
+          <tr><td>Both</td><td>Shadow: dual-cast</td></tr>
           <tr><td>V</td><td>Walk (hold)</td></tr>
           <tr><td>E</td><td>Recall (rewind 3s)</td></tr>
           <tr><td>Esc</td><td>Pause</td></tr>
         </table>
         <div class="cta">CLICK TO PLAY</div>
-        <div class="credit">Character: Soldier (three.js examples / Mixamo)</div>
+        <div class="credit">Character &amp; animations: Universal Animation Library by Quaternius (CC0)</div>
       </div>
     </div>
 

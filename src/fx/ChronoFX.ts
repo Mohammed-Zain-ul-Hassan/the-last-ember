@@ -9,6 +9,8 @@ export class ChronoFX {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx2d: CanvasRenderingContext2D;
   private active = false;
+  /** FOV outside of a rewind; the main loop widens it with speed. */
+  baseFov: number = CAMERA.baseFov;
 
   constructor(private readonly camera: THREE.PerspectiveCamera) {
     this.vignette = document.getElementById('chrono-vignette')!;
@@ -24,22 +26,28 @@ export class ChronoFX {
   update(progress: number | null): void {
     if (progress === null) {
       if (this.active) this.reset();
+      this.setFov(this.baseFov);
       return;
     }
     this.active = true;
     const pulse = Math.sin(Math.PI * THREE.MathUtils.clamp(progress, 0, 1));
 
-    this.camera.fov = CAMERA.baseFov + (CAMERA.punchFov - CAMERA.baseFov) * pulse;
+    this.camera.fov = this.baseFov + (CAMERA.punchFov - this.baseFov) * pulse;
     this.camera.updateProjectionMatrix();
 
     this.vignette.style.opacity = (0.25 + 0.75 * pulse).toFixed(3);
     this.drawSpeedLines(0.35 + 0.65 * pulse);
   }
 
+  private setFov(fov: number): void {
+    if (Math.abs(this.camera.fov - fov) < 1e-3) return;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+  }
+
   private reset(): void {
     this.active = false;
-    this.camera.fov = CAMERA.baseFov;
-    this.camera.updateProjectionMatrix();
+    this.setFov(this.baseFov);
     this.vignette.style.opacity = '0';
     this.ctx2d.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
