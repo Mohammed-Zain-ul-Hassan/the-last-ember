@@ -1,62 +1,56 @@
 import * as THREE from 'three';
-import { SHADOW_FRAME } from './stage';
-import { CFG, type MoveSpec } from '../config';
-import type { Knight, Move } from '../sim/world';
+import { CFG, HERO, type MoveSpec } from '../config';
+import type { Knight, KnightState, Move } from '../sim/world';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import type { AuraLayer, AuraSource } from './auraEffect';
+import { DEPTH, PULL_GLSL, pullForward } from './depth';
 import { Flame } from './flame';
 import { emitCount, type Particles } from './particles';
 import { rimify } from './rim';
+import { taperTube } from './shapes';
 import { SHADOW, shadowify } from './shadowBody';
+import { SHADOW_FRAME } from './stage';
+import { bladePoint, buildSword, SWORD, SWORD_PALETTES, type SwordParts } from './sword';
 import { glowTexture, tatterTexture } from './textures';
 
 // The shadow knight: living shadow in the shape of a knight. Built from primitives facing +x; the sim's yaw turns
-// the root (rotation.y = -yaw), so the sword arm (local +z) is his right. Every pose goes through springs, so
-// motion has follow-through and overshoot instead of snapping between keyframes.
-// pure black and fully matte: a shadow does not reflect the fire, only the aura gives it shape
-const BODY = shadowify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0 }), 0.42, 'kbody');
-const DARK = shadowify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0 }), 0.55, 'kdark');
-const STEEL = rimify(new THREE.MeshStandardMaterial({ color: 0x1d1c26, roughness: 0.18, metalness: 0.95 }), 1.3, 'steel');
-const EYE = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 2.2, 4.8), toneMapped: false, transparent: true });
-const EDGE = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.9, 2.6), toneMapped: false, transparent: true });
+// the root (rotation.y = -yaw), so the sword arm (local +z) is his right. Every pose goes through springs with
+// per-joint gains: the core leads and the head, arms and blade follow a beat later, so motion has follow-through and
+// overlap instead of snapping between keys. He banks into curves, shuffles his feet when he turns on the spot, steps
+// back with his guard up, breathes, and fidgets when he has stood still a while.
+DEPTH.uDepthPull.value = HERO.depthPull;
+// every material of his is pulled forward in depth (src/render/depth.ts) so the props he touches never cut into him
+const BODY = pullForward(shadowify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0 }), 0.42, 'kbody'));
+const DARK = pullForward(shadowify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0 }), 0.55, 'kdark'));
+const STEEL = pullForward(rimify(new THREE.MeshStandardMaterial({ color: 0x1d1c26, roughness: 0.18, metalness: 0.95 }), 1.3, 'steel'));
+const EYE = pullForward(new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 2.2, 4.8), toneMapped: false, transparent: true }));
+EYE.userData.alwaysClear = true;
+const FADERS: THREE.Material[] = [STEEL, EYE]; // materials the dawn dissolve fades (the sword adds its own)
 
-function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
+function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, shadow = true): THREE.Mesh {
   const m = new THREE.Mesh(geo, mat);
   m.position.set(x, y, z);
-  m.castShadow = true;
+  m.castShadow = shadow;
   return m;
 }
 
 function limb(len: number, r0: number, r1 = r0 * 0.8, mat: THREE.Material = BODY): { pivot: THREE.Group; end: THREE.Group } {
   const pivot = new THREE.Group();
   pivot.add(mesh(new THREE.CylinderGeometry(r1, r0, len, 18, 1), mat, 0, -len / 2, 0));
-  pivot.add(mesh(new THREE.SphereGeometry(r0 * 1.05, 18, 12), mat));
+  // joint balls hide inside the limb's own shadow: not worth six cube-face redraws each
+  pivot.add(mesh(new THREE.SphereGeometry(r0 * 1.05, 18, 12), mat, 0, 0, 0, false));
   const end = new THREE.Group();
   end.position.y = -len;
   pivot.add(end);
   return { pivot, end };
 }
 
-/** A tube along a curve that tapers to a point: horns. */
-function horn(points: THREE.Vector3[], r: number): THREE.BufferGeometry {
-  const curve = new THREE.CatmullRomCurve3(points);
-  const tub = 24;
-  const rad = 12;
-  const g = new THREE.TubeGeometry(curve, tub, r, rad, false);
-  const pos = g.attributes.position as THREE.BufferAttribute;
-  const c = new THREE.Vector3();
-  const p = new THREE.Vector3();
-  for (let i = 0; i <= tub; i++) {
-    curve.getPointAt(i / tub, c);
-    const s = 1 - (i / tub) * 0.95;
-    for (let j = 0; j <= rad; j++) {
-      const idx = i * (rad + 1) + j;
-      p.fromBufferAttribute(pos, idx).sub(c).multiplyScalar(s).add(c);
-      pos.setXYZ(idx, p.x, p.y, p.z);
-    }
-  }
-  g.computeVertexNormals();
-  return g;
-}
+const smooth = (x: number) => {
+  const c = Math.max(0, Math.min(1, x));
+  return c * c * (3 - 2 * c);
+};
+/** 0 -> 1 -> 0 over len seconds, eased at both ends. */
+const env = (t: number, len: number, att = 0.25, rel = 0.35) => smooth(t / (len * att)) * (1 - smooth((t - len * (1 - rel)) / (len * rel)));
 
 // ---------------------------------------------------------------- slashes
 // Arm angle sweeps a0 -> a1 in the arm's plane; tilt rotates that plane (0 = vertical cleave, ~1.3 = horizontal).
@@ -82,8 +76,14 @@ const POOLS = [
 const HEAVY: Swing = { a0: 4.45, a1: 0.05, tilt: 0.12, twist: 0.5, lean: 0.5 };
 
 const TRAIL_VERT = /* glsl */ `
+  uniform float uDepthPull;
   varying vec2 vP;
-  void main() { vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+  void main() {
+    vP = position.xy;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+    ${PULL_GLSL}
+  }`;
 const TRAIL_FRAG = /* glsl */ `
   uniform float uHead; uniform float uTail; uniform float uOpacity; uniform vec3 uColor;
   varying vec2 vP;
@@ -99,13 +99,36 @@ const TRAIL_FRAG = /* glsl */ `
   }`;
 
 // ---------------------------------------------------------------- pose springs
-const KEYS = ['lean', 'bob', 'twist', 'arm', 'armTilt', 'elbow', 'swordRel', 'head', 'th0', 'th1', 'kn0', 'kn1', 'offArm', 'offElbow', 'sy'] as const;
+const KEYS = ['lean', 'bob', 'twist', 'arm', 'armTilt', 'elbow', 'swordRel', 'swordRoll', 'head', 'headYaw', 'th0', 'th1', 'kn0', 'kn1', 'offArm', 'offElbow', 'sy', 'breath'] as const;
 type Key = (typeof KEYS)[number];
 type Pose = Record<Key, number>;
 const REST: Pose = {
-  lean: 0.06, bob: 0, twist: 0, arm: 0.45, armTilt: 0.15, elbow: -0.5, swordRel: 1.3, head: -0.05,
-  th0: 0.15, th1: -0.15, kn0: 0.1, kn1: 0.12, offArm: 0.2, offElbow: 0.5, sy: 1,
+  lean: 0.06, bob: 0, twist: 0, arm: 0.25, armTilt: 0.08, elbow: 0.45, swordRel: 0.45, swordRoll: 0, head: -0.05, headYaw: 0,
+  th0: 0.15, th1: -0.15, kn0: 0.1, kn1: 0.12, offArm: 0.2, offElbow: 0.5, sy: 1, breath: 0,
 };
+/** Per-joint spring gains: legs are crisp (no foot slide), the core leads, the head, off arm and blade trail behind. */
+const GAIN: Pose = {
+  lean: 1, bob: 1.15, twist: 0.85, arm: 0.75, armTilt: 0.8, elbow: 0.6, swordRel: 0.48, swordRoll: 0.45, head: 0.5, headYaw: 0.35,
+  th0: 1.3, th1: 1.3, kn0: 1.3, kn1: 1.3, offArm: 0.55, offElbow: 0.5, sy: 1.6, breath: 0.6,
+};
+/** During a swing the sword arm must hit its marks exactly, so it springs at full stiffness. */
+const SWING_KEYS = new Set<Key>(['arm', 'armTilt', 'elbow', 'swordRel', 'swordRoll']);
+
+// Arm angles: arm swings the upper arm forward from hanging, elbow flexes the forearm forward (never backward, an
+// elbow does not bend that way), swordRel turns the blade in the fist. The blade points along arm + elbow + swordRel.
+/** Standing still: arm relaxed, fist just in front of the hip, the blade lowered with its point near the ground. */
+const AT_REST: Partial<Pose> = {
+  lean: 0.04, bob: -0.02, arm: 0.05, elbow: 0.55, swordRel: 0.42, armTilt: 0.1, offArm: 0.1, offElbow: 0.35, head: 0.02,
+  th0: 0.12, th1: -0.14, kn0: 0.12, kn1: 0.18, twist: 0,
+};
+/** On guard after a fight: knees bent, weight forward, fist at his chest, blade raised forward, off hand up. */
+const ON_GUARD: Partial<Pose> = {
+  lean: 0.17, bob: -0.12, arm: 0.55, elbow: 0.95, swordRel: 0.75, armTilt: 0.12, offArm: 0.8, offElbow: 1.05, head: -0.12,
+  th0: 0.42, th1: -0.34, kn0: 0.52, kn1: 0.44, twist: -0.12, swordRoll: 0,
+};
+
+type Fidget = 'look' | 'twirl' | 'roll' | 'flick';
+const FIDGET_LEN: Record<Fidget, number> = { look: 2.6, twirl: 1.0, roll: 1.7, flick: 1.15 };
 
 interface Leg {
   thigh: THREE.Group;
@@ -117,8 +140,8 @@ export type KnightPose = 'stand' | 'kneel';
 /** Fade the whole knight (the dawn ending dissolves him into light). */
 export function setKnightFade(a: number): void {
   SHADOW.uFade.value = a;
-  for (const m of [STEEL, EYE, EDGE]) {
-    const tr = a < 0.999 || m !== STEEL;
+  for (const m of FADERS) {
+    const tr = a < 0.999 || m.userData.alwaysClear === true;
     if (m.transparent !== tr) {
       m.transparent = tr;
       m.needsUpdate = true; // a different shader: three only switches when told
@@ -127,9 +150,18 @@ export function setKnightFade(a: number): void {
   }
 }
 
+const layer = (inner: THREE.Color, outer: THREE.Color, L: { life: number; rise: number; spread: number; intensity: number }): AuraLayer => ({
+  inner, outer, intensity: L.intensity, life: L.life, rise: L.rise, spread: L.spread,
+});
+const VIOLET_IN = new THREE.Color(1.1, 0.5, 3.1);
+const VIOLET_OUT = new THREE.Color(0.16, 0.03, 0.5);
+const HURT_IN = new THREE.Color(3.0, 0.38, 0.3);
+const HURT_OUT = new THREE.Color(0.5, 0.03, 0.06);
+const LIT_RIM = new THREE.Color(2.8, 1.15, 0.32); // the side of his outline that faces the fire
+
 export class KnightView {
   readonly root = new THREE.Group();
-  private visY = NaN; // drawn height (eased on steps)
+  private spin = new THREE.Group(); // somersaults pivot about his hips
   private squash = new THREE.Group(); // squash & stretch around the feet
   private body = new THREE.Group();
   private chest = new THREE.Group();
@@ -137,7 +169,7 @@ export class KnightView {
   private legs: Leg[] = [];
   private shoulder: THREE.Group;
   private elbow: THREE.Group;
-  private sword: THREE.Group;
+  private sword: SwordParts;
   private offShoulder: THREE.Group;
   private offElbow: THREE.Group;
   private cape: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
@@ -150,7 +182,6 @@ export class KnightView {
   private swing: Swing = VARIANTS[0];
   private lastVariant = -1;
   private phase = 0;
-  private turn = 1;
   private capeVx = 0;
   private capeVy = 0;
   private eyes: THREE.Mesh;
@@ -158,13 +189,38 @@ export class KnightView {
   private cur: Pose = { ...REST };
   private vel: Pose = Object.fromEntries(KEYS.map((k) => [k, 0])) as Pose;
   private prevGround = true;
+  private prevState: KnightState = 'idle';
+  private prevSpeed = 0;
+  private prevFv = 0;
+  private prevAirJumps: number = CFG.knight.airJumps;
   private landT = 0;
   private landImpact = 0;
   private stretchT = 0;
+  private brakeT = 0;
+  private flipT = 1;
   private fallVy = 0;
   private dashGlow = 0;
+  private swordFlare = 0;
+  private hurtFlash = 0;
+  private accel = 0;
+  // turning: the drawn yaw chases the sim's the short way round; its rate banks him and shuffles his feet
+  private turn = NaN;
+  private yawVel = 0;
+  private bank = 0;
+  private shuffle = 0;
+  private visY = NaN; // drawn height (eased on steps)
+  private fv = 0; // speed along his facing (negative: stepping back)
+  private sv = 0; // speed to his right
+  // idle life
+  private breath = 0;
+  private combatT = 9;
+  private guardK = 0;
+  private idleT = 0;
+  private fidget: Fidget | null = null;
+  private fidgetT = 0;
+  private nextFidget = 3;
+  private lastFidget: Fidget | null = null;
   private parts: THREE.Mesh[] = [];
-  private aura: Flame;
   pose: KnightPose = 'stand';
   readonly torch = new THREE.Group();
   readonly torchFlame: Flame;
@@ -172,19 +228,32 @@ export class KnightView {
   private torchHalo: THREE.Sprite;
   private emberOrb: THREE.Sprite;
   torchOn = false;
+  /** The blade's look (see SWORD_PALETTES); applied on the next setTorch. */
+  swordPalette: keyof typeof SWORD_PALETTES = HERO.swordPalette;
   readonly trailColor = new THREE.Color(1.6, 1.3, 3.4);
+  /** What the stage's aura wraps and how it burns; updated every frame. */
+  readonly aura: AuraSource;
   private eyeWorld = new THREE.Vector3();
   private tmp = new THREE.Vector3();
+  /** 0..1: how lit the ground he stands on is, from the sim's light model (wall shadows included). Set each frame. */
+  exposure = 0;
+  private expo = 0;
+  /** Where the fire that lights him is (the hearth's flame). Set each frame; in the torch phase his own torch. */
+  readonly fireAt = new THREE.Vector3(0, 1.6, 0);
+  private floorY = -Infinity;
 
   constructor() {
-    this.root.add(this.squash);
+    this.root.add(this.spin);
+    this.spin.position.y = 1.05;
+    this.spin.add(this.squash);
+    this.squash.position.y = -1.05;
     this.squash.add(this.body);
     for (const z of [0.15, -0.15]) {
       const thigh = limb(0.56, 0.13, 0.11);
       const shin = limb(0.54, 0.1, 0.13);
       thigh.pivot.position.set(0, 1.1, z);
       thigh.end.add(shin.pivot);
-      shin.end.add(mesh(new RoundedBoxGeometry(0.34, 0.1, 0.17, 2, 0.035), BODY, 0.08, 0.03, 0));
+      shin.end.add(mesh(new RoundedBoxGeometry(0.34, 0.1, 0.17, 2, 0.035), BODY, 0.08, 0.03, 0, false));
       this.body.add(thigh.pivot);
       this.legs.push({ thigh: thigh.pivot, knee: shin.pivot });
     }
@@ -197,9 +266,9 @@ export class KnightView {
     for (const z of [0.33, -0.33]) {
       const p1 = mesh(new THREE.SphereGeometry(0.24, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.6), BODY, -0.03, 0.78, z);
       p1.scale.set(1.3, 1.0, 1.05);
-      const p2 = mesh(new THREE.SphereGeometry(0.2, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), BODY, -0.05, 0.68, z * 1.08);
+      const p2 = mesh(new THREE.SphereGeometry(0.2, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), BODY, -0.05, 0.68, z * 1.08, false);
       p2.scale.set(1.25, 0.9, 1);
-      const spike = mesh(new THREE.ConeGeometry(0.05, 0.3, 12), BODY, -0.08, 0.99, z);
+      const spike = mesh(new THREE.ConeGeometry(0.05, 0.3, 12), BODY, -0.08, 0.99, z, false);
       spike.rotation.z = 0.5;
       this.chest.add(p1, p2, spike);
     }
@@ -211,7 +280,7 @@ export class KnightView {
     for (const s of [1, -1]) {
       this.head.add(
         mesh(
-          horn([new THREE.Vector3(0, 0.25, 0.12 * s), new THREE.Vector3(-0.12, 0.45, 0.22 * s), new THREE.Vector3(-0.42, 0.62, 0.26 * s), new THREE.Vector3(-0.78, 0.58, 0.2 * s), new THREE.Vector3(-1.02, 0.72, 0.14 * s)], 0.065),
+          taperTube([new THREE.Vector3(0, 0.25, 0.12 * s), new THREE.Vector3(-0.12, 0.45, 0.22 * s), new THREE.Vector3(-0.42, 0.62, 0.26 * s), new THREE.Vector3(-0.78, 0.58, 0.2 * s), new THREE.Vector3(-1.02, 0.72, 0.14 * s)], 0.065),
           BODY,
         ),
       );
@@ -227,22 +296,17 @@ export class KnightView {
     this.shoulder.rotation.order = 'XYZ';
     upper.end.add(fore.pivot);
     this.elbow = fore.pivot;
-    this.sword = new THREE.Group();
-    fore.end.add(this.sword);
-    this.sword.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 12), DARK, 0, 0.05, 0));
-    this.sword.add(mesh(new THREE.SphereGeometry(0.05, 12, 8), STEEL, 0, 0.22, 0));
-    this.sword.add(mesh(new RoundedBoxGeometry(0.44, 0.05, 0.07, 2, 0.02), STEEL, 0, -0.12, 0));
-    const blade = new THREE.Shape();
-    blade.moveTo(-0.06, 0);
-    blade.lineTo(0.06, 0);
-    blade.lineTo(0.045, -1.42);
-    blade.lineTo(0, -1.62);
-    blade.lineTo(-0.045, -1.42);
-    blade.closePath();
-    this.sword.add(mesh(new THREE.ExtrudeGeometry(blade, { depth: 0.016, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.008, bevelSegments: 2 }), STEEL, 0, -0.14, -0.01));
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.012, 1.45, 0.03), EDGE);
-    edge.position.set(0.05, -0.86, 0);
-    this.sword.add(edge);
+    // a gauntleted fist closed around the grip, and the cuff at his wrist
+    fore.end.add(mesh(new RoundedBoxGeometry(0.15, 0.13, 0.14, 2, 0.045), BODY, 0, 0, 0, false));
+    fore.end.add(mesh(new THREE.CylinderGeometry(0.095, 0.085, 0.09, 16), BODY, 0, 0.075, 0, false));
+    this.sword = buildSword(STEEL, DARK);
+    this.sword.gem.material.userData.alwaysClear = true;
+    FADERS.push(this.sword.blade.material, this.sword.gem.material);
+    fore.end.add(this.sword.group);
+    // the blade's light hangs off the root, not the sword: the hurt blink hides his body (and the sword in his hand),
+    // and a light that drops out of the scene changes the light count, which recompiles every lit material (a freeze).
+    // updateSword() keeps it at the blade.
+    this.root.add(this.sword.light);
 
     const offU = limb(0.44, 0.1, 0.085);
     const offF = limb(0.42, 0.09, 0.075);
@@ -253,7 +317,7 @@ export class KnightView {
     offF.end.add(this.torch);
     this.torch.add(mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.75, 6), DARK, 0, 0.12, 0));
     this.torch.add(mesh(new THREE.CylinderGeometry(0.06, 0.045, 0.14, 8), STEEL, 0, 0.48, 0));
-    this.torchFlame = new Flame(0.55, 0.85, 2);
+    this.torchFlame = new Flame(0.55, 0.85, 2, undefined, false, DEPTH.uDepthPull);
     this.torchFlame.group.position.y = 0.52;
     this.torch.add(this.torchFlame.group);
     this.torchLight = new THREE.PointLight(0xff8840, 0, 18, 2);
@@ -262,22 +326,20 @@ export class KnightView {
     this.torchLight.shadow.camera.near = 0.2;
     this.torchLight.shadow.camera.far = 16; // the torch lights a few metres; past that nothing needs its shadow
     this.torchLight.shadow.bias = -0.004;
-    // the light hangs off the root, not the torch: the hurt blink hides the body (and the arm holding the torch), and
-    // a light that drops out of the scene changes the light count, which recompiles every lit material (a freeze of
-    // up to a second, every time he was hit). update() keeps it at the torch head.
+    // on the root, not the torch, for the same reason as the blade's light (see above). update() keeps it at the torch.
     this.root.add(this.torchLight);
     this.torchHalo = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(1.1, 0.5, 0.18), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0.35 }),
+      pullForward(new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(1.1, 0.5, 0.18), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0.35 })),
     );
     this.torchHalo.position.y = 0.8;
     this.torch.add(this.torchHalo);
-    for (const c of this.torch.children) if (c !== this.torchLight) c.visible = false;
+    for (const c of this.torch.children) c.visible = false;
     this.torchLight.castShadow = true; // always: toggling a shadow light recompiles every material (a freeze)
     this.torchLight.shadow.autoUpdate = false;
     this.torchLight.shadow.needsUpdate = true; // a map must exist before the first frame (see the sun in stage.ts)
     // a carried ember floats over his shoulder
     this.emberOrb = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(3.2, 1.3, 0.35), blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
+      pullForward(new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(3.2, 1.3, 0.35), blending: THREE.AdditiveBlending, depthWrite: false, fog: false })),
     );
     this.emberOrb.position.set(-0.45, 2.75, 0.3);
     this.emberOrb.visible = false;
@@ -290,11 +352,11 @@ export class KnightView {
     capeGeo.translate(-0.05, -1.05, 0);
     capeGeo.rotateY(Math.PI / 2);
     const tat = tatterTexture(7);
-    const capeMat = shadowify(
+    const capeMat = pullForward(shadowify(
       new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, side: THREE.DoubleSide, alphaMap: tat, alphaTest: 0.5 }),
       0.6,
       'kcape',
-    );
+    ));
     this.cape = new THREE.Mesh(capeGeo, capeMat);
     this.cape.position.set(-0.24, 0.84, -0.02);
     this.cape.castShadow = true;
@@ -302,7 +364,7 @@ export class KnightView {
     this.capeBase = Float32Array.from(capeGeo.attributes.position.array as Float32Array);
     this.chest.add(this.cape);
 
-    // his small parts (spikes, studs, the pommel) cast nothing visible but cost a draw in each of the torch's six faces
+    // his small parts cast nothing visible but cost a draw in each face of the torch's shadow cube
     this.root.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh || !m.castShadow) return;
@@ -310,19 +372,34 @@ export class KnightView {
       if (m.geometry.boundingSphere!.radius < 0.11) m.castShadow = false;
     });
 
-    // the shadow parts: smoke is emitted from them, and the stage outlines their union as one aura
+    // the shadow parts: smoke is emitted from them, and the aura wraps their union (the sword has its own)
+    const swordMeshes = new Set<THREE.Object3D>(this.sword.meshes);
     this.root.traverse((o) => {
       const m = o as THREE.Mesh;
-      if (!m.isMesh || (m.material !== BODY && m.material !== DARK)) return;
+      if (!m.isMesh || (m.material !== BODY && m.material !== DARK) || swordMeshes.has(m)) return;
       this.parts.push(m);
     });
 
-    // shadow-fire rising off him, always on the far side of his body from the camera (see update): his silhouette
-    // hides its core and only the tongues lick out around the edges. A fixed spot behind his back read as fire
-    // strapped to him whenever the camera sat behind him.
-    this.aura = new Flame(1.05, 2.1, 2, new THREE.Color(1, 1, 1), true);
-    this.aura.opacity = 0.35;
-    this.root.add(this.aura.group);
+    const A = HERO.aura;
+    this.aura = {
+      root: this.root,
+      bodyMeshes: [...this.parts, this.cape],
+      swordMeshes: this.sword.meshes,
+      swordRoot: this.sword.group,
+      smearMeshes: [this.sword.blade],
+      keepVisible: this.body,
+      anchor: new THREE.Vector3(),
+      height: CFG.knight.h,
+      fade: 1,
+      body: layer(VIOLET_IN.clone(), VIOLET_OUT.clone(), A.body),
+      sword: layer(new THREE.Color(), new THREE.Color(), A.sword),
+      smoke: layer(new THREE.Color(0.012, 0.004, 0.03), new THREE.Color(0, 0, 0), A.smoke),
+      dt: 0,
+      time: 0,
+      light: new THREE.Vector3(),
+      lightColor: LIT_RIM.clone(),
+      lightAmount: 0,
+    };
 
     // sword trail lives in the chest at the shoulder, so it shares the arm's lean, twist and swing tilt
     this.trail = new THREE.Mesh(
@@ -330,7 +407,7 @@ export class KnightView {
       new THREE.ShaderMaterial({
         vertexShader: TRAIL_VERT,
         fragmentShader: TRAIL_FRAG,
-        uniforms: { uHead: { value: 0 }, uTail: { value: 0 }, uOpacity: { value: 0 }, uColor: { value: this.trailColor } },
+        uniforms: { uHead: { value: 0 }, uTail: { value: 0 }, uOpacity: { value: 0 }, uColor: { value: this.trailColor }, uDepthPull: DEPTH.uDepthPull },
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
@@ -340,22 +417,26 @@ export class KnightView {
     this.trail.position.copy(this.shoulder.position);
     this.trail.visible = false;
     this.chest.add(this.trail);
+    this.setTorch(false);
   }
 
   setTorch(on: boolean): void {
     this.torchOn = on;
-    for (const c of this.torch.children) if (c !== this.torchLight) c.visible = on;
+    for (const c of this.torch.children) c.visible = on;
     // redrawn on alternate frames while lit (see update), never every frame: the hearth is always out when the torch
     // burns, so the torch takes its slot opposite the moon
     this.torchLight.shadow.autoUpdate = false;
     if (!on) this.torchLight.intensity = 0;
-    this.trailColor.copy(on ? new THREE.Color(3.4, 1.3, 0.35) : new THREE.Color(1.6, 1.3, 3.4));
-    EDGE.color.copy(on ? new THREE.Color(3.0, 1.0, 0.25) : new THREE.Color(1.1, 0.9, 2.6));
-  }
-
-  /** Meshes the stage outlines as one silhouette (body + cape). */
-  get outlineTargets(): THREE.Object3D[] {
-    return [...this.parts, this.cape];
+    // the blade's look (HERO.swordPalette); with the torch lit, the fire he carries runs down the blade too
+    const P = SWORD_PALETTES[this.swordPalette][on ? 'torch' : 'night'];
+    this.trailColor.copy(P.trail);
+    SWORD.uEdge.value.copy(P.edge);
+    SWORD.uRune.value.copy(P.rune);
+    this.sword.blade.material.color.setHex(P.steel);
+    this.sword.light.color.setHex(P.light);
+    this.sword.gem.material.color.copy(P.gem);
+    this.aura.sword.inner.copy(P.auraIn);
+    this.aura.sword.outer.copy(P.auraOut);
   }
 
   get eyePos(): THREE.Vector3 {
@@ -368,33 +449,109 @@ export class KnightView {
     let stiff = 170;
     let zeta = 0.62;
     const speed = Math.hypot(k.vx, k.vz);
-    const breathe = Math.sin(t * 1.9);
+    const b = this.breath; // -0.5 exhaled .. 0.5 inhaled
+    // leaning into acceleration, back against braking
+    const accLean = Math.max(-0.22, Math.min(0.28, this.accel * 0.011));
     switch (k.state) {
-      case 'idle':
-        p.lean = 0.06 + breathe * 0.025;
-        p.bob = breathe * 0.02;
-        p.twist = Math.sin(t * 0.6) * 0.06;
-        p.head = -0.05 + Math.sin(t * 0.7) * 0.06;
-        p.arm = 0.45 + breathe * 0.04;
+      case 'idle': {
+        const g = this.guardK;
+        for (const key of KEYS) {
+          const r = AT_REST[key] ?? REST[key];
+          p[key] = r + ((ON_GUARD[key] ?? r) - r) * g;
+        }
+        // breathing: the chest rises and opens on the inhale, the shoulders lift, the head settles on the exhale
+        p.breath = b;
+        p.bob += b * 0.026;
+        p.lean -= b * 0.035;
+        p.arm += b * 0.04;
+        p.offArm += b * 0.05;
+        p.head += -b * 0.03;
+        // weight drifts slowly from one leg to the other
+        const w = Math.sin(t * 0.83) * 0.6 + Math.sin(t * 0.31 + 1.7) * 0.4;
+        p.kn0 += Math.max(0, w) * 0.14;
+        p.kn1 += Math.max(0, -w) * 0.14;
+        p.bob -= Math.abs(w) * 0.018;
+        p.twist += w * 0.035;
+        // on guard the blade breathes too; at rest his gaze wanders
+        p.swordRel += Math.sin(t * 1.4) * 0.035 * g;
+        p.arm += Math.sin(t * 1.4 + 0.6) * 0.02 * g;
+        p.headYaw = Math.sin(t * 0.27) * 0.16 * (1 - g);
+        p.head += Math.sin(t * 0.41 + 2) * 0.04 * (1 - g);
+        if (this.brakeT > 0) {
+          // planting the front foot to stop: brace back, then the springs settle him
+          const e = this.brakeT / 0.28;
+          p.lean = p.lean * (1 - e) - 0.16 * e;
+          p.bob -= 0.12 * e;
+          p.th0 += 0.5 * e;
+          p.kn0 = p.kn0 * (1 - e) + 0.2 * e;
+          p.th1 -= 0.3 * e;
+          p.kn1 += 0.65 * e;
+          p.offArm += 0.5 * e;
+        }
+        // turning on the spot: his feet shuffle round under him instead of sliding
+        const turning = Math.min(1, Math.max(0, Math.abs(this.yawVel) - 0.5) / 3);
+        if (turning > 0) {
+          const s = Math.sin(this.shuffle);
+          p.th0 += s * 0.32 * turning;
+          p.th1 -= s * 0.32 * turning;
+          p.kn0 += Math.max(0, s) * 0.5 * turning;
+          p.kn1 += Math.max(0, -s) * 0.5 * turning;
+          p.bob += (Math.abs(Math.cos(this.shuffle)) * 0.04 - 0.03) * turning;
+        }
+        this.applyFidget(p);
+        stiff = 150;
+        zeta = 0.58;
         break;
+      }
       case 'run': {
-        this.phase += dt * (4 + speed * 1.1);
+        // stride grows with speed, so starting and stopping walk into the run instead of popping
+        const amp = 0.3 + 0.7 * smooth((speed - 0.3) / 4.5);
+        // stepping back (backpedal) keeps his facing: the stride runs in reverse, his guard stays up
+        const backing = this.fv < -0.5 && Math.abs(this.yawVel) < 3;
+        const skid = !backing && this.fv < 0 && speed > 1.5;
+        this.phase += dt * (3.2 + speed * 1.15) * (backing ? -1 : 1);
         const s = Math.sin(this.phase);
         const c = Math.cos(this.phase);
-        p.th0 = s * 1.05;
-        p.th1 = -s * 1.05;
-        p.kn0 = Math.max(0, -s) * 1.45 + 0.15;
-        p.kn1 = Math.max(0, s) * 1.45 + 0.15;
-        p.lean = 0.3;
-        p.twist = s * 0.14;
-        p.bob = Math.abs(c) * 0.09 - 0.05;
-        p.arm = -0.55 + s * 0.12; // blade trails behind, low, like a charge
-        p.elbow = -0.25;
-        p.swordRel = 0.85;
-        p.armTilt = 0.35;
-        p.offArm = -s * 0.7 + 0.2;
-        p.offElbow = 0.9;
-        p.head = -0.12;
+        p.th0 = s * 1.05 * amp;
+        p.th1 = -s * 1.05 * amp;
+        p.kn0 = (Math.max(0, -s) * 1.6 + 0.15) * amp + 0.1;
+        p.kn1 = (Math.max(0, s) * 1.6 + 0.15) * amp + 0.1;
+        p.lean = 0.12 + 0.3 * amp + accLean; // he drives forward into the run
+        p.twist = s * 0.15 * amp;
+        p.bob = (Math.abs(c) * 0.1 - 0.055) * amp;
+        // at speed the blade is dragged low behind him; it bounces a beat after the stride
+        p.arm = 0.25 + (-0.55 + Math.sin(this.phase - 0.7) * 0.13) * amp;
+        p.elbow = 0.45 + 0.1 * amp;
+        p.swordRel = 0.45 - 1.5 * amp + Math.sin(this.phase - 1.1) * 0.08 * amp;
+        p.armTilt = 0.08 + 0.07 * amp;
+        p.offArm = -Math.sin(this.phase - 0.35) * 0.95 * amp + 0.25;
+        p.offElbow = 0.7 + 0.35 * amp + Math.max(0, Math.sin(this.phase - 0.35)) * 0.3 * amp;
+        // the head holds the horizon: it counters most of the chest's lean
+        p.head = -p.lean * 0.55 + Math.abs(c) * 0.03 * amp;
+        if (backing) {
+          p.lean = 0.02;
+          p.th0 *= 0.75;
+          p.th1 *= 0.75;
+          p.arm = ON_GUARD.arm!;
+          p.elbow = ON_GUARD.elbow!;
+          p.swordRel = ON_GUARD.swordRel!;
+          p.armTilt = ON_GUARD.armTilt!;
+          p.offArm = ON_GUARD.offArm!;
+          p.offElbow = ON_GUARD.offElbow!;
+          p.head = -0.08;
+        } else if (skid) {
+          // reversing: momentum still carries him while he turns and digs in toward the new direction
+          p.lean = 0.5;
+          p.bob = -0.17;
+          p.th0 = 0.8;
+          p.th1 = -0.55;
+          p.kn0 = 0.55;
+          p.kn1 = 1.0;
+          p.arm = -0.25;
+          p.offArm = 0.95;
+          p.twist = 0.22;
+          p.head = -0.2;
+        }
         stiff = 420;
         break;
       }
@@ -407,13 +564,19 @@ export class KnightView {
         p.kn0 = L(1.75, 0.4);
         p.kn1 = L(1.15, 0.75);
         p.arm = L(1.4, 2.2);
-        p.elbow = L(-0.6, -0.3);
-        p.swordRel = L(1.1, 0.6);
+        p.elbow = L(0.3, 0.2);
+        p.swordRel = L(0.2, 0.1);
         p.offArm = L(1.2, 2.0);
         p.offElbow = L(0.7, 0.3);
         p.lean = L(-0.1, 0.14);
         p.head = L(-0.25, 0.12);
-        p.armTilt = 0.4;
+        p.armTilt = 0.2;
+        if (this.flipT < 1) {
+          // somersault: tucked tight, blade held in close
+          const e = env(this.flipT, 1, 0.15, 0.3);
+          const T: Partial<Pose> = { th0: 1.6, th1: 1.35, kn0: 2.1, kn1: 2.1, arm: 1.9, elbow: 0.6, swordRel: -1.3, offArm: 1.7, offElbow: 1.4, lean: 0.35, head: 0.3 };
+          for (const key of Object.keys(T) as Key[]) p[key] += ((T[key] as number) - p[key]) * e;
+        }
         stiff = 260;
         break;
       }
@@ -424,10 +587,11 @@ export class KnightView {
         p.kn0 = 1.0;
         p.kn1 = 0.8;
         p.arm = -0.9;
-        p.swordRel = 0.15;
-        p.armTilt = 0.5;
+        p.swordRel = -0.8;
+        p.armTilt = 0.25;
         p.offArm = -1.1;
         p.head = 0.3;
+        p.sy = 0.9; // stretched long and low
         stiff = 900;
         zeta = 0.8;
         break;
@@ -464,12 +628,13 @@ export class KnightView {
         p.kn0 = 0.9 + lv * 0.3;
         p.kn1 = 0.5;
         p.arm = 3.5 + lv * 0.35 + shake; // raised over his head, drawing further back as it fills
-        p.elbow = -0.12;
-        p.swordRel = 0.1;
+        p.elbow = 0.08;
+        p.swordRel = -0.1;
         p.armTilt = 0.1;
         p.offArm = 1.2;
         p.offElbow = 0.6;
         p.head = -0.12;
+        p.breath = 0.5 + lv * 0.5; // drawing a deep breath
         stiff = 420;
         zeta = 0.85;
         break;
@@ -485,7 +650,7 @@ export class KnightView {
         const S = this.swing;
         const tt = k.stateT;
         p.armTilt = S.tilt;
-        p.elbow = -0.08;
+        p.elbow = 0.06;
         p.swordRel = 0;
         if (k.move === 'plunge') {
           // hang with the blade raised, dive, then slam it down into the ground
@@ -596,13 +761,71 @@ export class KnightView {
       stiff = Math.max(stiff, 500);
     }
     if (this.stretchT > 0) p.sy = 1 + 0.12 * (this.stretchT / 0.16);
-    // kneel (oath pose): one knee down, back straight, sword planted, head bowed
+    // kneel (oath pose): one knee down, back straight, sword planted, head bowed. He still breathes.
     const kk = this.kneelK;
     if (kk > 0.001) {
-      const K: Partial<Pose> = { lean: 0.12, bob: -0.6, th0: 1.5, th1: -0.2, kn0: 1.55, kn1: 1.8, arm: 1.35, elbow: -1.1, swordRel: -0.3, armTilt: 0.05, head: 0.32, offArm: 1.15, offElbow: 1.3, twist: 0, sy: 1 };
+      const K: Partial<Pose> = {
+        lean: 0.12, bob: -0.6, th0: 1.5, th1: -0.2, kn0: 1.55, kn1: 1.8, arm: 0.75, elbow: 0.5, swordRel: -1.3, swordRoll: 0, armTilt: 0.05, head: 0.32,
+        headYaw: 0, offArm: 1.15, offElbow: 1.3, twist: 0, sy: 1,
+      };
       for (const key of Object.keys(K) as Key[]) p[key] = p[key] + ((K[key] as number) - p[key]) * kk;
+      p.breath = b;
+      p.bob += b * 0.022 * kk;
+      p.lean -= b * 0.03 * kk;
+      p.head -= b * 0.035 * kk;
+      p.offArm += b * 0.03 * kk;
     }
     return { p, stiff, zeta };
+  }
+
+  /** Idle flourishes, layered over the stance once he has stood still a while. */
+  private applyFidget(p: Pose): void {
+    const f = this.fidget;
+    if (!f) return;
+    const t = this.fidgetT;
+    const len = FIDGET_LEN[f];
+    const e = env(t, len);
+    switch (f) {
+      case 'look': // a glance back over his shoulder at the dark he came from
+        p.headYaw -= 1.2 * e;
+        p.head -= 0.1 * e;
+        p.twist -= 0.16 * e;
+        p.offArm += 0.1 * e;
+        break;
+      case 'twirl': // the blade spins once around his wrist
+        p.swordRel += Math.PI * 2 * smooth(t / (len * 0.75));
+        p.arm += 0.35 * e;
+        p.elbow += 0.25 * e;
+        p.armTilt += 0.25 * e;
+        break;
+      case 'roll': // shoulders roll, a long breath
+        p.breath += 0.6 * e;
+        p.lean -= 0.1 * e;
+        p.head -= 0.14 * e;
+        p.twist += Math.sin((t / len) * Math.PI * 2) * 0.16 * e;
+        p.arm += 0.18 * e;
+        p.offArm += 0.3 * e;
+        break;
+      case 'flick': {
+        // raise the blade, then snap it down and aside to shake the shadow off it
+        const up = smooth(t / (len * 0.3));
+        const snap = smooth((t - len * 0.32) / (len * 0.12));
+        const out = 1 - smooth((t - len * 0.6) / (len * 0.4));
+        p.arm += (0.7 * up - 0.95 * snap) * out;
+        p.swordRel += (0.8 * up - 1.0 * snap) * out;
+        p.swordRoll += 0.9 * snap * out;
+        p.lean += 0.1 * snap * out;
+        break;
+      }
+    }
+  }
+
+  private pickFidget(): Fidget {
+    const all: Fidget[] = this.guardK > 0.5 ? ['twirl', 'flick'] : ['look', 'twirl', 'roll', 'flick'];
+    const pool = all.filter((f) => f !== this.lastFidget);
+    const f = pool[Math.floor(Math.random() * pool.length)];
+    this.lastFidget = f;
+    return f;
   }
 
   private pickSwing(move: Move, combo: number): Swing {
@@ -630,18 +853,86 @@ export class KnightView {
     }
   }
 
+  /** Breath, guard, fidgets, turns, flips and the other moments the sim does not know about. */
+  private track(k: Knight, dt: number, t: number): void {
+    // an asymmetric breath: a quicker inhale, a long exhale
+    const bp = (t / HERO.breathPeriod) % 1;
+    this.breath = (bp < 0.4 ? smooth(bp / 0.4) : 1 - smooth((bp - 0.4) / 0.6)) - 0.5;
+
+    const fighting = k.state === 'attack' || k.state === 'heavy' || k.state === 'charge' || k.state === 'hurt';
+    this.combatT = fighting ? 0 : this.combatT + dt;
+    const guard = this.combatT < HERO.guardHold ? 1 : 0;
+    this.guardK += (guard - this.guardK) * Math.min(1, dt * (guard ? 9 : 1.4));
+
+    // fidgets: only standing still, at rest, and never in the middle of a turn
+    if (k.state === 'idle' && this.pose === 'stand' && this.kneelK < 0.05) this.idleT += dt;
+    else this.idleT = 0;
+    if (this.fidget) {
+      this.fidgetT += dt;
+      if (this.idleT === 0 || this.fidgetT >= FIDGET_LEN[this.fidget]) {
+        // a full turn of the blade is the same pose: unwind it so the springs carry the spin forward, never back
+        if (this.fidget === 'twirl' && smooth(this.fidgetT / (FIDGET_LEN.twirl * 0.75)) > 0.5) this.cur.swordRel -= Math.PI * 2;
+        this.fidget = null;
+      }
+    } else if (this.idleT > HERO.fidgetAfter && this.guardK < 0.6 && Math.abs(this.yawVel) < 0.5) {
+      this.nextFidget -= dt;
+      if (this.nextFidget <= 0) {
+        this.fidget = this.pickFidget();
+        this.fidgetT = 0;
+        this.nextFidget = HERO.fidgetGap[0] + Math.random() * (HERO.fidgetGap[1] - HERO.fidgetGap[0]);
+      }
+    }
+
+    // his feet shuffle as he turns on the spot; a sharp turn at speed is led by the chest
+    this.shuffle += dt * Math.min(14, Math.abs(this.yawVel) * 3);
+    if (Math.abs(this.yawVel) > 6 && k.onGround) this.vel.twist += Math.sign(this.yawVel) * dt * 20;
+
+    // forward acceleration (for the lean), the stop and the double-jump somersault
+    const speed = Math.hypot(k.vx, k.vz);
+    if (dt > 0) this.accel += ((this.fv - this.prevFv) / dt - this.accel) * Math.min(1, dt * 10);
+    this.prevFv = this.fv;
+    if (this.prevState === 'run' && k.state === 'idle' && this.prevSpeed > 4) this.brakeT = 0.28;
+    this.brakeT = Math.max(0, this.brakeT - dt);
+    if (k.airJumps < this.prevAirJumps && !k.onGround) this.flipT = 0;
+    this.prevAirJumps = k.airJumps;
+    if (this.flipT < 1) this.flipT = Math.min(1, this.flipT + (dt / HERO.flipTime) * (k.state === 'air' ? 1 : 3));
+
+    // a blow snaps him back before the springs catch him
+    if (k.state === 'hurt' && this.prevState !== 'hurt') {
+      this.vel.lean -= 7;
+      this.vel.head -= 10;
+      this.vel.arm += 5;
+      this.hurtFlash = 1;
+    }
+    this.hurtFlash = Math.max(0, this.hurtFlash - dt * 3.5);
+    if ((k.state === 'attack' || k.state === 'heavy') && k.stateT < 0.05) this.swordFlare = 1;
+    this.prevState = k.state;
+    this.prevSpeed = speed;
+  }
+
+  /** k is already blended between sim steps by the game loop (see interpolate() in main.ts). */
   update(k: Knight, dt: number, t: number, smoke: Particles, glow: Particles, camera: THREE.Camera): void {
+    dt = Math.max(0, dt);
     // a step up is a one-tick lift in the sim (up to 0.42 m): on his feet it eases over a few frames instead
     if (k.onGround && Number.isFinite(this.visY) && Math.abs(k.y - this.visY) < 0.6) this.visY += (k.y - this.visY) * (1 - Math.exp(-25 * dt));
     else this.visY = k.y;
     this.root.position.set(k.x, this.visY, k.z);
-    // turn toward the sim's yaw the short way round (quick, but never a pop)
+    // turn toward the sim's yaw the short way round (quick, but never a pop); how fast he turns banks and shuffles him
+    if (!Number.isFinite(this.turn)) this.turn = k.yaw;
     let d = (k.yaw - this.turn) % (Math.PI * 2);
     if (d > Math.PI) d -= Math.PI * 2;
     if (d < -Math.PI) d += Math.PI * 2;
-    this.turn += d * Math.min(1, dt * 40);
+    const step = d * Math.min(1, dt * 40);
+    this.turn += step;
+    if (dt > 0) this.yawVel += (step / dt - this.yawVel) * Math.min(1, dt * 12);
     this.root.rotation.y = -this.turn;
-    this.root.scale.x = 1;
+    const fx = Math.cos(k.yaw);
+    const fz = Math.sin(k.yaw);
+    this.fv = k.vx * fx + k.vz * fz;
+    this.sv = k.vz * fx - k.vx * fz;
+    this.floorY = k.onGround ? this.visY + 0.03 : -Infinity; // the cape folds onto the floor instead of sinking into it
+    this.expo += (Math.max(0, Math.min(1, this.exposure)) - this.expo) * Math.min(1, dt * 4);
+    SHADOW.uExposure.value = this.expo;
     this.kneelK += ((this.pose === 'kneel' ? 1 : 0) - this.kneelK) * Math.min(1, dt * (this.pose === 'kneel' ? 6 : 2.2));
 
     // jump / land detection from the sim state
@@ -654,43 +945,58 @@ export class KnightView {
     this.prevGround = k.onGround;
     this.landT = Math.max(0, this.landT - dt);
     this.stretchT = Math.max(0, this.stretchT - dt);
+    this.track(k, dt, t);
+
+    // the somersault: fast off the jump, slowing as he opens out
+    this.spin.rotation.z = this.flipT < 1 ? -Math.PI * 2 * (1 - Math.pow(1 - this.flipT, 2.2)) : 0;
 
     // springs: semi-implicit Euler in small substeps so stiff springs stay stable at low frame rates
     const { p, stiff, zeta } = this.target(k, t, dt);
-    dt = Math.max(0, dt);
     const n = Math.max(1, Math.ceil(dt / (1 / 120)));
     const h = dt / n;
-    const damp = 2 * Math.sqrt(stiff) * zeta;
-    for (let s = 0; s < n; s++) {
-      for (const key of KEYS) {
-        this.vel[key] += (stiff * (p[key] - this.cur[key]) - damp * this.vel[key]) * h;
-        this.cur[key] += this.vel[key] * h;
-      }
-    }
+    const swinging = k.state === 'attack' || k.state === 'heavy';
     for (const key of KEYS) {
-      // never let a bad frame (huge or negative dt) leave the rig in an exploded state
-      if (!Number.isFinite(this.cur[key]) || Math.abs(this.cur[key]) > 50) {
-        this.cur[key] = p[key];
-        this.vel[key] = 0;
+      const ks = stiff * (swinging && SWING_KEYS.has(key) ? 1 : GAIN[key]);
+      const kd = 2 * Math.sqrt(ks) * zeta;
+      let x = this.cur[key];
+      let v = this.vel[key];
+      for (let s = 0; s < n; s++) {
+        v += (ks * (p[key] - x) - kd * v) * h;
+        x += v * h;
       }
+      // never let a bad frame (huge or negative dt) leave the rig in an exploded state
+      if (!Number.isFinite(x) || Math.abs(x) > 50) {
+        x = p[key];
+        v = 0;
+      }
+      this.cur[key] = x;
+      this.vel[key] = v;
     }
     const c = this.cur;
     // during swings the arm must hit its marks exactly; springs only shape the rest of the body
-    const arm = k.state === 'attack' || k.state === 'heavy' ? p.arm : c.arm;
+    const arm = swinging ? p.arm : c.arm;
 
     this.squash.scale.set(1 / Math.sqrt(c.sy), c.sy, 1 / Math.sqrt(c.sy));
     this.body.position.y = c.bob;
+    // banking: running a curve he leans into it, like anyone running hard round a corner
+    const banking = k.onGround && (k.state === 'run' || k.state === 'dash');
+    const bankWant = banking ? Math.max(-0.3, Math.min(0.3, this.yawVel * Math.hypot(k.vx, k.vz) * 0.02)) : 0;
+    this.bank += (bankWant - this.bank) * Math.min(1, dt * 8);
+    this.body.rotation.x = this.bank;
     this.chest.rotation.z = -c.lean;
     this.chest.rotation.y = c.twist;
+    this.chest.scale.set(1 + c.breath * 0.022, 1 + c.breath * 0.016, 1 + c.breath * 0.03);
     // the head lags behind the chest a little (secondary motion)
     this.head.rotation.z = -c.head + this.vel.lean * 0.04;
+    this.head.rotation.y = c.headYaw;
     this.shoulder.rotation.z = arm;
     this.shoulder.rotation.x = c.armTilt;
     this.elbow.rotation.z = c.elbow;
-    this.sword.rotation.z = c.swordRel;
+    this.sword.group.rotation.z = c.swordRel;
+    this.sword.group.rotation.y = c.swordRoll;
     this.trail.rotation.x = c.armTilt;
     if (this.torchOn) {
-      this.offShoulder.rotation.z = 1.05 + Math.sin(t * 2.1) * 0.04 - c.lean * 0.5;
+      this.offShoulder.rotation.z = 1.05 + Math.sin(t * 2.1) * 0.04 - c.lean * 0.5 + c.breath * 0.04;
       this.offElbow.rotation.z = 0.95;
       this.torch.rotation.z = -1.9 + c.lean * 0.5;
     } else {
@@ -706,7 +1012,7 @@ export class KnightView {
     if (k.state === 'dead') eyeMat.color.setRGB(0.3, 0.25, 0.5).multiplyScalar(Math.max(0, 1 - k.stateT));
     else if (k.state === 'hurt') eyeMat.color.setRGB(4, 0.6, 0.4);
     else if (this.torchOn) eyeMat.color.setRGB(4.4, 2.4, 1.2);
-    else eyeMat.color.setRGB(2.6, 2.2, 4.8);
+    else eyeMat.color.setRGB(2.6, 2.2, 4.8).multiplyScalar(1 + c.breath * 0.25);
     this.body.visible = !(k.iframes > 0.3 && k.state !== 'dash' && Math.floor(t * 20) % 2 === 0 && k.state !== 'dead');
 
     // the aura flares when he shadow-steps or strikes
@@ -714,29 +1020,25 @@ export class KnightView {
     const flare = k.state === 'dash' ? 1 : k.state === 'charge' ? 0.3 + chargeLv * 0.9 : k.state === 'attack' || k.state === 'heavy' ? (k.move === 'charged' ? 1 : 0.45) : 0;
     if (chargeLv > 0 && Math.random() < dt * (20 + chargeLv * 70)) {
       // shadow pulled in from the air toward the blade
-      this.sword.getWorldPosition(this.tmp);
+      this.sword.group.getWorldPosition(this.tmp);
       const a = Math.random() * Math.PI * 2;
       const r = 1.2 + Math.random() * 0.8;
       const life = 0.3;
       const full = chargeLv >= 1;
-      glow.emit({ x: this.tmp.x + Math.cos(a) * r, y: this.tmp.y + Math.sin(a) * r, z: this.tmp.z, vx: (-Math.cos(a) * r) / life, vy: (-Math.sin(a) * r) / life, spread: 0.05, life, size: full ? 0.12 : 0.08, sizeEnd: 0.03, r: full ? 2.6 : 1.4, g: full ? 1.8 : 0.9, b: 5 });
+      const e = Math.random() * Math.PI * 2;
+      const ox = Math.cos(a) * Math.cos(e) * r;
+      const oz = Math.cos(a) * Math.sin(e) * r;
+      const oy = Math.sin(a) * r;
+      glow.emit({ x: this.tmp.x + ox, y: this.tmp.y + oy, z: this.tmp.z + oz, vx: -ox / life, vy: -oy / life, vz: -oz / life, spread: 0.05, life, size: full ? 0.12 : 0.08, sizeEnd: 0.03, r: full ? 2.6 : 1.4, g: full ? 1.8 : 0.9, b: 5 });
     }
     this.dashGlow += (flare - this.dashGlow) * Math.min(1, dt * (flare > this.dashGlow ? 20 : 4));
+    const swingOn = k.state === 'attack' || k.state === 'heavy';
+    this.swordFlare = Math.max(swingOn ? 0.55 : 0, this.swordFlare - dt * 2.5, chargeLv);
     SHADOW.uTime.value = t;
-    SHADOW.uAuraStrength.value = (k.state === 'dead' ? 0.3 : 1) * (1 + this.dashGlow * 2.2);
-    this.aura.opacity = (0.3 + this.dashGlow * 0.45) * (k.state === 'dead' ? 0.2 : 1) * SHADOW.uFade.value;
-    this.aura.strength = 0.85 + Math.sin(t * 3.1) * 0.05;
-    // tuck it 0.35 m behind him along the view ray (world space), then into the root's turned frame
-    const ax = k.x - camera.position.x;
-    const az = k.z - camera.position.z;
-    const al = Math.hypot(ax, az) || 1;
-    const lx = (ax / al) * 0.35;
-    const lz = (az / al) * 0.35;
-    const cy = Math.cos(this.root.rotation.y);
-    const sy = Math.sin(this.root.rotation.y);
-    this.aura.group.position.set(lx * cy - lz * sy, 0.55 + c.bob, lx * sy + lz * cy);
-    this.aura.update(t, camera);
+    SHADOW.uAuraStrength.value = (k.state === 'dead' ? 0.3 : 1) * (1 + this.dashGlow * 2.2) * (1 + c.breath * 0.15);
 
+    this.updateAura(k, t, dt, chargeLv);
+    this.updateSword(k, t, dt, glow, chargeLv);
     this.updateTrail(dt);
     this.updateCape(k, dt, t);
     this.torchFlame.strength = this.torchOn ? 1 : 0; // (at 1 the flame re-showed itself every frame, torch lit or not)
@@ -762,24 +1064,34 @@ export class KnightView {
     const hs = 2.6 + Math.sin(t * 13) * 0.15;
     this.torchHalo.scale.set(hs, hs, 1);
 
-    // shadow bleeds off every part of him and rises like smoke
+    // shadow bleeds off every part of him and rises like smoke (the aura's smoke channel carries the rest)
     const fade = SHADOW.uFade.value;
+    const burn = Math.max(0, this.expo - 0.35) * fade;
+    if (k.state !== 'dead' && Math.random() < dt * burn * 22) {
+      // the fire eats at a living shadow: his edges flake away in embers
+      const part = this.parts[Math.floor(Math.random() * this.parts.length)];
+      part.getWorldPosition(this.tmp);
+      glow.emit({
+        x: this.tmp.x + (Math.random() - 0.5) * 0.25, y: this.tmp.y, z: this.tmp.z + (Math.random() - 0.5) * 0.25, vy: 0.7 + Math.random() * 0.5, vx: -k.vx * 0.1, vz: -k.vz * 0.1,
+        spread: 0.2, life: 0.9, size: 0.045, sizeEnd: 0.005, r: 4.2, g: 1.4, b: 0.3, gravity: -0.6, wobble: 0.5,
+      });
+    }
     if (k.state !== 'dead' && fade > 0.05) {
-      const rate = dt * (22 + this.dashGlow * 90);
-      for (let i = 0, c = emitCount(rate); i < c; i++) {
+      const rate = dt * (16 + this.dashGlow * 70);
+      for (let i = 0, n = emitCount(rate); i < n; i++) {
         const part = this.parts[Math.floor(Math.random() * this.parts.length)];
         part.getWorldPosition(this.tmp);
         smoke.emit({
           x: this.tmp.x + (Math.random() - 0.5) * 0.2, y: this.tmp.y, z: this.tmp.z + (Math.random() - 0.5) * 0.2,
-          vx: -k.vx * 0.2 - Math.cos(k.yaw) * 0.15, vz: -k.vz * 0.2 - Math.sin(k.yaw) * 0.15, vy: 0.7 + Math.random() * 0.4, spread: 0.12, life: 0.9, size: 0.38, sizeEnd: 0.85,
-          r: 0.015, g: 0.008, b: 0.035, alpha: 0.6 * fade, drag: 1.4, wobble: 0.4,
+          vx: -k.vx * 0.2 - fx * 0.15, vz: -k.vz * 0.2 - fz * 0.15, vy: 0.7 + Math.random() * 0.4, spread: 0.12, life: 0.9, size: 0.38, sizeEnd: 0.85,
+          r: 0.015, g: 0.008, b: 0.035, alpha: 0.5 * fade, drag: 1.4, wobble: 0.4,
         });
       }
       if (Math.random() < dt * (8 + this.dashGlow * 30)) {
         const part = this.parts[Math.floor(Math.random() * this.parts.length)];
         part.getWorldPosition(this.tmp);
         glow.emit({
-          x: this.tmp.x, y: this.tmp.y, z: this.tmp.z, vy: 0.8, spread: 0.25, life: 1.3, size: 0.07, sizeEnd: 0.01,
+          x: this.tmp.x, y: this.tmp.y, z: this.tmp.z, vy: 0.8, spread: 0.25, life: 1.3, size: 0.05, sizeEnd: 0.008,
           r: this.torchOn ? 3.4 : 1.1, g: this.torchOn ? 1.2 : 0.6, b: this.torchOn ? 0.3 : 3.0, gravity: -0.4, wobble: 0.6,
         });
       }
@@ -791,17 +1103,72 @@ export class KnightView {
     }
     if (k.state === 'dash') {
       // shadow-step: the body smears into a streak of dark smoke
-      for (let i = 0; i < 6; i++)
-        smoke.emit((() => {
-          const b = Math.random() * 1.2;
-          const fx = Math.cos(k.yaw);
-          const fz = Math.sin(k.yaw);
-          return { x: k.x - fx * b, y: k.y + 0.2 + Math.random() * 2.0, z: k.z - fz * b + (Math.random() - 0.5) * 0.4, vx: -fx * 2, vz: -fz * 2, spread: 0.3, life: 0.45, size: 0.9, sizeEnd: 0.3, r: 0.02, g: 0.01, b: 0.05, alpha: 0.75, drag: 3 };
-        })());
+      // the step's heading: forward, a backstep or a sidestep
+      const dx = Math.cos(k.yaw + k.dashDir);
+      const dz = Math.sin(k.yaw + k.dashDir);
+      for (let i = 0; i < 6; i++) {
+        const b = Math.random() * 1.2;
+        smoke.emit({ x: k.x - dx * b, y: this.visY + 0.2 + Math.random() * 2.0, z: k.z - dz * b + (Math.random() - 0.5) * 0.4, vx: -dx * 2, vz: -dz * 2, spread: 0.3, life: 0.45, size: 0.9, sizeEnd: 0.3, r: 0.02, g: 0.01, b: 0.05, alpha: 0.75, drag: 3 });
+      }
     }
-    if (this.landT > 0.2 && this.landImpact > 0.5) {
-      for (let i = 0; i < 4; i++)
-        smoke.emit({ x: k.x + (Math.random() - 0.5) * 1.4, y: k.y + 0.05, z: k.z + (Math.random() - 0.5) * 1.4, vx: (Math.random() - 0.5) * 4, vz: (Math.random() - 0.5) * 4, vy: 0.4, spread: 0.3, life: 0.6, size: 0.7, sizeEnd: 1.3, r: 0.03, g: 0.02, b: 0.05, alpha: 0.6, drag: 3 });
+    const skidding = k.state === 'run' && this.fv < 0 && !(this.fv < -0.5 && Math.abs(this.yawVel) < 3) && Math.hypot(k.vx, k.vz) > 1.5;
+    if ((this.landT > 0.2 && this.landImpact > 0.5) || ((skidding || this.brakeT > 0.15) && Math.random() < dt * 40)) {
+      // dust thrown up where his feet bite
+      for (let i = 0; i < (skidding || this.brakeT > 0 ? 2 : 4); i++)
+        smoke.emit({
+          x: k.x + fx * 0.3 + (Math.random() - 0.5) * 1.0, y: this.visY + 0.05, z: k.z + fz * 0.3 + (Math.random() - 0.5) * 1.0,
+          vx: (Math.random() - 0.5) * 3 + k.vx * 0.3, vz: (Math.random() - 0.5) * 3 + k.vz * 0.3, vy: 0.4, spread: 0.3, life: 0.6, size: 0.6, sizeEnd: 1.2, r: 0.03, g: 0.02, b: 0.05, alpha: 0.55, drag: 3,
+        });
+    }
+  }
+
+  /** Drive the screen-space aura from what he is doing. */
+  private updateAura(k: Knight, t: number, dt: number, chargeLv: number): void {
+    const A = this.aura;
+    const H = HERO.aura;
+    A.dt = dt;
+    A.time = t;
+    this.chest.getWorldPosition(A.anchor);
+    A.fade = SHADOW.uFade.value * (k.state === 'dead' ? Math.max(0, 1 - k.stateT * 0.9) : 1);
+    // below a third of his health the fire gutters like a candle in a draught
+    const low = k.hp / CFG.knight.maxHp < H.lowHp && k.state !== 'dead';
+    const gutter = low ? 0.55 + 0.45 * Math.abs(Math.sin(t * 9.3) * Math.sin(t * 3.7 + 1)) : 1;
+    const dash = k.state === 'dash' || (k.move === 'dashStrike' && k.state === 'attack');
+    A.body.intensity = H.body.intensity * (1 + this.dashGlow * 0.55 + chargeLv * 0.9 + this.breath * 0.18) * gutter * (1 - 0.3 * this.expo);
+    A.body.life = dash ? H.dashLife : H.body.life * (1 + chargeLv * 0.5);
+    A.body.rise = H.body.rise * (1 + chargeLv * 0.9);
+    A.body.inner.copy(VIOLET_IN).lerp(HURT_IN, this.hurtFlash);
+    A.body.outer.copy(VIOLET_OUT).lerp(HURT_OUT, this.hurtFlash);
+    const swinging = k.state === 'attack' || k.state === 'heavy';
+    A.sword.intensity = H.sword.intensity * (0.85 + this.swordFlare * 0.45 + chargeLv * 1.1 + this.breath * 0.12);
+    A.sword.life = swinging || this.fidget === 'twirl' || this.fidget === 'flick' ? H.swingLife : H.sword.life;
+    A.smoke.intensity = H.smoke.intensity * (1 + this.dashGlow * 0.6);
+    A.smoke.life = dash ? H.smoke.life * 1.6 : H.smoke.life;
+    if (this.torchOn) this.torchLight.getWorldPosition(A.light);
+    else A.light.copy(this.fireAt);
+    A.lightAmount = this.expo;
+  }
+
+  /** The blade's glow, its light on the ground, the stone in its pommel and the motes it sheds. */
+  private updateSword(k: Knight, t: number, dt: number, glow: Particles, chargeLv: number): void {
+    const S = this.sword;
+    SWORD.uTime.value = t;
+    SWORD.uFlare.value = this.swordFlare;
+    const alive = k.state !== 'dead' ? 1 : Math.max(0, 1 - k.stateT);
+    S.group.updateWorldMatrix(true, false);
+    S.group.localToWorld(bladePoint(0.55, 0, S.light.position));
+    this.root.worldToLocal(S.light.position);
+    S.light.intensity = HERO.swordLight * (0.75 + this.breath * 0.3 + this.swordFlare * 1.6 + chargeLv * 2) * alive * SHADOW.uFade.value;
+    const gs = 1 + this.breath * 0.35 + this.swordFlare * 0.6 + chargeLv * 0.8;
+    S.gem.scale.set(gs, gs * 1.35, gs);
+    const rate = dt * (2 + this.swordFlare * 40 + chargeLv * 30) * alive;
+    for (let i = 0, n = emitCount(rate); i < n; i++) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      S.group.localToWorld(bladePoint(0.08 + Math.random() * 0.9, side, this.tmp));
+      glow.emit({
+        x: this.tmp.x, y: this.tmp.y, z: this.tmp.z, vy: 0.5 + Math.random() * 0.4, vx: -k.vx * 0.05, vz: -k.vz * 0.05, spread: 0.15, life: 0.7, size: 0.032, sizeEnd: 0.004,
+        r: this.torchOn ? 4.2 : 1.6, g: this.torchOn ? 1.6 : 1.1, b: this.torchOn ? 0.4 : 4.2, gravity: -0.3, wobble: 0.4,
+      });
     }
   }
 
@@ -818,26 +1185,45 @@ export class KnightView {
   }
 
   private updateCape(k: Knight, dt: number, t: number): void {
-    this.capeVx += (Math.hypot(k.vx, k.vz) - this.capeVx) * Math.min(1, dt * 5);
+    // it streams back from his forward speed (and a little from sidesteps); stepping back presses it to him
+    this.capeVx += (Math.max(0, this.fv) + Math.abs(this.sv) * 0.35 - this.capeVx) * Math.min(1, dt * 5);
     this.capeVy += (k.vy - this.capeVy) * Math.min(1, dt * 7);
     const pos = this.cape.geometry.attributes.position as THREE.BufferAttribute;
     const base = this.capeBase;
-    const lift = Math.min(0.85, this.capeVx * 0.075 + Math.max(0, -this.capeVy) * 0.05);
+    // at a run the cape streams out behind him (and off his legs, so the stride reads)
+    const lift = Math.min(1.05, this.capeVx * 0.13 + Math.max(0, -this.capeVy) * 0.05);
     const kneel = this.kneelK;
+    const breathe = this.cur.breath * 0.04;
     for (let i = 0; i < pos.count; i++) {
       const bx = base[i * 3];
       const by = base[i * 3 + 1];
       const bw = base[i * 3 + 2]; // across the shoulders
       const f = Math.max(0, Math.min(1, -by / 2.1));
       const wind = Math.sin(t * 1.3 + f * 2) * 0.12 * f + Math.sin(t * 4.7 - f * 5 + bw * 3) * 0.05 * f;
-      const sway = Math.sin(t * 5.5 - f * 4 + bw * 2) * 0.06 * f * (0.4 + this.capeVx * 0.15);
-      const back = -Math.pow(f, 1.25) * (0.16 + lift * 1.35) - wind;
+      const sway = Math.sin(t * (5.5 + this.capeVx * 0.9) - f * 4 + bw * 2) * 0.06 * f * (0.4 + this.capeVx * 0.15);
+      const back = -Math.pow(f, 1.25) * (0.16 + lift * 1.35) - wind - breathe * f;
       const pool = kneel * Math.max(0, f - 0.45) * 1.1;
       // rising: the cape trails down; falling: it billows up
       const yDrop = by * (1 - lift * 0.55 * f) + Math.max(0, this.capeVy) * -0.02 * f + pool * 0.9;
       pos.setXYZ(i, bx + back + sway - pool, yDrop, bw * (1 + f * 0.25) + Math.sin(t * 3 + f * 3 + bw) * 0.05 * f);
     }
+    if (Number.isFinite(this.floorY)) {
+      // nothing of it goes below the floor he stands on: the hem folds onto the stones instead
+      this.cape.updateWorldMatrix(true, false);
+      const m = this.cape.matrixWorld;
+      _inv.copy(m).invert();
+      for (let i = 0; i < pos.count; i++) {
+        _p.fromBufferAttribute(pos, i).applyMatrix4(m);
+        if (_p.y >= this.floorY) continue;
+        _p.y = this.floorY;
+        _p.applyMatrix4(_inv);
+        pos.setXYZ(i, _p.x, _p.y, _p.z);
+      }
+    }
     pos.needsUpdate = true;
     this.cape.geometry.computeVertexNormals();
   }
 }
+
+const _p = new THREE.Vector3();
+const _inv = new THREE.Matrix4();

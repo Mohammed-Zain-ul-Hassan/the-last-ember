@@ -44,7 +44,7 @@ const hearth = new Hearth(CFG.hearth.x);
 stage.world.add(hearth.group);
 const knight = new KnightView();
 stage.world.add(knight.root);
-stage.outline.selection.set(knight.outlineTargets);
+stage.aura.source = knight.aura;
 const shadeViews = new ShadeViews();
 stage.world.add(shadeViews.group);
 const rain = new Rain();
@@ -201,7 +201,6 @@ function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   clearInput();
   applyPhase(i);
   setKnightFade(1);
-  stage.outline.edgeStrength = 3.2;
   setMood('night');
   stage.dawn = 0;
   const c = world.chapter;
@@ -715,7 +714,6 @@ function endingScene(dt: number): void {
     at(0.4, 1, () => (knight.pose = 'kneel'));
     const p = Math.max(0, Math.min(1, (modeT - 1.6) / 5));
     setKnightFade(1 - p);
-    stage.outline.edgeStrength = 3.2 * (1 - p);
     if (p > 0 && p < 1) {
       const k = world.knight;
       for (let i = 0; i < 6; i++)
@@ -877,6 +875,10 @@ function update(now: number): void {
   hearth.update(dt, t, glow, smoke, stage.camera);
   levelView?.update(dt, t, stage.camera, world.shrines.map((s) => s.active), world.checkpointsLit);
   if (mode !== 'paused') {
+    // how lit he stands (the sim's light model, shadows of solids included) and where the fire is: his edges answer it
+    const lit = mode === 'title' || mode === 'intro' || mode === 'play' || mode === 'outro' || mode === 'lost';
+    knight.exposure = lit ? world.lightAt(world.knight.x, world.knight.z) : 0.4;
+    hearth.light.getWorldPosition(knight.fireAt);
     knight.update(world.knight, dt, t, smoke, glow, stage.camera);
     // contact shadows: under him, and under every shade that is up and walking
     const kb = world.knight;

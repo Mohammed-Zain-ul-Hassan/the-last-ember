@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { BloomEffect, BrightnessContrastEffect, DepthOfFieldEffect, EffectComposer, EffectPass, HueSaturationEffect, KernelSize, NoiseEffect, OutlineEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
+import { BloomEffect, BrightnessContrastEffect, DepthOfFieldEffect, EffectComposer, EffectPass, HueSaturationEffect, NoiseEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
 import type { SkyKey } from '../data/chapters';
 import { Rng } from '../sim/rng';
 import { RIM, rimify } from './rim';
 import { SURFACE, surface } from './surface';
+import { AuraEffect } from './auraEffect';
 import { mergeStatic } from './merge';
 import { rock } from './shapes';
 import { fogTexture, shaftTexture } from './textures';
@@ -88,7 +89,7 @@ export class Stage {
   readonly sun: THREE.DirectionalLight;
   readonly bloom: BloomEffect;
   readonly smaa: EffectPass;
-  readonly outline: OutlineEffect;
+  readonly aura: AuraEffect;
   private far = new THREE.Group(); // follows the camera like the sky
   private skyline = new THREE.Group(); // rings of distant silhouettes, drifting a little with the camera
   private haze = new THREE.Group(); // fog banks: always ahead of the camera, between it and the distance
@@ -202,13 +203,10 @@ export class Stage {
 
     this.composer = new EffectComposer(this.renderer, { frameBufferType: THREE.HalfFloatType });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    // the knight's aura: one glowing outline around his whole silhouette (not every limb), bloomed below
-    this.outline = new OutlineEffect(this.scene, this.camera, {
-      edgeStrength: 3.2, pulseSpeed: 0.35, visibleEdgeColor: 0x9a6bff, hiddenEdgeColor: 0x2a1450,
-      blur: true, kernelSize: KernelSize.SMALL, xRay: false, resolutionScale: 0.75,
-    });
-    this.composer.addPass(new EffectPass(this.camera, this.outline));
-    this.cullOutlineDepth();
+    // the knight's aura: living shadow-fire around his whole silhouette (not every limb), added before bloom so it
+    // glows. It reads the depth the main render already made, so walls in front of him hide it with no second render.
+    this.aura = new AuraEffect(this.camera);
+    this.composer.addPass(new EffectPass(this.camera, this.aura));
     // a cinematic lens for cards and cutscenes: focus on the knight, the world falls away into bokeh
     this.dof = new DepthOfFieldEffect(this.camera, { focusDistance: 8, focusRange: 4, bokehScale: 0, resolutionScale: 0.5 });
     this.dof.target = this.focus;
@@ -434,44 +432,6 @@ export class Stage {
 
   render(): void {
     this.composer.render();
-  }
-
-  /**
-   * The outline's depth pass only exists so walls in front of him clip his aura, but stock it redraws the whole
-   * level (a second full scene render, ~13 ms a frame on an M3). Only what stands near the line from the camera to
-   * him can hide him, so everything else (and every particle, flame card and rain streak) sits that pass out.
-   */
-  private cullOutlineDepth(): void {
-    // depthPass is internal to OutlineEffect (not in its typings)
-    const dp = (this.outline as unknown as { depthPass: { render: (...a: unknown[]) => void } }).depthPass;
-    const full = dp.render.bind(dp);
-    const hidden: THREE.Object3D[] = [];
-    const sphere = new THREE.Sphere();
-    const seg = new THREE.Line3();
-    const near = new THREE.Vector3();
-    dp.render = (...args: unknown[]) => {
-      seg.set(this.camera.position, this.focus);
-      this.scene.traverseVisible((o) => {
-        const m = o as THREE.Mesh;
-        if (!m.isMesh || m.parent === null) return;
-        const mat = m.material as THREE.Material;
-        let keep = !mat.transparent && mat.depthWrite;
-        if (keep) {
-          if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
-          const im = m as THREE.InstancedMesh;
-          if (im.isInstancedMesh && im.boundingSphere === null) im.computeBoundingSphere();
-          const bs = im.isInstancedMesh ? im.boundingSphere : null;
-          sphere.copy(bs ?? m.geometry.boundingSphere!).applyMatrix4(m.matrixWorld);
-          seg.closestPointToPoint(sphere.center, true, near);
-          keep = near.distanceTo(sphere.center) < sphere.radius + 0.6;
-        }
-        if (!keep) hidden.push(o);
-      });
-      for (const o of hidden) o.visible = false;
-      full(...args);
-      for (const o of hidden) o.visible = true;
-      hidden.length = 0;
-    };
   }
 
   // ------------------------------------------------------------- builders
