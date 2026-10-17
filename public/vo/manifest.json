@@ -1,0 +1,36 @@
+{
+  "runner": {
+    "swap": [
+      "/vo/runner_swap_1.mp3",
+      "/vo/runner_swap_2.mp3",
+      "/vo/runner_swap_3.mp3"
+    ],
+    "recall": [
+      "/vo/runner_recall_1.mp3",
+      "/vo/runner_recall_2.mp3",
+      "/vo/runner_recall_3.mp3"
+    ]
+  },
+  "shadow": {
+    "swap": [
+      "/vo/shadow_swap_1.mp3",
+      "/vo/shadow_swap_2.mp3",
+      "/vo/shadow_swap_3.mp3"
+    ],
+    "recall": [
+      "/vo/shadow_recall_1.mp3",
+      "/vo/shadow_recall_2.mp3",
+      "/vo/shadow_recall_3.mp3"
+    ],
+    "throw": [
+      "/vo/shadow_throw_1.mp3",
+      "/vo/shadow_throw_2.mp3",
+      "/vo/shadow_throw_3.mp3"
+    ],
+    "dual": [
+      "/vo/shadow_dual_1.mp3",
+      "/vo/shadow_dual_2.mp3",
+      "/vo/shadow_dual_3.mp3"
+    ]
+  }
+}

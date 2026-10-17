@@ -6,67 +6,53 @@ import type { TrainingDummies, Dummy } from '../world/TrainingDummies';
 
 const lerp = THREE.MathUtils.lerp;
 
-/** Black-flame shell: noise-displaced, stretched into a tail opposite to travel. */
-function flameMaterial(mode: 'ink' | 'lip'): THREE.ShaderMaterial {
+/** Hard void sphere + hot violet corona — reads as a projectile, not body ash. */
+function orbMaterial(mode: 'core' | 'corona'): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uDir: { value: new THREE.Vector3(0, 0, -1) },
-      uTail: { value: 0 },
+      uCore: { value: new THREE.Color(WEAPON.coreColor) },
       uFlame: { value: new THREE.Color(WEAPON.flameColor) },
       uLip: { value: new THREE.Color(WEAPON.lipColor) },
-      uCore: { value: new THREE.Color(WEAPON.coreColor) },
-      uSeed: { value: 0 },
+      uSeed: { value: Math.random() * 40 },
     },
-    transparent: mode === 'lip',
-    depthWrite: mode === 'ink',
-    blending: mode === 'lip' ? THREE.AdditiveBlending : THREE.NormalBlending,
-    side: mode === 'lip' ? THREE.BackSide : THREE.FrontSide,
+    transparent: true,
+    depthWrite: mode === 'core',
+    blending: mode === 'corona' ? THREE.AdditiveBlending : THREE.NormalBlending,
+    side: mode === 'corona' ? THREE.BackSide : THREE.FrontSide,
     vertexShader: /* glsl */ `
-      uniform float uTime;
-      uniform vec3 uDir;
-      uniform float uTail;
-      uniform float uSeed;
       varying vec3 vN;
       varying vec3 vWorld;
-      varying float vFlame;
-      ${NOISE_GLSL}
       void main() {
-        vec3 n = normalize(normal);
-        // Flames lick backwards: vertices facing away from travel stretch into a tail.
-        float back = max(0.0, -dot(n, uDir));
-        float f = sh_fbm(position * 2.6 + vec3(uSeed, -uTime * 3.2, uTime * 1.1));
-        float lick = ${mode === 'lip' ? '0.42' : '0.32'} * f + back * back * uTail * (0.6 + f);
-        vec3 p = position + n * lick;
-        vFlame = f;
-        vec4 world = modelMatrix * vec4(p, 1.0);
+        vN = normalize(mat3(modelMatrix) * normal);
+        vec4 world = modelMatrix * vec4(position, 1.0);
         vWorld = world.xyz;
-        vN = normalize(mat3(modelMatrix) * n);
         gl_Position = projectionMatrix * viewMatrix * world;
       }
     `,
     fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform vec3 uCore;
       uniform vec3 uFlame;
       uniform vec3 uLip;
-      uniform vec3 uCore;
-      uniform float uTime;
+      uniform float uSeed;
       varying vec3 vN;
       varying vec3 vWorld;
-      varying float vFlame;
       ${NOISE_GLSL}
       void main() {
         vec3 v = normalize(cameraPosition - vWorld);
         float fres = 1.0 - abs(dot(normalize(vN), v));
-        float flick = sh_noise(vWorld * 9.0 + vec3(0.0, -uTime * 6.0, 0.0));
+        float flick = sh_noise(vWorld * 7.0 + vec3(uSeed, -uTime * 5.0, uTime));
         ${
-          mode === 'ink'
-            ? `// Ink flame: black body, tongues eaten away at the edge, a faint violet seam.
-        if (fres * (0.8 + 0.6 * flick) > 0.55 + 0.45 * vFlame) discard;
-        vec3 col = mix(uCore, uFlame * 0.5, pow(fres, 2.0) * flick);
-        gl_FragColor = vec4(col, 1.0);`
-            : `// Violet lip: an additive halo behind the ink, flickering like flame.
-        float a = pow(fres, 1.6) * smoothstep(0.25, 0.9, vFlame + flick * 0.4);
-        gl_FragColor = vec4(mix(uFlame, uLip, flick) * a * 1.4, a);`
+          mode === 'core'
+            ? `// Solid void ball with a cracked violet seam — not soft smoke.
+        float crack = step(0.62, fres * (0.7 + 0.5 * flick));
+        vec3 col = mix(uCore, uFlame, pow(fres, 1.4) * (0.35 + 0.4 * flick));
+        col = mix(col, uLip, crack * 0.55);
+        gl_FragColor = vec4(col, 0.95);`
+            : `// Additive corona shell — hot, hard-edged energy.
+        float a = pow(fres, 1.2) * smoothstep(0.15, 0.95, fres + flick * 0.35);
+        gl_FragColor = vec4(mix(uFlame, uLip, flick) * a * 1.8, a);`
         }
         #include <colorspace_fragment>
       }
@@ -74,28 +60,24 @@ function flameMaterial(mode: 'ink' | 'lip'): THREE.ShaderMaterial {
   });
 }
 
-/** A shadowball's look: an ink-flame core with a violet lip. Used for flying balls and the orb in hand. */
+/** Projectile look: hard void core + bright corona (separate from body wisps). */
 class BallVisual {
   readonly group = new THREE.Group();
-  private readonly ink = flameMaterial('ink');
-  private readonly lip = flameMaterial('lip');
+  private readonly coreMat = orbMaterial('core');
+  private readonly coronaMat = orbMaterial('corona');
 
   constructor(geo: THREE.BufferGeometry) {
-    const ink = new THREE.Mesh(geo, this.ink);
-    const lip = new THREE.Mesh(geo, this.lip);
-    lip.scale.setScalar(1.25);
-    lip.renderOrder = 3;
-    this.group.add(ink, lip);
-    this.ink.uniforms.uSeed.value = this.lip.uniforms.uSeed.value = Math.random() * 50;
+    const core = new THREE.Mesh(geo, this.coreMat);
+    const corona = new THREE.Mesh(geo, this.coronaMat);
+    corona.scale.setScalar(1.35);
+    corona.renderOrder = 4;
+    this.group.add(core, corona);
   }
 
-  set(time: number, radius: number, dir: THREE.Vector3, tail: number): void {
+  set(time: number, radius: number, _dir: THREE.Vector3, _tail: number): void {
     this.group.scale.setScalar(radius);
-    for (const m of [this.ink, this.lip]) {
-      m.uniforms.uTime.value = time;
-      m.uniforms.uDir.value.copy(dir);
-      m.uniforms.uTail.value = tail;
-    }
+    this.coreMat.uniforms.uTime.value = time;
+    this.coronaMat.uniforms.uTime.value = time;
   }
 }
 
@@ -141,7 +123,7 @@ export interface ImpactEvent {
 
 /**
  * Pooled shadowball projectiles: flight with slight gravity, swept hits against the world boxes
- * and the dummies, black-flame visuals, smoke trails, impact bursts and scorch decals.
+ * and the dummies, particle-essence visuals, smoke trails, impact bursts and scorch decals.
  */
 export class Shadowballs {
   /** Orbs held in the palms (left, right, dual); positioned by SpellHands. */
@@ -206,7 +188,7 @@ export class Shadowballs {
       this.lights.push(light);
     }
     const burstMat = (): THREE.MeshBasicMaterial =>
-      new THREE.MeshBasicMaterial({ color: 0x08040f, transparent: true, opacity: 0.8, depthWrite: false });
+      new THREE.MeshBasicMaterial({ color: 0x06070c, transparent: true, opacity: 0.75, depthWrite: false });
     for (let i = 0; i < 6; i++) {
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), burstMat());
       mesh.visible = false;
@@ -226,7 +208,13 @@ export class Shadowballs {
       scene.add(mesh);
       this.decals.push({ mesh, age: Infinity });
     }
-    this.smoke = new ShadowWisps(scene, { count: 900, smokeColor: 0x1a1428, emberColor: WEAPON.lipColor, emberChance: 0.08 });
+    // Trail palette is weapon energy, not body ash — keeps balls separable.
+    this.smoke = new ShadowWisps(scene, {
+      count: 1000,
+      smokeColor: WEAPON.trailSmoke,
+      emberColor: WEAPON.lipColor,
+      emberChance: 0.22,
+    });
   }
 
   /** Compiles every combat shader up front so the first throw doesn't hitch. */
@@ -255,10 +243,14 @@ export class Shadowballs {
     if (!pos) return;
     orb.group.position.copy(pos);
     orb.set(this.time, radius, this.dir.set(0, 1, 0), 0.6);
-    // The gathered shadow smokes off the hand.
-    if (Math.random() < 0.25 + heat) {
-      this.smoke.emitAt(pos, velocity, 1, { inherit: 0.8, spread: radius, scale: 0.35 + heat * 0.6, life: 0.6 });
-    }
+    // Charging sparks — bright trail embers, not body ash.
+    const n = Math.max(1, Math.round(1 + heat * 3));
+    this.smoke.emitAt(pos, velocity, n, {
+      inherit: 0.7,
+      spread: radius * (0.45 + heat * 0.35),
+      scale: 0.35 + heat * 0.45,
+      life: 0.4 + heat * 0.2,
+    });
   }
 
   /** A small puff where a spell fizzled out. */
@@ -338,12 +330,12 @@ export class Shadowballs {
       ball.light.position.copy(ball.pos);
       ball.light.intensity = 3 + 6 * ball.power;
     }
-    // Black smoke streams behind.
-    this.smoke.emitAt(ball.pos, ball.vel, Math.max(1, Math.round(dt * (70 + 90 * ball.power))), {
-      inherit: 0.08,
-      spread: ball.radius * 0.8,
-      scale: 0.5 + ball.power * 0.8,
-      life: 0.7,
+    // Magenta energy trail behind the hard orb (lighter than body smoke).
+    this.smoke.emitAt(ball.pos, ball.vel, Math.max(1, Math.round(dt * (90 + 110 * ball.power))), {
+      inherit: 0.05,
+      spread: ball.radius * 0.55,
+      scale: 0.35 + ball.power * 0.5,
+      life: 0.55,
     });
   }
 
@@ -359,18 +351,18 @@ export class Shadowballs {
     const splash = this.dummies.splash(point, splashR, damage, dummy);
     this.stats.dummyHits += splash.length;
 
-    // Burst: an inky shockwave + a puff of black smoke and violet sparks.
+    // Burst: ink shockwave + ash cloud with cool violet motes.
     const burst = this.bursts.reduce((a, b) => (a.age / a.life > b.age / b.life ? a : b));
     burst.mesh.position.copy(point);
     burst.age = 0;
     burst.life = 0.22 + 0.2 * charge;
     burst.size = Math.max(0.5, splashR) * (0.8 + 0.4 * charge);
     burst.mesh.visible = true;
-    this.smoke.emitAt(point, this.zero, 24 + Math.round(50 * charge), {
+    this.smoke.emitAt(point, this.zero, 32 + Math.round(60 * charge), {
       inherit: 0,
-      spread: 0.1 + 0.3 * charge,
-      burst: 2 + 3.5 * charge,
-      scale: 0.8 + charge,
+      spread: 0.12 + 0.35 * charge,
+      burst: 2.2 + 3.8 * charge,
+      scale: 0.85 + charge,
     });
     if (normal) this.placeDecal(point, normal, 0.5 + 1.1 * charge);
 
@@ -449,7 +441,7 @@ export class Shadowballs {
     return n;
   }
 
-  /** Jagged dark splat with violet-burnt edges. */
+  /** Jagged ink splat with cool ash edges. */
   private makeScorchTexture(): THREE.CanvasTexture {
     const size = 128;
     const canvas = document.createElement('canvas');
@@ -463,9 +455,9 @@ export class Shadowballs {
       c.lineTo(cx + Math.cos(a) * r, cx + Math.sin(a) * r);
     }
     const grad = c.createRadialGradient(cx, cx, 0, cx, cx, size * 0.46);
-    grad.addColorStop(0, 'rgba(2,1,6,0.95)');
-    grad.addColorStop(0.6, 'rgba(10,4,20,0.85)');
-    grad.addColorStop(0.85, 'rgba(70,30,120,0.35)');
+    grad.addColorStop(0, 'rgba(2,2,4,0.95)');
+    grad.addColorStop(0.55, 'rgba(8,8,14,0.88)');
+    grad.addColorStop(0.82, 'rgba(40,36,70,0.3)');
     grad.addColorStop(1, 'rgba(0,0,0,0)');
     c.fillStyle = grad;
     c.fill();

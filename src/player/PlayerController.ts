@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLAYER, SHADOW_MOVE } from '../config';
+import { CAMERA, PLAYER, SHADOW_MOVE, type CameraMode } from '../config';
 import { AUTOTEST } from '../debug/TestHooks';
 
 /** Keys whose default browser behaviour (sticky keys, scrolling, focus change) must be suppressed. */
@@ -36,6 +36,20 @@ export class PlayerController {
   stamina: number = SHADOW_MOVE.staminaMax;
   /** True while actually sprinting this frame (either profile). */
   sprintActive = false;
+  /**
+   * In TP the mouse drives the orbit camera instead of the body: movement is relative to
+   * orbitYaw and `yaw` (body facing) turns towards the move direction, or the aim while `aiming`.
+   */
+  cameraMode: CameraMode = 'fp';
+  orbitPitch = 0;
+  /**
+   * Autotest `view()`: holds the orbit at this yaw offset from the body and moves relative to
+   * the body, like a body-locked camera. Any orbit look (mouse, `orbitLook`) clears it.
+   */
+  orbitLock: number | null = null;
+  private freeOrbitYaw: number = PLAYER.spawnYaw;
+  /** Set each frame by the game: a spell hand is busy, so the body faces the camera. */
+  aiming = false;
 
   onRecall: (() => void) | null = null;
   /** Mouse buttons by hand: 0 = left hand (LMB), 1 = right hand (RMB). */
@@ -43,6 +57,8 @@ export class PlayerController {
   onHandRelease: ((hand: 0 | 1) => void) | null = null;
   /** Q: switch between the runner and shadow forms. */
   onFormToggle: (() => void) | null = null;
+  /** T: toggle first-person / third-person camera. */
+  onCameraToggle: (() => void) | null = null;
   onJump: (() => void) | null = null;
   onRespawn: (() => void) | null = null;
   onSlide: (() => void) | null = null;
@@ -57,6 +73,7 @@ export class PlayerController {
   /** Visual-only camera offset that smooths out stair step-ups. */
   private stepSmooth = 0;
   private readonly wish = new THREE.Vector3();
+  private hasMoveInput = false;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -139,6 +156,7 @@ export class PlayerController {
     if (code === 'KeyC') this.slideBuffer = PLAYER.slideBuffer;
     if (code === 'KeyE') this.onRecall?.();
     if (code === 'KeyQ') this.onFormToggle?.();
+    if (code === 'KeyT') this.onCameraToggle?.();
     if (code === 'Mouse0') this.onHandPress?.(0);
     if (code === 'Mouse2') this.onHandPress?.(1);
   }
@@ -165,10 +183,42 @@ export class PlayerController {
     if (!this.isLocked() || !this.enabled) return;
     // Drop occasional bogus spikes some browsers emit on pointer-lock transitions.
     if (Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;
+    if (this.cameraMode === 'tp') {
+      this.orbitLook(
+        this.orbitYaw - e.movementX * PLAYER.mouseSensitivity,
+        this.orbitPitch - e.movementY * PLAYER.mouseSensitivity,
+      );
+      return;
+    }
     this.yaw -= e.movementX * PLAYER.mouseSensitivity;
     this.pitch -= e.movementY * PLAYER.mouseSensitivity;
     this.pitch = THREE.MathUtils.clamp(this.pitch, -PLAYER.maxPitch, PLAYER.maxPitch);
   };
+
+  get orbitYaw(): number {
+    return this.orbitLock === null ? this.freeOrbitYaw : this.yaw + this.orbitLock;
+  }
+
+  /** Sets the TP orbit angles (pitch clamped to the orbit range). */
+  orbitLook(yaw: number, pitch: number): void {
+    const tp = CAMERA.thirdPerson;
+    this.orbitLock = null;
+    this.freeOrbitYaw = yaw;
+    this.orbitPitch = THREE.MathUtils.clamp(pitch, tp.minPitch, tp.maxPitch);
+  }
+
+  /** Switches the look scheme, carrying the view direction across so it doesn't jump. */
+  setCameraMode(mode: CameraMode): void {
+    if (mode === this.cameraMode) return;
+    this.cameraMode = mode;
+    if (mode === 'tp') {
+      this.orbitLook(this.yaw, CAMERA.thirdPerson.enterPitch);
+    } else {
+      this.yaw = this.orbitYaw;
+      this.pitch = THREE.MathUtils.clamp(this.orbitPitch, -PLAYER.maxPitch, PLAYER.maxPitch);
+      this.orbitLock = null;
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Simulation
@@ -180,6 +230,11 @@ export class PlayerController {
     const steps = Math.max(1, Math.ceil(frameDt / PLAYER.maxSubstep));
     const h = frameDt / steps;
     for (let i = 0; i < steps; i++) this.step(h);
+    if (this.cameraMode === 'tp' && this.orbitLock === null) {
+      this.turnBody(frameDt);
+      // The rig's head / casting arms follow the camera's pitch.
+      this.pitch = THREE.MathUtils.clamp(this.orbitPitch, -PLAYER.maxPitch, PLAYER.maxPitch);
+    }
 
     this.jumpBuffer = Math.max(0, this.jumpBuffer - frameDt);
     this.slideBuffer = Math.max(0, this.slideBuffer - frameDt);
@@ -189,16 +244,29 @@ export class PlayerController {
     if (this.feet.y < PLAYER.respawnY) this.respawn();
   }
 
+  /** TP: turns the body towards the aim (while casting) or the move direction, at a capped rate. */
+  private turnBody(dt: number): void {
+    let target: number;
+    if (this.aiming) target = this.orbitYaw;
+    else if (this.hasMoveInput) target = Math.atan2(-this.wish.x, -this.wish.z);
+    else return;
+    const diff = THREE.MathUtils.euclideanModulo(target - this.yaw + Math.PI, Math.PI * 2) - Math.PI;
+    const max = CAMERA.thirdPerson.turnRate * dt;
+    this.yaw += THREE.MathUtils.clamp(diff, -max, max);
+  }
+
   private step(h: number): void {
-    // Wish direction from WASD relative to yaw.
+    // Wish direction from WASD relative to yaw (the orbit camera's yaw in TP).
     const fwd = (this.keys.has('KeyW') ? 1 : 0) - (this.keys.has('KeyS') ? 1 : 0);
     const strafe = (this.keys.has('KeyD') ? 1 : 0) - (this.keys.has('KeyA') ? 1 : 0);
-    const sin = Math.sin(this.yaw);
-    const cos = Math.cos(this.yaw);
+    const basis = this.cameraMode === 'tp' && this.orbitLock === null ? this.orbitYaw : this.yaw;
+    const sin = Math.sin(basis);
+    const cos = Math.cos(basis);
     // forward = (-sin, 0, -cos), right = (cos, 0, -sin)
     this.wish.set(-sin * fwd + cos * strafe, 0, -cos * fwd - sin * strafe);
     const hasInput = this.wish.lengthSq() > 0;
     if (hasInput) this.wish.normalize();
+    this.hasMoveInput = hasInput;
 
     if (this.profile === 'shadow') {
       this.stepShadow(h, hasInput, fwd);

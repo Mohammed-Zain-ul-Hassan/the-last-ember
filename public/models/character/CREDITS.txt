@@ -9,3 +9,9 @@ Bound in Blender to the UAL armature; vessel tinted dark purple in-game via CHAR
 
 Previous mannequin-only build backed up as shadow.glb.bak.
 Rebuild animations-only packs with: node scripts/build-character.mjs <UAL1_Standard.glb> <UAL2_Standard.glb>
+
+wraith.glb: "Ghostly Reaper" by kalebiscoolio78 on Sketchfab
+License: CC Attribution — https://creativecommons.org/licenses/by/4.0/
+https://sketchfab.com/3d-models/ghostly-reaper-d5b4e79acd684d52a1f3303edf22039b
+
+Cleaned in Blender (scale ~1.75 m, custom armature, Float_Loop idle, W_Body / W_Accent materials).

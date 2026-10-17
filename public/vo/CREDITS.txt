@@ -1,0 +1,5 @@
+Character voice lines generated with ElevenLabs (https://elevenlabs.io) text-to-speech.
+Model: eleven_multilingual_v2, format mp3_44100_128. Regenerate with: npm run vo:fetch
+
+runner: ElevenLabs library voice "Daniel - Steady Broadcaster".
+shadow: ElevenLabs library voice "Callum - Husky Trickster".

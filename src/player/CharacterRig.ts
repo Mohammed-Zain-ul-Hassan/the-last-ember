@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { CHARACTER, PLAYER, SHADOW } from '../config';
+import { CHARACTER, PLAYER, SHADOW, type CameraMode } from '../config';
 import type { MoveState } from './PlayerController';
 import { createVesselMaterials, type VesselUniforms } from './VesselMaterial';
 import { ShadowWraith } from './ShadowWraith';
@@ -12,8 +12,11 @@ export type Form = 'runner' | 'shadow';
 export interface RigInput {
   /** Feet position of the physics controller (world space). */
   feet: THREE.Vector3;
-  /** Camera (eye) position including head bob; the hands are solved relative to it. */
+  /** FP eye position including head bob; hands / spells aim from here. */
   eye: THREE.Vector3;
+  /** Render-camera position for near-eye dissolve (matches FP eye in first person). */
+  viewEye: THREE.Vector3;
+  cameraMode: CameraMode;
   yaw: number;
   pitch: number;
   velocity: THREE.Vector3;
@@ -47,7 +50,7 @@ const SLIDE_LOOP_FADE = 0.15;
 
 /**
  * The player's body for the first-person view: the runner vessel (an animated mannequin) or,
- * in shadow form, the procedural ShadowWraith.
+ * in shadow form, the dedicated wraith GLB (ShadowWraith).
  *
  * The physics controller owns position; this class only presents it:
  *  - clips (idle / walk / jog / sprint / crouch / slide / air / land) blended by state and
@@ -56,7 +59,7 @@ const SLIDE_LOOP_FADE = 0.15;
  *  - root "head-locked" under the camera, pushed back so the chest always stays behind the lens
  *  - spine follows camera pitch; hands pulled towards camera-space targets with IK and kept
  *    out of walls
- *  - shadow form hands everything to the wraith (its own body, arms, smoke and float)
+ *  - shadow form hands everything to the wraith (GLB idle, casting IK, accent wisps, float)
  */
 export class CharacterRig {
   readonly root = new THREE.Group();
@@ -80,9 +83,11 @@ export class CharacterRig {
   private spine: THREE.Object3D[] = [];
   private arms: Array<{ side: 1 | -1; upper: THREE.Object3D; fore: THREE.Object3D; hand: THREE.Object3D }> = [];
   private feet: Array<{ bone: THREE.Object3D; armed: boolean }> = [];
-  private drawnMeshes: THREE.SkinnedMesh[] = [];
+  private fpMeshes: THREE.SkinnedMesh[] = [];
+  private tpMeshes: THREE.SkinnedMesh[] = [];
   private vessel: { forSlot: (name: string) => THREE.MeshStandardMaterial; uniforms: VesselUniforms } | null = null;
   private form: Form = 'runner';
+  private cameraMode: CameraMode = 'fp';
   private readonly wraith: ShadowWraith;
 
   private time = 0;
@@ -139,9 +144,10 @@ export class CharacterRig {
     return this.loaded;
   }
 
-  /** Meshes drawn to the first-person camera (playtest metrics). */
+  /** Meshes drawn for the active camera mode (playtest metrics). */
   get visibleMeshes(): THREE.Mesh[] {
-    return this.form === 'shadow' ? this.wraith.armMeshes : this.drawnMeshes;
+    if (this.form === 'shadow') return this.wraith.visibleMeshes;
+    return this.cameraMode === 'tp' ? this.tpMeshes : this.fpMeshes;
   }
 
   /** [left, right] spell anchors above the wraith's palms. */
@@ -154,6 +160,21 @@ export class CharacterRig {
     this.form = form;
     this.model.visible = form === 'runner';
     this.wraith.setVisible(form === 'shadow');
+    this.applyMeshVisibility();
+  }
+
+  /** First-person vs third-person body presentation (trimmed vs full mesh, head-lock). */
+  setCameraMode(mode: CameraMode): void {
+    this.cameraMode = mode;
+    this.wraith.setCameraMode(mode);
+    this.applyMeshVisibility();
+  }
+
+  private applyMeshVisibility(): void {
+    const runnerOn = this.form === 'runner';
+    const tp = this.cameraMode === 'tp';
+    for (const m of this.fpMeshes) m.visible = runnerOn && !tp;
+    for (const m of this.tpMeshes) m.visible = runnerOn && tp;
   }
 
   /** Compiles both bodies' shaders so the first form switch doesn't hitch. */
@@ -210,6 +231,8 @@ export class CharacterRig {
       this.wraith.update(dt, {
         feet: input.feet,
         eye: input.eye,
+        viewEye: input.viewEye,
+        cameraMode: input.cameraMode,
         yaw: input.yaw,
         pitch: input.pitch,
         velocity: input.velocity,
@@ -276,14 +299,14 @@ export class CharacterRig {
 
     // --- Procedural layers on top of the clips -----------------------------------------
     this.applySpinePitch(input);
-    this.applyHeadLock(input);
+    if (input.cameraMode === 'fp') this.applyHeadLock(input);
     this.applyArmIK(input, air);
     this.detectFootsteps(input);
 
     // --- Look ----------------------------------------------------------------------------
     if (this.vessel) {
       this.vessel.uniforms.uTime.value = this.time;
-      this.vessel.uniforms.uEye.value.copy(input.eye);
+      this.vessel.uniforms.uEye.value.copy(input.viewEye);
     }
     // The runner vessel doesn't smoke; this only drains particles left from the shadow form.
     this.burst = 0;
@@ -638,28 +661,29 @@ export class CharacterRig {
     for (const mesh of meshes) {
       mesh.frustumCulled = false; // skinned bounds don't follow the posed mesh
       const slot = (mesh.material as THREE.Material).name;
-      mesh.material = this.vessel.forSlot(slot);
+      const mat = this.vessel.forSlot(slot);
+      mesh.material = mat;
 
-      // Invisible, shadow-only copy with the full (head included) geometry.
-      const shadowProxy = new THREE.SkinnedMesh(
-        mesh.geometry,
-        new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }),
-      );
-      shadowProxy.frustumCulled = false;
-      shadowProxy.castShadow = true;
-      shadowProxy.bind(mesh.skeleton, mesh.bindMatrix);
-      mesh.parent?.add(shadowProxy);
+      // Third-person: full geometry (head included) with the same vessel material.
+      const tpMesh = new THREE.SkinnedMesh(mesh.geometry, mat);
+      tpMesh.frustumCulled = false;
+      tpMesh.castShadow = true;
+      tpMesh.receiveShadow = true;
+      tpMesh.bind(mesh.skeleton, mesh.bindMatrix);
+      mesh.parent?.add(tpMesh);
+      this.tpMeshes.push(tpMesh);
 
-      // Visible mesh: head and neck removed so the camera never sits inside them.
+      // First-person: head and neck removed so the camera never sits inside them.
       const trimmed = this.removeHiddenTriangles(mesh);
       if (trimmed) {
         mesh.geometry = trimmed;
-        this.drawnMeshes.push(mesh);
+        this.fpMeshes.push(mesh);
       } else mesh.visible = false;
-      mesh.castShadow = false;
+      mesh.castShadow = true;
       mesh.receiveShadow = true;
     }
     this.setForm(this.form);
+    this.applyMeshVisibility();
   }
 
   /** Returns a copy of the mesh geometry without triangles skinned (mostly) to hidden bones. */

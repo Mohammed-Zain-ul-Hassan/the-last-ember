@@ -47,6 +47,8 @@ export class SpellHands {
   readonly stats = { casts: 0, dualCasts: 0, fizzles: 0, refused: 0 };
   /** Fires when a cast was refused for lack of magicka (HUD flash). */
   onRefused: (() => void) | null = null;
+  /** Fires once per ball actually thrown; a dual-cast fires once with dual = true. */
+  onCast: ((dual: boolean) => void) | null = null;
 
   private readonly pressed = [false, false];
   private pending: HandIndex | 'dual' | null = null;
@@ -218,6 +220,7 @@ export class SpellHands {
     if (dual) this.stats.dualCasts++;
     for (const i of dual ? ([0, 1] as const) : [which]) this.setState(this.pose.hands[i], 'release', 0, 1);
     this.pose.dual = false;
+    this.onCast?.(dual);
   }
 
   private isCharging(h: HandPose): boolean {

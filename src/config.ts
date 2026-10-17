@@ -65,7 +65,29 @@ export const CAMERA = {
   speedFov: 8,
   near: 0.03,
   far: 400,
+  /** Third-person free orbit (T toggles): the mouse orbits a pivot above the feet. */
+  thirdPerson: {
+    /** Orbit radius (m) when nothing is in the way. */
+    dist: 3.4,
+    /** Pivot height above the feet and its offset to the camera's right (over the shoulder). */
+    pivotY: 1.45,
+    shoulder: 0.35,
+    minPitch: THREE.MathUtils.degToRad(-70),
+    maxPitch: THREE.MathUtils.degToRad(60),
+    /** Orbit pitch when entering TP (slightly looking down). */
+    enterPitch: -0.15,
+    /** Collision: stop this far before a hit, never closer than minDist; zoom back out at this rate (1/s). Keep minDist below collisionPad-scale gaps or it pushes the camera into walls. */
+    collisionPad: 0.2,
+    minDist: 0.08,
+    zoomOutRate: 5,
+    /** Body turn rate (rad/s) towards the move / aim direction. */
+    turnRate: 10,
+    fov: 55,
+    near: 0.08,
+  },
 } as const;
+
+export type CameraMode = 'fp' | 'tp';
 
 export const COLORS = {
   cyan: 0x00f0ff,
@@ -189,7 +211,7 @@ export const CHARACTER = {
   landKick: 0.12,
 } as const;
 
-/** The ink-and-smoke look of the body. */
+/** The ink-and-smoke look of the shadow essence (particle body + trails). */
 export const SHADOW = {
   baseColor: 0x030407,
   /** Cool mist at the silhouette (no warm tones on the body). */
@@ -206,20 +228,23 @@ export const SHADOW = {
   noiseSpeed: 0.9,
   /** The body dissolves between these distances (m) from the eye. */
   nearFadeStart: 0.14,
-  nearFadeEnd: 0.28,
+  nearFadeEnd: 0.34,
 
-  wispCount: 420,
-  /** Particles per second at rest and added per m/s of speed. */
-  wispRate: 30,
-  wispRatePerSpeed: 16,
-  wispLife: [0.55, 1.15] as const,
-  wispSize: [0.1, 0.42] as const,
-  wispColor: 0x2a3344,
-  emberColor: 0xff8a3a,
-  emberChance: 0.012,
+  /** Dense particle pool for the humanoid shadow cloud. */
+  wispCount: 1400,
+  /** Fallback rates when CharacterRig drains wisps with empty sources. */
+  wispRate: 20,
+  wispRatePerSpeed: 10,
+  wispLife: [0.55, 1.25] as const,
+  wispSize: [0.1, 0.48] as const,
+  /** Near-void ash — denser, blacker silhouette. */
+  wispColor: 0x06070b,
+  /** Rare cold glints in the body (eyes / malice), not ball energy. */
+  emberColor: 0x3a2a66,
+  emberChance: 0.02,
   /** Particles fade out between these distances (m) from the eye. */
-  wispNearStart: 0.12,
-  wispNearEnd: 0.35,
+  wispNearStart: 0.16,
+  wispNearEnd: 0.42,
 } as const;
 
 /** Shadowball: tap to throw, hold to charge. Values lerp from quick (charge 0) to full (charge 1). */
@@ -231,10 +256,15 @@ export const WEAPON = {
   maxRange: 80,
   poolSize: 12,
   lightCount: 4,
-  coreColor: 0x040208,
-  flameColor: 0x3a1460,
-  lipColor: 0x9b4dff,
-  lightColor: 0x7a3cff,
+  /** Hard void core — reads as a sphere, not body smoke. */
+  coreColor: 0x020208,
+  /** Inner seam / energy. */
+  flameColor: 0x5b1fff,
+  /** Bright corona and trail sparks (distinct from body ash). */
+  lipColor: 0xc45bff,
+  lightColor: 0x9b4dff,
+  /** Trail smoke (separate from SHADOW.wispColor). */
+  trailSmoke: 0x1a0a2e,
   decalCount: 16,
   decalLife: 8,
 } as const;
@@ -316,23 +346,53 @@ export const DUMMY = {
   ringColor: 0xff7a2a,
 } as const;
 
-/** The shadow form's own body: a hooded, legless wraith of ink and smoke with long clawed arms. */
+/** Shadow form: dedicated wraith GLB + accent wisps + casting palm anchors. */
 export const WRAITH = {
-  /** Render layer for the cloak/hood: drawn by third-person views and the sun's shadow, not first person. */
+  modelUrl: '/models/character/wraith.glb',
+  /** Yaw (rad) that turns the model to face -Z like the camera. */
+  modelYaw: Math.PI,
+  /** Material slot -> tint (near-black ink + cool violet accent). */
+  colors: { W_Body: 0x05050c, W_Accent: 0x4a2a78 } as Record<string, number>,
+  bones: {
+    hips: 'pelvis',
+    head: 'Head',
+    chest: 'spine_03',
+    /** Trimmed from the FP mesh (everything but forearms + claws); TP keeps full geo. */
+    hidden: [
+      'Head', 'neck_01', 'spine_01', 'spine_02', 'spine_03', 'pelvis',
+      'clavicle_l', 'clavicle_r', 'upperarm_l', 'upperarm_r',
+      'scythe', 'hem_f', 'hem_b', 'hem_l', 'hem_r',
+    ],
+    arms: {
+      left: ['upperarm_l', 'lowerarm_l', 'hand_l'],
+      right: ['upperarm_r', 'lowerarm_r', 'hand_r'],
+    },
+  },
+  clips: { idle: 'Float_Loop' },
+  /** Legacy body layer (kept for arena shadow-camera bookkeeping). */
   bodyLayer: 1,
-  /** Hover height (m) of the hem above the floor, and the float bob. */
+  /** Hover height (m) of the hem above the floor. Float_Loop carries the body bob. */
   hover: 0.1,
+  /** Camera bob (m) phase-locked to Float_Loop. */
   bobAmp: 0.035,
-  bobHz: 0.55,
+  /** Arm IK weight: idle in FP (holds forearms in frame), and blend-in/out rate (1/s). */
+  fpIdleIk: 1,
+  /** FP idle wrist target in camera space (side-mirrored x, up, forward). */
+  fpIdleHand: [0.25, -0.2, 0.55] as const,
+  ikBlendRate: 9,
+  /** FP head-lock: shoulders just behind the lens (FP mesh is forearms + claws only). */
+  cameraBackOffset: 0.14,
+  chestClearance: 0,
+  chestRadius: 0.22,
   /** Shoulders relative to the feet (m): sideways, up, forward. */
   shoulder: [0.2, 1.36, 0.02] as const,
   upperArm: 0.34,
   foreArm: 0.36,
-  /** Claw length (m) and how far they curl when relaxed. */
+  /** Kept for stance curl targets. */
   claw: 0.12,
   relaxedCurl: 0.35,
-  eyeColor: 0x9b4dff,
-  /** Smoke from the hem: particles per second at rest and per m/s. */
-  hemSmoke: 34,
-  hemSmokePerSpeed: 22,
+  eyeColor: 0x6a5cff,
+  /** Accent wisps per second at rest and per m/s of glide (model carries the silhouette). */
+  hemSmoke: 36,
+  hemSmokePerSpeed: 18,
 } as const;

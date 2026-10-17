@@ -8,7 +8,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "playtest": "node scripts/playtest.mjs",
-    "sfx:fetch": "node scripts/fetch-sfx.mjs"
+    "sfx:fetch": "node scripts/fetch-sfx.mjs",
+    "music:fetch": "node scripts/fetch-music.mjs",
+    "vo:fetch": "node scripts/fetch-vo.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"

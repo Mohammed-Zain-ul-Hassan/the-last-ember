@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CAMERA, COLORS, PLAYER, SHADOW_MOVE, SPELL } from './config';
 import { SoundSynth } from './fx/SoundSynth';
+import { BackgroundMusic } from './fx/BackgroundMusic';
+import { VoiceLines } from './fx/VoiceLines';
 import { ChronoFX } from './fx/ChronoFX';
 import { Arena } from './world/Arena';
 import { BreadcrumbTrail } from './world/BreadcrumbTrail';
@@ -15,6 +17,7 @@ import { SpellHands } from './combat/SpellHands';
 import { DamageNumbers } from './ui/DamageNumbers';
 import { FormController } from './player/FormController';
 import { FormHud } from './ui/FormHud';
+import { OrbitCamera } from './player/OrbitCamera';
 
 // --- Renderer / scene / camera ------------------------------------------------
 const container = document.getElementById('app')!;
@@ -47,6 +50,9 @@ const dummies = new TrainingDummies(scene, arena.colliders);
 const trail = new BreadcrumbTrail(scene);
 const recall = new RecallSystem();
 const sound = new SoundSynth();
+const music = new BackgroundMusic(sound);
+const voice = new VoiceLines(sound);
+voice.bindMusic(music);
 const chrono = new ChronoFX(camera);
 const player = new PlayerController(camera, renderer.domElement, arena.colliders);
 const character = new CharacterRig(scene, arena.colliders);
@@ -55,15 +61,31 @@ const spells = new SpellHands(balls, worldColliders, dummies, sound);
 const damageNumbers = new DamageNumbers();
 const forms = new FormController();
 const formHud = new FormHud();
+const orbit = new OrbitCamera(arena.colliders);
 balls.warmup(renderer, scene, camera);
 
 const testHooks = AUTOTEST
-  ? new TestHooks({ player, character, recall, arena, camera, sound, spells, forms, balls, dummies, damageNumbers })
+  ? new TestHooks({
+      player,
+      character,
+      recall,
+      arena,
+      camera,
+      sound,
+      music,
+      spells,
+      forms,
+      balls,
+      dummies,
+      damageNumbers,
+      orbit,
+    })
   : null;
 if (AUTOTEST) document.getElementById('blocker')?.classList.add('hidden');
 
 const overlay = new SimpleOverlay(() => {
   sound.unlock();
+  music.start();
   requestLock(renderer.domElement);
 });
 
@@ -94,6 +116,11 @@ player.onRecall = () => {
 player.onFormToggle = () => {
   if (player.enabled) forms.toggle();
 };
+player.onCameraToggle = () => {
+  if (!player.enabled) return;
+  const mode = orbit.toggle();
+  character.setCameraMode(mode);
+};
 forms.onStart = (to) => {
   spells.cancel();
   sound.formShift(to === 'shadow');
@@ -104,6 +131,7 @@ forms.onSwap = (to) => {
   player.setProfile(to);
   character.setForm(to);
   spells.enabled = to === 'shadow';
+  voice.play(to, 'swap');
 };
 // Spells: LMB = left hand, RMB = right hand (shadow form only).
 player.onHandPress = (hand) => {
@@ -111,6 +139,7 @@ player.onHandPress = (hand) => {
 };
 player.onHandRelease = (hand) => spells.release(hand);
 spells.onRefused = () => formHud.flashMagicka();
+spells.onCast = (dual) => voice.play('shadow', dual ? 'dual' : 'throw');
 
 balls.onImpact = (e) => {
   sound.impact(e.power, e.point.distanceTo(camera.position));
@@ -123,7 +152,10 @@ balls.onImpact = (e) => {
   }
 };
 
-recall.onStart = () => sound.recallStart();
+recall.onStart = () => {
+  sound.recallStart();
+  voice.play(forms.form, 'recall');
+};
 recall.onLand = (pose) => {
   player.teleport(pose.position, pose.yaw, pose.pitch);
   player.enabled = true;
@@ -153,6 +185,7 @@ function onResize(): void {
   const h = window.innerHeight;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  orbit.setAspect(w / h);
   renderer.setSize(w, h);
   trail.setViewport(h * renderer.getPixelRatio(), CAMERA.baseFov);
   character.setViewport(h * renderer.getPixelRatio(), CAMERA.baseFov);
@@ -171,6 +204,8 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
 
+  player.setCameraMode(orbit.mode);
+  player.aiming = forms.form === 'shadow' && spells.pose.hands.some((h) => h.state !== 'idle');
   if (player.isLocked()) {
     simTime += dt * 1000;
     player.update(dt);
@@ -193,10 +228,11 @@ renderer.setAnimationLoop(() => {
   sound.setDrift(forms.form === 'shadow' && player.isLocked() && recall.state !== 'recalling' ? player.speed : -1);
 
   player.syncCamera(character.headBobY, character.headRoll);
+  const viewCam = orbit.update(player, camera, dt);
   trail.update(recall, simTime);
   // Sense of speed: the runner's view widens as sprint momentum builds (Skyrim's FOV stays fixed).
   const fast =
-    player.profile === 'runner'
+    player.profile === 'runner' && orbit.mode === 'fp'
       ? THREE.MathUtils.clamp((player.speed - PLAYER.walkSpeed) / (PLAYER.topSpeed - PLAYER.walkSpeed), 0, 1)
       : 0;
   speedFov += (fast * CAMERA.speedFov - speedFov) * Math.min(1, dt * 4);
@@ -212,6 +248,8 @@ renderer.setAnimationLoop(() => {
     character.update(dt, {
       feet: player.feet,
       eye: camera.position,
+      viewEye: viewCam.position,
+      cameraMode: orbit.mode,
       yaw: player.yaw,
       pitch: player.pitch,
       velocity: v,
@@ -229,16 +267,21 @@ renderer.setAnimationLoop(() => {
     });
   }
 
-  // Spells leave from the palms as posed this frame.
+  // Spells leave from the palms as posed this frame, towards whatever is under the crosshair
+  // of the view camera (FP eye, or the orbit camera in TP).
   if (player.isLocked()) {
-    const cp = Math.cos(player.pitch);
-    forward.set(-Math.sin(player.yaw) * cp, Math.sin(player.pitch), -Math.cos(player.yaw) * cp);
-    spells.lateUpdate(character.spellHands, camera.position, forward, player.velocity);
+    if (orbit.mode === 'tp') {
+      orbit.getForward(forward);
+    } else {
+      const cp = Math.cos(player.pitch);
+      forward.set(-Math.sin(player.yaw) * cp, Math.sin(player.pitch), -Math.cos(player.yaw) * cp);
+    }
+    spells.lateUpdate(character.spellHands, viewCam.position, forward, player.velocity);
     balls.update(dt);
   }
-  dummies.update(dt, camera);
-  damageNumbers.update(dt, camera);
+  dummies.update(dt, viewCam);
+  damageNumbers.update(dt, viewCam);
 
-  renderer.render(scene, testHooks?.viewCamera(camera) ?? camera);
-  testHooks?.update();
+  renderer.render(scene, viewCam);
+  testHooks?.update(viewCam);
 });

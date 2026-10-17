@@ -555,6 +555,11 @@ export class SoundSynth {
     return this.drift?.level ?? 0;
   }
 
+  /** The context and master bus once unlock() has created them (voice lines route here). */
+  get audio(): { ctx: AudioContext; master: GainNode } | null {
+    return this.ctx && this.master ? { ctx: this.ctx, master: this.master } : null;
+  }
+
   /** Taps the master bus (playtest metering). */
   meter(): AnalyserNode | null {
     if (!this.ctx || !this.master) return null;

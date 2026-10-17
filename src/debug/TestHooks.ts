@@ -9,6 +9,7 @@ import type { FormController } from '../player/FormController';
 import type { Shadowballs } from '../combat/Shadowballs';
 import type { TrainingDummies } from '../world/TrainingDummies';
 import type { DamageNumbers } from '../ui/DamageNumbers';
+import { OrbitCamera } from '../player/OrbitCamera';
 
 /** True when the page was opened with `?autotest`: scripted input, no pointer lock needed. */
 export const AUTOTEST = new URLSearchParams(window.location.search).has('autotest');
@@ -60,11 +61,13 @@ interface Deps {
   arena: Arena;
   camera: THREE.PerspectiveCamera;
   sound: SoundSynth;
+  music?: { start: () => void };
   spells: SpellHands;
   forms: FormController;
   balls: Shadowballs;
   dummies: TrainingDummies;
   damageNumbers: DamageNumbers;
+  orbit: OrbitCamera;
 }
 
 /**
@@ -80,22 +83,15 @@ export class TestHooks {
   private frames = 0;
   private fpsT0 = performance.now();
   private fps = 0;
-  /** Third-person debug view: orbit offset around the player, or null for first person. */
-  private orbit: { dist: number; yaw: number; height: number } | null = null;
-  private readonly debugCam = (() => {
-    // Third-person views also see bodies hidden from first person (the wraith's cloak).
-    const c = new THREE.PerspectiveCamera(50, 1, 0.05, 200);
-    c.layers.enableAll();
-    return c;
-  })();
-
   private audioBuf: Float32Array<ArrayBuffer> | null = null;
   private peak = 0;
   private maxY = -Infinity;
+  private viewCam: THREE.Camera | null = null;
 
   constructor(private readonly d: Deps) {
     // Needs Chrome's --autoplay-policy=no-user-gesture-required; harmless without it.
     d.sound.unlock();
+    d.music?.start();
     (window as unknown as { __game: unknown }).__game = {
       ...d,
       setKeys: (codes: string[]) => d.player.setTestKeys(codes),
@@ -132,10 +128,27 @@ export class TestHooks {
           x.downTimer = 0;
         }
       },
-      /** Orbit camera (dist m, yaw deg relative to the body's facing, height m) or null. */
+      /**
+       * Orbit camera (dist m, yaw deg relative to the body's facing — 180 = directly behind,
+       * 150 ≈ over the shoulder — and camera height m above the feet) or null for FP.
+       * The orbit stays locked to the body until `orbitLook` frees it.
+       */
       view: (dist: number | null, yawDeg = 150, height = 1.2) => {
-        this.orbit = dist === null ? null : { dist, yaw: THREE.MathUtils.degToRad(yawDeg), height };
+        d.orbit.setDebugView(dist);
+        d.player.setCameraMode(d.orbit.mode);
+        if (dist !== null) {
+          d.player.orbitLook(d.player.yaw, OrbitCamera.pitchForHeight(dist, height));
+          d.player.orbitLock = THREE.MathUtils.degToRad(yawDeg) - Math.PI;
+        }
+        d.character.setCameraMode(d.orbit.mode);
       },
+      setCameraMode: (mode: 'fp' | 'tp') => {
+        d.orbit.setMode(mode);
+        d.player.setCameraMode(mode);
+        d.character.setCameraMode(mode);
+      },
+      /** Free TP orbit angles (rad; positive pitch looks up); unlocks a `view()` orbit. */
+      orbitLook: (yaw: number, pitch: number) => d.player.orbitLook(yaw, pitch),
       /** Loudest master-bus RMS since the last call, then resets. */
       takePeak: () => {
         const p = this.peak;
@@ -151,25 +164,9 @@ export class TestHooks {
     };
   }
 
-  /** The camera to render with: the game camera, or the orbiting debug camera. */
-  viewCamera(camera: THREE.PerspectiveCamera): THREE.Camera {
-    if (!this.orbit) return camera;
-    const { player } = this.d;
-    const a = player.yaw + this.orbit.yaw;
-    const c = this.debugCam;
-    c.aspect = camera.aspect;
-    c.updateProjectionMatrix();
-    c.position.set(
-      player.feet.x - Math.sin(a) * this.orbit.dist,
-      player.feet.y + this.orbit.height,
-      player.feet.z - Math.cos(a) * this.orbit.dist,
-    );
-    c.lookAt(player.feet.x, player.feet.y + 0.9, player.feet.z);
-    return c;
-  }
-
   /** Called once per frame after rendering. */
-  update(): void {
+  update(viewCam?: THREE.Camera): void {
+    this.viewCam = viewCam ?? this.d.camera;
     this.frames++;
     const now = performance.now();
     if (now - this.fpsT0 >= 500) {
@@ -215,10 +212,14 @@ export class TestHooks {
 
   private sample(): FrameMetrics {
     const { player, character, arena, camera } = this.d;
-    camera.updateMatrixWorld();
-    this.pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    const cam = this.viewCam ?? camera;
+    cam.updateMatrixWorld();
+    this.pv.multiplyMatrices(
+      (cam as THREE.PerspectiveCamera).projectionMatrix,
+      cam.matrixWorldInverse,
+    );
     this.frustum.setFromProjectionMatrix(this.pv);
-    const eye = camera.position;
+    const eye = cam.position;
     const fade = character.nearFadeRadius;
 
     let near10 = 0;
