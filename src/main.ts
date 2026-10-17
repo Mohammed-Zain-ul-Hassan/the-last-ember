@@ -338,6 +338,8 @@ function journeyEvents(): void {
 function furthest(): number {
   return Math.min(reached(), CHAPTERS.length - 1);
 }
+/** TEMPORARY, for reviewing: every level can be chosen from the menu. Set false (or delete) before shipping. */
+const UNLOCK_ALL = true;
 
 // ------------------------------------------------------------------ input
 initInput(stage.renderer.domElement);
@@ -405,7 +407,7 @@ function pause(): void {
 const menu = new Menu({
   settings,
   levels: () =>
-    CHAPTERS.map((c, i) => ({ roman: c.roman, clock: c.clock, title: c.title, place: LEVELS[c.level].name, best: bestFor(c.id)?.grade, locked: i > furthest() })),
+    CHAPTERS.map((c, i) => ({ roman: c.roman, clock: c.clock, title: c.title, place: LEVELS[c.level].name, best: bestFor(c.id)?.grade, locked: !UNLOCK_ALL && i > furthest() })),
   canContinue: () => (furthest() > 0 ? `Level ${furthest() + 1}  ·  ${CHAPTERS[furthest()].title}` : null),
   context: () => levelTitle(chapterIndex),
   begin: () => goLevel(0),
