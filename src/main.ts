@@ -28,6 +28,7 @@ const glowTex = glowTexture();
 import { botInput } from './sim/bot';
 import { NO_INPUT, World, type Input, type WorldOpts } from './sim/world';
 import { Hud } from './ui/hud';
+import { initCursor, wantCursorHidden } from './ui/cursor';
 import { WorldUi } from './ui/worldUi';
 
 const params = new URLSearchParams(location.search);
@@ -442,6 +443,10 @@ function furthest(): number {
 
 // ------------------------------------------------------------------ input
 initInput(stage.renderer.domElement);
+// the cursor hides (and the pointer locks) while the game is played; Esc releases it and pauses
+initCursor(stage.renderer.domElement, () => {
+  if (mode !== 'title' && mode !== 'paused' && mode !== 'credits') pause();
+});
 onKey((code) => {
   initAudio();
   // take the mouse for looking whenever the player acts in the game (a click or a key is the gesture it needs)
@@ -500,6 +505,7 @@ function applySettings(): void {
 
 function pause(): void {
   if (mode === 'paused') return;
+  wantCursorHidden(false);
   pausedFrom = mode;
   hud.hideCard();
   hud.show(false);
@@ -980,6 +986,8 @@ let boltT = 9; // seconds to the next lightning // trailer capture drives the ga
 function frame(now: number): void {
   if (!manualClock) update(now);
   requestAnimationFrame(frame);
+  // no cursor while the game is being played (a menu, the title or the credits bring it back)
+  wantCursorHidden(!DEMO && mode !== 'title' && mode !== 'paused' && mode !== 'credits' && !menu.isOpen);
 }
 
 // adaptive quality: if real frames run slow for ~2 s, drop the internal resolution one step (never back up)

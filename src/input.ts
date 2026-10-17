@@ -81,6 +81,14 @@ export function initInput(canvas: HTMLElement): void {
     for (const l of listeners) l('Mouse' + e.button);
   });
   canvas.addEventListener('pointermove', (e) => {
+    // the pointer locked to the game (during play): every movement looks, held button or not
+    if (document.pointerLockElement === canvas) {
+      lookX += e.movementX * HOVER_GAIN;
+      lookY += e.movementY * HOVER_GAIN;
+      lookT = performance.now();
+      cursorX = -1;
+      return;
+    }
     const r = canvas.getBoundingClientRect();
     cursorX = r.width > 0 ? (e.clientX - r.left) / r.width : -1;
     if (down < 0) {
