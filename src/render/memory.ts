@@ -684,6 +684,49 @@ export class Memories {
         },
       });
     }
+    // 6 — the prologue: a hundred years ago. The city around its last fire; the fire dying; the dark creeping in from
+    // the gates; and then, one minute before dawn, the night stops. Its keeper is nowhere to be seen (that is the
+    // game's to reveal: he was standing in the fire).
+    {
+      const set = new THREE.Group();
+      hall(set);
+      set.add(brazier(0));
+      const people = [
+        { f: new Figure('woman', -1.5, 1), p: { ...SIT, aF: 1.1, eF: 1.2 } },
+        { f: new Figure('child', -0.9, 1, 1.05), p: { ...SIT, aF: 1.4, eF: 0.4, aB: 1.2, eB: 0.4 } },
+        { f: new Figure('man', -2.5, 1), p: { aF: 0.6, eF: 1.4, lean: 0.05 } },
+        { f: new Figure('elder', 1.7, -1, 1.65), p: { lean: 0.3, head: 0.15, aF: 0.6, eF: -0.4 } },
+        { f: new Figure('woman', 2.6, -1, 1.7), p: { aF: 0.5, eF: 1.3 } },
+        { f: new Figure('child', 1.0, -1, 0.95), p: { aF: 1.5, eF: 0.3, aB: 1.3, eB: 0.4 } },
+      ];
+      people[3].f.hold('staff');
+      const shades = [new Figure('shade', -8.6, 1, 2.1), new Figure('shade', -9.8, 1, 2.3), new Figure('shade', 8.8, -1, 2.2), new Figure('shade', 10.2, -1, 2.0)];
+      set.add(...people.map((q) => q.f.root), ...shades.map((q) => q.root));
+      this.sets.push(set);
+      this.scripts.push({
+        fireX: 0,
+        dur: 22,
+        still: 0.71,
+        cam: (k) => ({ x: lerp(0.4, 0.0, ease(k)), y: 1.5 - 0.45, dist: lerp(13, 9, ease(k)), lookX: 0, lookY: lerp(1.6, 1.3, ease(k)) }),
+        update: (t, k) => {
+          // as the fire sinks they draw in close to it, and turn toward the dark
+          const fear = ease(Math.max(0, Math.min(1, (k - 0.4) / 0.3)));
+          people.forEach((q, i) => {
+            const base = q.p as Partial<Pose>;
+            q.f.apply({ ...base, lean: (base.lean ?? 0) + fear * 0.25, head: (base.head ?? 0) - fear * 0.2 + Math.sin(t * 1.3 + i) * 0.04 * (1 - fear) });
+          });
+          const creep = ease(Math.max(0, Math.min(1, (k - 0.38) / 0.33)));
+          shades[0].root.position.x = lerp(-8.6, -5.0, creep);
+          shades[1].root.position.x = lerp(-9.8, -6.2, creep);
+          shades[2].root.position.x = lerp(8.8, 5.2, creep);
+          shades[3].root.position.x = lerp(10.2, 6.4, creep);
+          for (const sh of shades) sh.apply({ lean: 0.45, aF: 1.1 + Math.sin(t * 3) * 0.15, eF: 0.3, aB: 0.7, head: 0.25 });
+          const fire = Math.max(0.12, 1 - ease(Math.min(1, k / 0.68)) * 0.88);
+          // the warm hall cools as the fire fails; at the stop, the pale of a dawn that never comes
+          return { fire, sky: k < 0.71 ? mix(AMBER, COLD, k / 0.68) : mix(COLD, DAWNSKY, 0.55) };
+        },
+      });
+    }
     for (const s of this.sets) this.group.add(s);
   }
 }

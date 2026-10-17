@@ -168,7 +168,7 @@ const fitParticles = () => {
 };
 window.addEventListener('resize', fitParticles);
 
-type Mode = 'title' | 'intro' | 'play' | 'outro' | 'lost' | 'paused' | 'midnight' | 'dawn' | 'choice' | 'ending' | 'credits';
+type Mode = 'title' | 'prologue' | 'intro' | 'play' | 'outro' | 'lost' | 'paused' | 'midnight' | 'dawn' | 'choice' | 'ending' | 'credits';
 const DPR_STEPS = [Math.min(window.devicePixelRatio, 1.5), 1, 0.8]; // auto quality: internal resolution steps
 let dprStep = 0;
 let mode: Mode = 'title';
@@ -452,6 +452,11 @@ onKey((code) => {
     case 'title':
       menu.key(code);
       return;
+    case 'prologue':
+      // a key moves the opening on: out of the theatre to the plaza, then on to the first hour
+      if (modeT < PRO_MEM - 0.3) modeT = PRO_MEM - 0.3;
+      else if (modeT > PRO_MEM + 1.5) modeT = PRO_END;
+      return;
     case 'intro':
       if (modeT > 0.8) modeT = Math.max(modeT, 3.8);
       return;
@@ -509,7 +514,7 @@ const menu = new Menu({
     CHAPTERS.map((c, i) => ({ roman: c.roman, clock: c.clock, title: c.title, place: LEVELS[c.level].name, best: bestFor(c.id)?.grade, locked: i > furthest() })),
   canContinue: () => (furthest() > 0 ? `Level ${furthest() + 1}  ·  ${CHAPTERS[furthest()].title}` : null),
   context: () => levelTitle(chapterIndex),
-  begin: () => goLevel(0),
+  begin: () => goPrologue(),
   continue: () => goLevel(furthest()),
   level: (i) => goLevel(i),
   resume: () => {
@@ -530,6 +535,64 @@ const menu = new Menu({
     sfx('ui');
   },
 });
+
+// ------------------------------------------------------------------ the opening (story)
+// What a new player needs before the first hour: what happened (shadow theatre: a city at its last fire, the fire
+// failing, the dark at the gates, and the night stopping), then the place it left behind (a slow shot along the
+// still shadows to the hearth, the one with no owner among them), then 7 PM. Any key moves it on.
+const PRO_MEM = 22; // memory 6's length (memory.ts)
+const PRO_END = PRO_MEM + 9.5;
+/** Begin the night from the title: the opening first, then the first hour. */
+function goPrologue(): void {
+  initAudio();
+  menu.close();
+  endMemory();
+  ending = null;
+  stage.dawn = 0;
+  sunEdge = 30;
+  hud.title(false);
+  hud.show(false);
+  chapterIndex = 0;
+  world = new World(0, seed);
+  ensureLevel();
+  applyPhase(0);
+  kneelAtHearth();
+  knight.pose = 'kneel';
+  stillAll = 0;
+  ghostKey = '';
+  setMode('prologue');
+}
+function prologue(): void {
+  at(0, 0, () => {
+    memories.show(6);
+    hud.flash(1, '#000');
+    document.getElementById('letterbox')!.classList.add('on');
+    document.getElementById('memline')!.classList.add('on');
+    memLine('A hundred years ago', '');
+  });
+  at(0.9, 1, () => memLine(null, 'A city kept its last fire burning.'));
+  at(5.2, 2, () => memLine(null, 'Its keeper swore to keep it lit, whatever it cost.'));
+  at(9.6, 3, () => memLine(null, 'On the last night, the fire was dying, and the dark came in.'));
+  at(15.6, 4, () => {
+    memLine(null, 'Then, one minute before dawn, the night stopped.');
+    sfx('bell');
+  });
+  at(19.2, 5, () => memLine(null, 'It has begun again, every night since.'));
+  at(PRO_MEM - 0.3, 6, () => {
+    endMemory();
+    memLine('', '');
+    // the place it left behind: low across the plaza from the west, along the still shadows, toward the hearth
+    rig.snap({ yaw: -1.66, height: 1.3, dist: 18, lookY: 0.7, fov: 40 });
+    rig.go({ yaw: -1.42, height: 2.6, dist: 8.5, lookY: 1.1, fov: 44 }, 9);
+  });
+  at(PRO_MEM + 1.0, 7, () => hud.card('', '', 'Every shadow here points away from the Dawn Gate.'));
+  at(PRO_MEM + 4.9, 8, () => hud.card('', '', 'One of them belongs to no one.'));
+  at(PRO_END, 9, () => {
+    hud.hideCard();
+    startChapter(0);
+    whispered.add('owner'); // already said
+  });
+}
 
 /** Start a level from a menu: clear any ending, memory or dawn state first. */
 function goLevel(i: number): void {
@@ -969,6 +1032,7 @@ function update(now: number): void {
   else rig.orbit *= 1 - Math.min(1, rawDt * 1.5);
 
   if (mode === 'intro' && modeT > 3.8) beginPlay();
+  if (mode === 'prologue') prologue();
 
   if (mode === 'play') {
     // restart is a held R (it sits beside the turn keys; a stray tap must not throw the level away)
@@ -1022,7 +1086,7 @@ function update(now: number): void {
 
   // ---- render-side updates (drawn from the blend of the last two sim ticks; see interpolate)
   interpolate();
-  if (mode === 'intro' || mode === 'play' || mode === 'outro' || mode === 'lost' || mode === 'title') {
+  if (mode === 'intro' || mode === 'play' || mode === 'outro' || mode === 'lost' || mode === 'title' || mode === 'prologue') {
     const sky = mode === 'outro' && CHAPTERS[chapterIndex + 1] && chapterIndex + 1 !== midnightIndex ? CHAPTERS[chapterIndex + 1].sky : world.chapter.sky;
     stage.setSky(sky, Math.min(1, rawDt * (mode === 'outro' ? 0.9 : 0.6)));
   }
@@ -1069,6 +1133,7 @@ function update(now: number): void {
   // the camera: authored shots frame the hearth on the title and at midnight, otherwise the knight
   const k = world.knight;
   if (mode === 'title') rig.target.set(world.hearthX - 0.9, 0, world.hearthZ);
+  else if (mode === 'prologue') rig.target.set(world.hearthX, 0, world.hearthZ);
   else if (mode === 'midnight') rig.target.set(world.hearthX - 1.1, 0, world.hearthZ);
   else rig.target.set(k.x, k.y, k.z);
   // the camera moves only by the mouse (drag, or a two-finger swipe)
@@ -1093,7 +1158,7 @@ function update(now: number): void {
   stage.camera.updateMatrixWorld();
   // the lens: shallow focus on him for cards, cutscenes and endings; sharp while you play
   stage.focus.set(k.x, k.y + 1.3, k.z);
-  stage.setCinematic(mode === 'title' || mode === 'intro' || (mode === 'outro' && memories.active < 0) || mode === 'midnight' || mode === 'dawn' || mode === 'ending' || mode === 'credits');
+  stage.setCinematic(mode === 'title' || mode === 'prologue' || mode === 'intro' || (mode === 'outro' && memories.active < 0) || mode === 'midnight' || mode === 'dawn' || mode === 'ending' || mode === 'credits');
   // rain: steady through the night, heaviest at the darkest hour, gone at dawn
   const dry = mode === 'dawn' || mode === 'choice' || mode === 'ending' || mode === 'credits';
   rain.level += ((dry ? 0 : world.chapter.rain) - rain.level) * Math.min(1, rawDt * (dry ? 0.35 : 0.6));
@@ -1108,7 +1173,7 @@ function update(now: number): void {
   rain.mesh.visible = rain.mesh.visible && memories.active < 0;
   setRain(memories.active >= 0 || mode === 'paused' ? rain.level * 0.35 : rain.level);
   // now and then, in the heavier rain, lightning far off, and its thunder a moment later
-  const stormy = rain.level > 0.4 && memories.active < 0 && (mode === 'play' || mode === 'intro' || mode === 'title' || mode === 'midnight');
+  const stormy = rain.level > 0.4 && memories.active < 0 && (mode === 'play' || mode === 'intro' || mode === 'title' || mode === 'prologue' || mode === 'midnight');
   boltT -= stormy ? rawDt : 0;
   if (boltT <= 0) {
     boltT = 18 + Math.random() * 26;
@@ -1181,7 +1246,7 @@ function drawProjectiles(dt: number): void {
 /** Ash drifting down through every frame; ink mist seeping from every shadow the fire casts. */
 function ambient(dt: number): void {
   const cam = stage.camera.position;
-  if (mode === 'play' || mode === 'intro' || mode === 'title') {
+  if (mode === 'play' || mode === 'intro' || mode === 'title' || mode === 'prologue') {
     // sample the ground around him: wherever a ruin's shadow falls inside the firelight, ink seeps up
     const L = world.light;
     const cx = rig.target.x;
