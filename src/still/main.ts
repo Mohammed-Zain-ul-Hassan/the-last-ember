@@ -218,7 +218,7 @@ function load(i: number, ash?: number): void {
   // rain in the open districts: streaks, splashes, the far veil, and wet stone with ripples in the puddles
   rain.on = !!d.rain;
   rain.setShelters(d.decor.filter((dc) => dc.kind === 'vault' || dc.kind === 'roof').map((dc) => dc as { x0: number; z0: number; x1: number; z1: number; y: number }));
-  stage.rain = d.rain ? 1 : 0;
+  stage.rain = d.rain ? 0.7 : 0; // wet stone and gently rippling puddles (a calm rain)
   stage.setSky(SKIES[d.index], 1);
   stage.ambientK = AMBIENT[d.index];
   wrongView.mirror = d.wrong?.mode === 'face' || d.wrong?.mode === 'final';

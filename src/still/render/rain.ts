@@ -83,7 +83,7 @@ const SPLASH_VERT = /* glsl */ `
   varying float vA;
   float hash(float n) { return fract(sin(n) * 43758.5453); }
   void main() {
-    float rate = 1.6 + aSeed.z * 1.2;
+    float rate = 0.7 + aSeed.z * 0.5;
     float k = uTime * rate + aSeed.w;
     float cycle = floor(k);
     vT = fract(k);
@@ -96,7 +96,7 @@ const SPLASH_VERT = /* glsl */ `
       vec4 r = uShelter[i];
       if (c.x > r.x && c.x < r.z && c.z > r.y && c.z < r.w && uShelterY[i] > 0.0) hidden = 1.0;
     }
-    float s = 0.035 + vT * 0.15;
+    float s = 0.03 + vT * 0.11;
     vec3 p = c + vec3(position.x, 0.0, position.y) * s;
     vUv = position.xy * 2.0;
     vFire = smoothstep(uFlame.w, 0.0, distance(c, uFlame.xyz));
@@ -126,8 +126,8 @@ const VEIL_FRAG = /* glsl */ `
   uniform vec3 uCool;
   varying vec2 vUv;
   void main() {
-    vec2 uv = vec2(vUv.x * 18.0, vUv.y * 2.0 + uTime * 1.6);
-    float s = texture2D(uMap, uv).r * 0.7 + texture2D(uMap, uv * vec2(1.7, 0.6) + vec2(0.3, uTime * 0.9)).r * 0.5;
+    vec2 uv = vec2(vUv.x * 18.0, vUv.y * 2.0 + uTime * 0.7);
+    float s = texture2D(uMap, uv).r * 0.7 + texture2D(uMap, uv * vec2(1.7, 0.6) + vec2(0.3, uTime * 0.4)).r * 0.5;
     float fade = smoothstep(0.0, 0.25, vUv.y) * smoothstep(1.0, 0.6, vUv.y);
     gl_FragColor = vec4(uCool * s * fade * uOpacity, 1.0);
   }`;
@@ -178,7 +178,7 @@ export class StillRain {
     uTime: { value: 0 },
     uCam: { value: new THREE.Vector3() },
     uFlame: { value: new THREE.Vector4(0, -100, 0, 1) },
-    uWind: { value: new THREE.Vector2(1.4, 0.5) },
+    uWind: { value: new THREE.Vector2(0.45, 0.16) },
     uShelter: { value: [0, 1, 2, 3].map(() => new THREE.Vector4()) },
     uShelterY: { value: [-100, -100, -100, -100] },
     uCool: { value: new THREE.Color(0.15, 0.18, 0.26) },
@@ -197,7 +197,7 @@ export class StillRain {
       const m = new THREE.ShaderMaterial({
         vertexShader: STREAK_VERT,
         fragmentShader: STREAK_FRAG,
-        uniforms: { ...this.shared, uBox: { value: box }, uHeight: { value: 14 }, uSpeed: { value: 13 }, uLen: { value: len }, uWidth: { value: width }, uOpacity: { value: opacity } },
+        uniforms: { ...this.shared, uBox: { value: box }, uHeight: { value: 14 }, uSpeed: { value: 7 }, uLen: { value: len }, uWidth: { value: width }, uOpacity: { value: opacity } },
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
@@ -209,15 +209,16 @@ export class StillRain {
       this.mats.push(m);
       this.group.add(mesh);
     };
-    layer(2200, 18, 0.7, 0.013, 0.5); // near: long, brighter
-    layer(6000, 44, 0.5, 0.024, 0.32); // far: many, fainter
+    // a calm, steady rain (Moeez): few drops, falling slowly, short and soft
+    layer(850, 18, 0.42, 0.012, 0.42); // near
+    layer(2400, 44, 0.3, 0.022, 0.26); // far
     // splashes on the ground
     const flat = new THREE.PlaneGeometry(1, 1);
     const sg = new THREE.InstancedBufferGeometry();
     sg.index = flat.index;
     sg.setAttribute('position', flat.attributes.position);
-    sg.setAttribute('aSeed', seeds(420));
-    sg.instanceCount = 420;
+    sg.setAttribute('aSeed', seeds(150));
+    sg.instanceCount = 150;
     const sm = new THREE.ShaderMaterial({ vertexShader: SPLASH_VERT, fragmentShader: SPLASH_FRAG, uniforms: this.shared, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
     const splashes = new THREE.Mesh(sg, sm);
     splashes.frustumCulled = false;
@@ -225,7 +226,7 @@ export class StillRain {
     this.mats.push(sm);
     this.group.add(splashes);
     // the far veil: a band of rain round the view, drawn behind whatever stands nearer
-    const vm = new THREE.ShaderMaterial({ vertexShader: VEIL_VERT, fragmentShader: VEIL_FRAG, uniforms: { uMap: { value: streakTexture() }, uTime: this.shared.uTime, uOpacity: { value: 0.16 }, uCool: this.shared.uCool }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.BackSide, fog: false });
+    const vm = new THREE.ShaderMaterial({ vertexShader: VEIL_VERT, fragmentShader: VEIL_FRAG, uniforms: { uMap: { value: streakTexture() }, uTime: this.shared.uTime, uOpacity: { value: 0.08 }, uCool: this.shared.uCool }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.BackSide, fog: false });
     this.veil = new THREE.Mesh(new THREE.CylinderGeometry(26, 26, 18, 32, 1, true), vm);
     this.veil.frustumCulled = false;
     this.veil.renderOrder = 4;

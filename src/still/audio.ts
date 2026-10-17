@@ -248,7 +248,7 @@ export function setBeds(b: Beds): void {
   set(brazierGain, b.brazier * 0.5, 0.3);
   set(coldGain, b.cold * 0.025, 0.4);
   set(windGain, b.wind * 0.35, 0.15);
-  set(rainGain, b.rain * 0.045, 1.2);
+  set(rainGain, b.rain * 0.022, 1.2); // a soft, steady rain
 }
 
 // ------------------------------------------------------------------ one-shots
