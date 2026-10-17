@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BloomEffect, BrightnessContrastEffect, ChromaticAberrationEffect, DepthOfFieldEffect, EffectComposer, EffectPass, HueSaturationEffect, KernelSize, NoiseEffect, OutlineEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
+import { BloomEffect, BrightnessContrastEffect, DepthOfFieldEffect, EffectComposer, EffectPass, HueSaturationEffect, KernelSize, NoiseEffect, OutlineEffect, RenderPass, SMAAEffect, SMAAPreset, ToneMappingEffect, ToneMappingMode, VignetteEffect } from 'postprocessing';
 import type { SkyKey } from '../data/chapters';
 import { Rng } from '../sim/rng';
 import { RIM, rimify } from './rim';
@@ -50,6 +50,21 @@ const SKY_FRAG = /* glsl */ `
     gl_FragColor = vec4(c, 1.0);
   }`;
 
+/**
+ * One frame counter for every shadow redraw, so the big ones alternate instead of colliding: the moon takes even
+ * frames, the hearth's cube or the torch's cube the odd ones. main advances it once at the top of every frame.
+ */
+export const SHADOW_FRAME = { n: 0 };
+
+/** Does this object hold a light (itself or below)? Showing it would add that light and change every shader. */
+function holdsLight(o: THREE.Object3D): boolean {
+  let found = false;
+  o.traverse((c) => {
+    if ((c as THREE.Light).isLight) found = true;
+  });
+  return found;
+}
+
 export class Stage {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -63,7 +78,6 @@ export class Stage {
   readonly dof: DepthOfFieldEffect;
   private dofPass: EffectPass;
   private cine = 0; // 0..1 how cinematic the lens is (eased)
-  private moonFrame = 0;
   private flash = 0; // lightning, 0..1+, decays fast
   private flashes: number[] = []; // times of the flickers still to come
   private cineTarget = 0;
@@ -99,7 +113,8 @@ export class Stage {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // PCF (r186 dropped PCFSoft and fell back to this anyway, with a warning on every load)
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     canvasParent.appendChild(this.renderer.domElement);
@@ -130,6 +145,7 @@ export class Stage {
     this.far.add(this.sky);
 
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.pmrem.compileCubemapShader(); // its own shader, built now rather than on the first sky change
     this.envScene.add(new THREE.Mesh(new THREE.SphereGeometry(100, 32, 16), this.sky.material));
 
     this.stars = this.makeStars();
@@ -142,6 +158,7 @@ export class Stage {
     this.moon.position.set(-8, 14, -20);
     this.moon.shadow.mapSize.set(1024, 1024);
     this.moon.shadow.autoUpdate = false; // redrawn every other frame (see update): half the cost, no visible lag
+    this.moon.shadow.needsUpdate = true; // once at boot: medium quality never redraws it (see the sun below)
     this.moon.castShadow = true;
     const mc = this.moon.shadow.camera;
     mc.left = -20;
@@ -152,7 +169,7 @@ export class Stage {
     mc.far = 120;
     this.moon.shadow.bias = -0.0008;
     this.moon.shadow.normalBias = 0.04;
-    this.moon.shadow.radius = 3;
+    this.moon.shadow.radius = 1.5; // a wide kernel's per-pixel rotation read as crawling noise at the edges
     this.scene.add(this.moon, this.moon.target);
 
     // dawn sun: low, from the right, casting long shadows to the left
@@ -170,6 +187,9 @@ export class Stage {
     this.sun.shadow.bias = -0.0015;
     this.sun.castShadow = true;
     this.sun.shadow.autoUpdate = false;
+    // drawn once at boot even though the night has no sun: until a shadow map exists, every lit shader samples an
+    // empty slot there and the GPU drops the draw (hundreds of GL_INVALID_OPERATIONs a second on the title screen)
+    this.sun.shadow.needsUpdate = true;
     this.scene.add(this.sun, this.sun.target);
 
     this.buildGround();
@@ -188,32 +208,34 @@ export class Stage {
       blur: true, kernelSize: KernelSize.SMALL, xRay: false, resolutionScale: 0.75,
     });
     this.composer.addPass(new EffectPass(this.camera, this.outline));
+    this.cullOutlineDepth();
     // a cinematic lens for cards and cutscenes: focus on the knight, the world falls away into bokeh
     this.dof = new DepthOfFieldEffect(this.camera, { focusDistance: 8, focusRange: 4, bokehScale: 0, resolutionScale: 0.5 });
     this.dof.target = this.focus;
     this.dofPass = new EffectPass(this.camera, this.dof);
     this.dofPass.enabled = false;
     this.composer.addPass(this.dofPass);
-    this.bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.85, luminanceSmoothing: 0.25, intensity: 1.15, radius: 0.7 });
-    const grain = new NoiseEffect({ premultiply: true });
-    grain.blendMode.opacity.value = 0.35;
-    // the grade: a little more contrast and colour after tone mapping, and a faint fringe toward the frame's edge
-    const fringe = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0007, 0.0005), radialModulation: true, modulationOffset: 0.35 });
+    // bloom only on what is meant to glow (fire, eyes, embers, the aura): a lower threshold haloed every lit stone
+    this.bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 1.0, luminanceSmoothing: 0.2, intensity: 0.95, radius: 0.65 });
+    // the grade: a little more contrast and colour after tone mapping; a softer vignette so shades coming in from the
+    // edges are not lost in black (the colour fringe that used to sit here only blurred the silhouettes)
     this.composer.addPass(
       new EffectPass(
         this.camera,
         this.bloom,
-        new VignetteEffect({ offset: 0.3, darkness: 0.68 }),
+        new VignetteEffect({ offset: 0.35, darkness: 0.55 }),
         new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }),
         new HueSaturationEffect({ saturation: 0.12 }),
-        new BrightnessContrastEffect({ contrast: 0.09, brightness: 0.01 }),
-        fringe,
-        grain,
+        new BrightnessContrastEffect({ contrast: 0.1, brightness: 0.015 }),
       ),
     );
-    // SMAA on the final image: smooth, precise edges on every silhouette (MSAA on the half-float target renders black)
+    // SMAA on the graded image: smooth, precise edges on every silhouette (MSAA on the half-float target renders black)
     this.smaa = new EffectPass(this.camera, new SMAAEffect({ preset: SMAAPreset.HIGH }));
     this.composer.addPass(this.smaa);
+    // film grain last, and faint: before SMAA it was read as edges, and strong it read as noise over everything
+    const grain = new NoiseEffect({ premultiply: true });
+    grain.blendMode.opacity.value = 0.12;
+    this.composer.addPass(new EffectPass(this.camera, grain));
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -231,13 +253,43 @@ export class Stage {
    * first time something is drawn into a shadow map): compile, then draw two frames with every shadow redrawn.
    */
   warmup(extraShadows: THREE.LightShadow[] = []): void {
+    // Chrome on Metal builds each GPU pipeline on a program's first real draw, per render target and blend state
+    // (ANGLE ProgramExecutableMtl setupDraw), and three's compile() draws nothing. So the warm-up frames below draw
+    // everything, frustum culling off: anything off camera (the pooled enemies under the floor, the far end of a
+    // road) would otherwise meet the GPU for the first time mid-fight.
+    // the same goes for what is hidden right now (a flame not yet lit, the light's edge ring, a fading shade): shown
+    // for these frames too. Lights are never touched: a light coming or going changes every material's shader.
+    const culled: THREE.Object3D[] = [];
+    const hidden: THREE.Object3D[] = [];
+    this.scene.traverse((o) => {
+      if (o.frustumCulled) {
+        o.frustumCulled = false;
+        culled.push(o);
+      }
+      if (!o.visible && !o.userData.noWarm && !holdsLight(o)) {
+        o.visible = true;
+        hidden.push(o);
+      }
+    });
+    // compile against the HDR buffer the game really draws into: with no target bound three builds the canvas
+    // (sRGB) variant of every shader, and the linear ones the game uses were still compiled mid-fight (1 s freezes)
+    const prev = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(this.composer.inputBuffer);
     this.renderer.compile(this.scene, this.camera);
+    this.renderer.setRenderTarget(prev);
+    // and wait for them now: links run in the background (KHR_parallel_shader_compile), and three's first-use query
+    // of a program blocks until the GPU process has finished everything queued before it (a 100+ ms stall the first
+    // time a crawler leaps in). Query them all here, behind the card.
+    for (const p of this.renderer.info.programs ?? []) p.getUniforms();
     for (let i = 0; i < 2; i++) {
       this.moon.shadow.needsUpdate = true;
       this.sun.shadow.needsUpdate = true;
       for (const s of extraShadows) s.needsUpdate = true;
       this.composer.render();
     }
+    for (const o of culled) o.frustumCulled = true;
+    for (const o of hidden) o.visible = false;
+    this.composer.render(); // and leave an ordinary frame on screen, never the all-visible one
   }
 
   /** Cards, cutscenes and endings get a shallow depth of field; play stays sharp. */
@@ -312,12 +364,18 @@ export class Stage {
   }
 
   /** Re-render the sky into the environment map (a few ms; done every ~2 s). */
+  /**
+   * Refresh the reflected sky in place: the sky is drawn into one reused cube target and filtered into one reused
+   * PMREM target, so the environment texture never changes identity. (A fresh PMREM per rebuild allocated new GPU
+   * targets every 1.5 s through every sky change, and a new texture made every lit material re-check its shader.)
+   */
   private updateEnv(): void {
-    const rt = this.pmrem.fromScene(this.envScene, 0, 0.1, 300);
-    this.scene.environment = rt.texture;
-    this.envRT?.dispose();
-    this.envRT = rt;
+    this.envCam.update(this.renderer, this.envScene);
+    this.envRT = this.pmrem.fromCubemap(this.envCube.texture, this.envRT);
+    if (this.scene.environment !== this.envRT.texture) this.scene.environment = this.envRT.texture;
   }
+  private envCube = new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType });
+  private envCam = new THREE.CubeCamera(0.1, 300, this.envCube);
 
   update(t: number, cam: THREE.Vector3): void {
     this.sky.material.uniforms.uTime.value = t;
@@ -354,13 +412,15 @@ export class Stage {
     this.flash *= 0.86;
     this.sky.material.uniforms.uFlash.value = this.flash;
     this.sun.intensity = this.dawn * 4.2;
-    this.hemi.intensity = 0.3 + this.dawn * 0.3 + this.flash * 2.2;
+    // enough night ambient that the ground, the ruins and the shapes on them read; the fire still rules the frame
+    this.hemi.intensity = 0.48 + this.dawn * 0.25 + this.flash * 2.2;
     this.sun.shadow.autoUpdate = this.dawn > 0.05;
     // no moon on the darkest hour (no disc in the sky), and none once the sun is up
     this.moon.intensity = (0.25 + 0.55 * Math.min(1, this.cur.disc * 20)) * (1 - this.dawn) + this.flash * 3.5;
     const f = this.focus;
-    this.moonFrame++;
-    if (this.moonFrame % 2 === 0 && this.quality === 'high') this.moon.shadow.needsUpdate = true;
+    // the moon redraws on even frames, the hearth or the torch on odd ones (see SHADOW_FRAME): never two in one frame,
+    // and not at all once it is too faint to cast anything (the darkest hour, dawn)
+    if (SHADOW_FRAME.n % 2 === 0 && this.quality === 'high' && this.moon.intensity > 0.05) this.moon.shadow.needsUpdate = true;
     // snap the shadow camera to whole texels so the shadows do not shimmer as he moves
     const snap = 40 / 1024;
     const fx = Math.round(f.x / snap) * snap;
@@ -374,6 +434,44 @@ export class Stage {
 
   render(): void {
     this.composer.render();
+  }
+
+  /**
+   * The outline's depth pass only exists so walls in front of him clip his aura, but stock it redraws the whole
+   * level (a second full scene render, ~13 ms a frame on an M3). Only what stands near the line from the camera to
+   * him can hide him, so everything else (and every particle, flame card and rain streak) sits that pass out.
+   */
+  private cullOutlineDepth(): void {
+    // depthPass is internal to OutlineEffect (not in its typings)
+    const dp = (this.outline as unknown as { depthPass: { render: (...a: unknown[]) => void } }).depthPass;
+    const full = dp.render.bind(dp);
+    const hidden: THREE.Object3D[] = [];
+    const sphere = new THREE.Sphere();
+    const seg = new THREE.Line3();
+    const near = new THREE.Vector3();
+    dp.render = (...args: unknown[]) => {
+      seg.set(this.camera.position, this.focus);
+      this.scene.traverseVisible((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh || m.parent === null) return;
+        const mat = m.material as THREE.Material;
+        let keep = !mat.transparent && mat.depthWrite;
+        if (keep) {
+          if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+          const im = m as THREE.InstancedMesh;
+          if (im.isInstancedMesh && im.boundingSphere === null) im.computeBoundingSphere();
+          const bs = im.isInstancedMesh ? im.boundingSphere : null;
+          sphere.copy(bs ?? m.geometry.boundingSphere!).applyMatrix4(m.matrixWorld);
+          seg.closestPointToPoint(sphere.center, true, near);
+          keep = near.distanceTo(sphere.center) < sphere.radius + 0.6;
+        }
+        if (!keep) hidden.push(o);
+      });
+      for (const o of hidden) o.visible = false;
+      full(...args);
+      for (const o of hidden) o.visible = true;
+      hidden.length = 0;
+    };
   }
 
   // ------------------------------------------------------------- builders
@@ -405,6 +503,13 @@ export class Stage {
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(40, 0, 0);
     ground.receiveShadow = true;
+    // paving tops sit within a few cm of y = 0: push the ground back in depth so the stones always win (they
+    // flickered through it at a distance), and draw it after the level so its full surface shader only runs where
+    // nothing covers it
+    mat.polygonOffset = true;
+    mat.polygonOffsetFactor = 2;
+    mat.polygonOffsetUnits = 4;
+    ground.renderOrder = 1;
     this.scene.add(ground, this.scatterGroup);
     this.ground = ground;
     const rng = new Rng(8);
@@ -416,7 +521,7 @@ export class Stage {
       const [x, z] = scatter(rng, i % 2 === 0);
       m.position.set(x, s * 0.1, z);
       m.rotation.set(rng.next() * 3, rng.next() * 3, rng.next() * 3);
-      m.castShadow = true;
+      m.castShadow = s > 0.34; // pebbles cast nothing anyone sees, into every shadow map
       this.scatterGroup.add(m);
     }
   }

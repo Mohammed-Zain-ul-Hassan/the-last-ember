@@ -16,6 +16,11 @@ export class HealthBar {
   private hold = 0;
   private blink = 0;
   private hue = -1;
+  // what the DOM holds now: every frame calls draw(), but it only writes what changed (style writes cost layout)
+  private fillW = -1;
+  private chipW = -1;
+  private blinkOn = false;
+  private lowOn = false;
 
   /** Adopt an element that already holds `.chip` and `.fill`, or build one with the given class. */
   constructor(elOrClass: HTMLDivElement | string) {
@@ -63,8 +68,11 @@ export class HealthBar {
   }
 
   private draw(): void {
-    this.fill.style.width = `${(this.shown * 100).toFixed(2)}%`;
-    this.chip.style.width = `${(this.chipFrac * 100).toFixed(2)}%`;
+    // scaleX, not width: a transform never re-lays out the page
+    const fw = Math.round(this.shown * 1000) / 1000;
+    const cw = Math.round(this.chipFrac * 1000) / 1000;
+    if (fw !== this.fillW) this.fill.style.transform = `scaleX(${(this.fillW = fw)})`;
+    if (cw !== this.chipW) this.chip.style.transform = `scaleX(${(this.chipW = cw)})`;
     // green at full, yellow at half, red near empty
     const hue = Math.round(120 * Math.max(0, Math.min(1, (this.shown - 0.15) / 0.7)));
     if (hue !== this.hue) {
@@ -72,7 +80,9 @@ export class HealthBar {
       this.fill.style.background = `linear-gradient(180deg, hsl(${hue} 90% 66%), hsl(${hue} 80% 42%) 55%, hsl(${hue} 85% 30%))`;
       this.fill.style.boxShadow = `0 0 8px hsla(${hue}, 90%, 55%, 0.55)`;
     }
-    this.el.classList.toggle('blink', this.blink > 0 && Math.floor(this.blink * 16) % 2 === 0);
-    this.el.classList.toggle('low', this.shown <= 0.25 && this.shown > 0);
+    const blinkOn = this.blink > 0 && Math.floor(this.blink * 16) % 2 === 0;
+    if (blinkOn !== this.blinkOn) this.el.classList.toggle('blink', (this.blinkOn = blinkOn));
+    const lowOn = this.shown <= 0.25 && this.shown > 0;
+    if (lowOn !== this.lowOn) this.el.classList.toggle('low', (this.lowOn = lowOn));
   }
 }

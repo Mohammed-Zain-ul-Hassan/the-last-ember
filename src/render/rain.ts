@@ -33,7 +33,8 @@ const VERT = /* glsl */ `
     // the streak's tail points back along its fall, slanted by the wind
     p += aEnd * vec3(-uWind.x, uSpeed, -uWind.y) * (uLen / uSpeed);
     float d = distance(p, uCam);
-    vA = hidden ? 0.0 : (1.0 - aEnd * 0.85) * smoothstep(26.0, 6.0, d) * smoothstep(0.6, 2.0, d);
+    // drops right at the lens fade out: with the camera pulled back they streaked across the whole fight
+    vA = hidden ? 0.0 : (1.0 - aEnd * 0.85) * smoothstep(28.0, 8.0, d) * smoothstep(3.0, 7.0, d);
     vFire = smoothstep(uLight.w * 1.2, 0.0, distance(p.xz, uLight.xz)) * smoothstep(uLight.y + 6.0, 0.0, p.y);
     gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
   }`;
@@ -75,7 +76,7 @@ export class Rain {
       uniforms: {
         uTime: { value: 0 },
         uSpeed: { value: 15 },
-        uLen: { value: 0.75 },
+        uLen: { value: 0.6 },
         uAmount: { value: 0 },
         uBox: { value: 36 },
         uHeight: { value: 18 },
@@ -86,7 +87,7 @@ export class Rain {
         uLight: { value: new THREE.Vector4(0, 2, 0, 10) },
         uColor: { value: new THREE.Color(0.32, 0.36, 0.46) },
         uFireColor: { value: new THREE.Color(1.6, 0.75, 0.3) },
-        uOpacity: { value: 0.55 },
+        uOpacity: { value: 0.42 },
       },
       transparent: true,
       depthWrite: false,

@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import { SHADOW_FRAME } from './stage';
 import { CFG, type MoveSpec } from '../config';
 import type { Knight, Move } from '../sim/world';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Flame } from './flame';
-import type { Particles } from './particles';
+import { emitCount, type Particles } from './particles';
 import { rimify } from './rim';
 import { SHADOW, shadowify } from './shadowBody';
 import { glowTexture, tatterTexture } from './textures';
@@ -117,13 +118,18 @@ export type KnightPose = 'stand' | 'kneel';
 export function setKnightFade(a: number): void {
   SHADOW.uFade.value = a;
   for (const m of [STEEL, EYE, EDGE]) {
-    m.transparent = a < 0.999 || m !== STEEL;
+    const tr = a < 0.999 || m !== STEEL;
+    if (m.transparent !== tr) {
+      m.transparent = tr;
+      m.needsUpdate = true; // a different shader: three only switches when told
+    }
     m.opacity = a;
   }
 }
 
 export class KnightView {
   readonly root = new THREE.Group();
+  private visY = NaN; // drawn height (eased on steps)
   private squash = new THREE.Group(); // squash & stretch around the feet
   private body = new THREE.Group();
   private chest = new THREE.Group();
@@ -250,13 +256,16 @@ export class KnightView {
     this.torchFlame = new Flame(0.55, 0.85, 2);
     this.torchFlame.group.position.y = 0.52;
     this.torch.add(this.torchFlame.group);
-    this.torchLight = new THREE.PointLight(0xff8840, 0, 0, 2);
+    this.torchLight = new THREE.PointLight(0xff8840, 0, 18, 2);
     this.torchLight.position.y = 0.75;
     this.torchLight.shadow.mapSize.set(512, 512);
     this.torchLight.shadow.camera.near = 0.2;
-    this.torchLight.shadow.camera.far = 30;
+    this.torchLight.shadow.camera.far = 16; // the torch lights a few metres; past that nothing needs its shadow
     this.torchLight.shadow.bias = -0.004;
-    this.torch.add(this.torchLight);
+    // the light hangs off the root, not the torch: the hurt blink hides the body (and the arm holding the torch), and
+    // a light that drops out of the scene changes the light count, which recompiles every lit material (a freeze of
+    // up to a second, every time he was hit). update() keeps it at the torch head.
+    this.root.add(this.torchLight);
     this.torchHalo = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(1.1, 0.5, 0.18), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0.35 }),
     );
@@ -265,6 +274,7 @@ export class KnightView {
     for (const c of this.torch.children) if (c !== this.torchLight) c.visible = false;
     this.torchLight.castShadow = true; // always: toggling a shadow light recompiles every material (a freeze)
     this.torchLight.shadow.autoUpdate = false;
+    this.torchLight.shadow.needsUpdate = true; // a map must exist before the first frame (see the sun in stage.ts)
     // a carried ember floats over his shoulder
     this.emberOrb = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(3.2, 1.3, 0.35), blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
@@ -292,6 +302,14 @@ export class KnightView {
     this.capeBase = Float32Array.from(capeGeo.attributes.position.array as Float32Array);
     this.chest.add(this.cape);
 
+    // his small parts (spikes, studs, the pommel) cast nothing visible but cost a draw in each of the torch's six faces
+    this.root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || !m.castShadow) return;
+      if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+      if (m.geometry.boundingSphere!.radius < 0.11) m.castShadow = false;
+    });
+
     // the shadow parts: smoke is emitted from them, and the stage outlines their union as one aura
     this.root.traverse((o) => {
       const m = o as THREE.Mesh;
@@ -299,10 +317,11 @@ export class KnightView {
       this.parts.push(m);
     });
 
-    // shadow-fire rising off him, behind the body
-    this.aura = new Flame(1.5, 2.5, 2, new THREE.Color(1, 1, 1), true);
-    this.aura.group.position.set(-0.3, 0.75, 0);
-    this.aura.opacity = 0.5;
+    // shadow-fire rising off him, always on the far side of his body from the camera (see update): his silhouette
+    // hides its core and only the tongues lick out around the edges. A fixed spot behind his back read as fire
+    // strapped to him whenever the camera sat behind him.
+    this.aura = new Flame(1.05, 2.1, 2, new THREE.Color(1, 1, 1), true);
+    this.aura.opacity = 0.35;
     this.root.add(this.aura.group);
 
     // sword trail lives in the chest at the shoulder, so it shares the arm's lean, twist and swing tilt
@@ -326,7 +345,9 @@ export class KnightView {
   setTorch(on: boolean): void {
     this.torchOn = on;
     for (const c of this.torch.children) if (c !== this.torchLight) c.visible = on;
-    this.torchLight.shadow.autoUpdate = on;
+    // redrawn on alternate frames while lit (see update), never every frame: the hearth is always out when the torch
+    // burns, so the torch takes its slot opposite the moon
+    this.torchLight.shadow.autoUpdate = false;
     if (!on) this.torchLight.intensity = 0;
     this.trailColor.copy(on ? new THREE.Color(3.4, 1.3, 0.35) : new THREE.Color(1.6, 1.3, 3.4));
     EDGE.color.copy(on ? new THREE.Color(3.0, 1.0, 0.25) : new THREE.Color(1.1, 0.9, 2.6));
@@ -610,12 +631,15 @@ export class KnightView {
   }
 
   update(k: Knight, dt: number, t: number, smoke: Particles, glow: Particles, camera: THREE.Camera): void {
-    this.root.position.set(k.x, k.y, k.z);
+    // a step up is a one-tick lift in the sim (up to 0.42 m): on his feet it eases over a few frames instead
+    if (k.onGround && Number.isFinite(this.visY) && Math.abs(k.y - this.visY) < 0.6) this.visY += (k.y - this.visY) * (1 - Math.exp(-25 * dt));
+    else this.visY = k.y;
+    this.root.position.set(k.x, this.visY, k.z);
     // turn toward the sim's yaw the short way round (quick, but never a pop)
     let d = (k.yaw - this.turn) % (Math.PI * 2);
     if (d > Math.PI) d -= Math.PI * 2;
     if (d < -Math.PI) d += Math.PI * 2;
-    this.turn += d * Math.min(1, dt * 22);
+    this.turn += d * Math.min(1, dt * 40);
     this.root.rotation.y = -this.turn;
     this.root.scale.x = 1;
     this.kneelK += ((this.pose === 'kneel' ? 1 : 0) - this.kneelK) * Math.min(1, dt * (this.pose === 'kneel' ? 6 : 2.2));
@@ -700,15 +724,29 @@ export class KnightView {
     this.dashGlow += (flare - this.dashGlow) * Math.min(1, dt * (flare > this.dashGlow ? 20 : 4));
     SHADOW.uTime.value = t;
     SHADOW.uAuraStrength.value = (k.state === 'dead' ? 0.3 : 1) * (1 + this.dashGlow * 2.2);
-    this.aura.opacity = (0.42 + this.dashGlow * 0.5) * (k.state === 'dead' ? 0.2 : 1) * SHADOW.uFade.value;
+    this.aura.opacity = (0.3 + this.dashGlow * 0.45) * (k.state === 'dead' ? 0.2 : 1) * SHADOW.uFade.value;
     this.aura.strength = 0.85 + Math.sin(t * 3.1) * 0.05;
-    this.aura.group.position.y = 0.75 + c.bob;
+    // tuck it 0.35 m behind him along the view ray (world space), then into the root's turned frame
+    const ax = k.x - camera.position.x;
+    const az = k.z - camera.position.z;
+    const al = Math.hypot(ax, az) || 1;
+    const lx = (ax / al) * 0.35;
+    const lz = (az / al) * 0.35;
+    const cy = Math.cos(this.root.rotation.y);
+    const sy = Math.sin(this.root.rotation.y);
+    this.aura.group.position.set(lx * cy - lz * sy, 0.55 + c.bob, lx * sy + lz * cy);
     this.aura.update(t, camera);
 
     this.updateTrail(dt);
     this.updateCape(k, dt, t);
     this.torchFlame.strength = 1;
     this.torchFlame.update(t, camera);
+    if (this.torchOn && SHADOW_FRAME.n % 2 === 1) this.torchLight.shadow.needsUpdate = true;
+    if (this.torchOn) {
+      this.torch.updateWorldMatrix(true, false);
+      this.torchLight.position.set(0, 0.75, 0).applyMatrix4(this.torch.matrixWorld);
+      this.root.worldToLocal(this.torchLight.position);
+    }
     if (this.torchOn) this.torchLight.intensity = 60 * (0.9 + 0.1 * Math.sin(t * 19) + 0.05 * Math.sin(t * 7));
     this.torchHalo.visible = this.torchOn;
     this.emberOrb.visible = k.ember;
@@ -727,8 +765,8 @@ export class KnightView {
     // shadow bleeds off every part of him and rises like smoke
     const fade = SHADOW.uFade.value;
     if (k.state !== 'dead' && fade > 0.05) {
-      const rate = dt * (30 + this.dashGlow * 90);
-      for (let i = 0; i < rate + (Math.random() < rate % 1 ? 1 : 0); i++) {
+      const rate = dt * (22 + this.dashGlow * 90);
+      for (let i = 0, c = emitCount(rate); i < c; i++) {
         const part = this.parts[Math.floor(Math.random() * this.parts.length)];
         part.getWorldPosition(this.tmp);
         smoke.emit({

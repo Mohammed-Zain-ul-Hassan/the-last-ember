@@ -125,9 +125,16 @@ export type SfxName =
   | 'spawn' | 'bell' | 'lose' | 'ui' | 'fireburst' | 'ignite' | 'bigSpawn' | 'dawn' | 'gutter' | 'dissolve'
   | 'bolt' | 'cut' | 'cry' | 'pounce' | 'airJump' | 'chargeFull' | 'shard' | 'thunder';
 
+const lastPlayed = new Map<SfxName, number>();
+
 export function sfx(name: SfxName, combo = 0): void {
   if (!ctx || ctx.state !== 'running') return;
-  const t = ctx.currentTime + 0.002;
+  // one voice per sound per 30 ms: a cleave through five shades is one hit, not five identical voices piling into the
+  // compressor (and a burst of nodes)
+  const now = ctx.currentTime;
+  if (now - (lastPlayed.get(name) ?? -1) < 0.03) return;
+  lastPlayed.set(name, now);
+  const t = now + 0.002;
   switch (name) {
     case 'swing':
       noise(t, 0.16, 'bandpass', vary(900 + combo * 250), vary(3200 + combo * 400), 1.4, 0.35, 0.03);
@@ -361,6 +368,8 @@ function startBeds(): void {
   const pattern = [1, 0, 0.5, 0, 1, 0.35, 0.6, 0];
   const tick = () => {
     if (!ctx || !drumGain) return;
+    // a background tab slows this timer to ~1 s: start again from now rather than fire every missed beat at once
+    if (next < ctx.currentTime) next = ctx.currentTime + 0.05;
     while (next < ctx.currentTime + 0.2) {
       const v = pattern[step % pattern.length];
       if (v > 0) tone(next, 'sine', 70 * (v > 0.9 ? 1 : 1.3), 38, 0.4, 0.8 * v, 0.004, drumGain);
@@ -380,12 +389,25 @@ export function setMood(m: 'night' | 'dawn' | 'silent'): void {
 export function setRain(level: number): void {
   rainLevel = level;
   if (!ctx) return;
+  // called every frame: only schedule a new target when it has really moved (each call queues an automation event)
+  if (Math.abs(level - bedRain) < 0.01) return;
+  bedRain = level;
   rainGain?.gain.setTargetAtTime(level * 0.11, ctx.currentTime, 0.6);
 }
 
 /** level 0..1 for each bed; smoothed. */
 export function setBeds(fire: number, danger: number): void {
   if (!ctx) return;
-  fireGain?.gain.setTargetAtTime(0.05 + 0.13 * fire, ctx.currentTime, 0.3);
-  drumGain?.gain.setTargetAtTime(Math.min(1, danger) * 0.9, ctx.currentTime, 0.8);
+  if (Math.abs(fire - bedFire) >= 0.01) {
+    bedFire = fire;
+    fireGain?.gain.setTargetAtTime(0.05 + 0.13 * fire, ctx.currentTime, 0.3);
+  }
+  const d = Math.min(1, danger);
+  if (Math.abs(d - bedDanger) >= 0.01) {
+    bedDanger = d;
+    drumGain?.gain.setTargetAtTime(d * 0.9, ctx.currentTime, 0.8);
+  }
 }
+let bedRain = -1;
+let bedFire = -1;
+let bedDanger = -1;

@@ -4,6 +4,26 @@ import { HealthBar } from './healthBar';
 
 const $ = (id: string) => document.getElementById(id)!;
 
+// The HUD is refreshed every frame, but the DOM is only touched when something changed: rewriting identical text or
+// styles still invalidates style (and widths re-lay out the page), which is wasted work at 60-120 Hz.
+const shown = new WeakMap<HTMLElement, Record<string, string>>();
+function put(el: HTMLElement, key: string, value: string, write: (v: string) => void): void {
+  let rec = shown.get(el);
+  if (!rec) shown.set(el, (rec = {}));
+  if (rec[key] === value) return;
+  rec[key] = value;
+  write(value);
+}
+const text = (el: HTMLElement, v: string) => put(el, 'text', v, (x) => (el.textContent = x));
+const style = (el: HTMLElement, prop: 'transform' | 'opacity', v: string) => put(el, prop, v, (x) => (el.style[prop] = x));
+const cls = (el: HTMLElement, name: string, on: boolean) => put(el, 'c:' + name, on ? '1' : '', () => el.classList.toggle(name, on));
+/** Restart a CSS animation without forcing a synchronous layout (no `void el.offsetWidth`). */
+export function replay(el: HTMLElement, name: string): void {
+  el.classList.remove(name);
+  for (const a of el.getAnimations()) a.cancel();
+  requestAnimationFrame(() => el.classList.add(name));
+}
+
 export interface CardOpts {
   eyebrow?: string; // small line above the roman numeral (may hold <b>)
   stats?: [string, string | number][]; // label, value
@@ -42,12 +62,10 @@ export class Hud {
     this.bestCombo = Math.max(this.bestCombo, this.combo);
     this.comboT = 1.6;
     const el = $('combo');
-    $('combo-n').textContent = String(this.combo);
-    el.classList.toggle('on', this.combo >= 2);
-    el.classList.remove('pulse');
-    void el.offsetWidth; // restart the pulse animation
-    el.classList.add('pulse');
-    el.classList.toggle('hot', this.combo >= 8);
+    text($('combo-n'), String(this.combo));
+    cls(el, 'on', this.combo >= 2);
+    replay(el, 'pulse');
+    cls(el, 'hot', this.combo >= 8);
   }
 
   update(w: World, dt: number): void {
@@ -58,42 +76,35 @@ export class Hud {
       // a shard cracks and falls away; the bar empties, then refills as he rises
       for (let i = lives; i < this.lastLives; i++) {
         const p = this.hpPips[i];
-        if (!p) continue;
-        p.classList.remove('shatter');
-        void p.offsetWidth;
-        p.classList.add('shatter');
+        if (p) replay(p, 'shatter');
       }
       if (lives < this.lastLives && lives > 0) this.bar.reset(1, 0);
       else this.bar.reset(hp / CFG.knight.maxHp);
     }
-    if (hp < this.lastHp || lives < this.lastLives) {
-      $('vitals').classList.remove('hurt');
-      void $('vitals').offsetWidth;
-      $('vitals').classList.add('hurt');
-    }
+    if (hp < this.lastHp || lives < this.lastLives) replay($('vitals'), 'hurt');
     this.lastHp = hp;
     this.lastLives = lives;
     this.bar.set(hp / CFG.knight.maxHp, dt);
-    this.hpPips.forEach((p, i) => p.classList.toggle('gone', i >= lives));
-    $('hp-num').textContent = String(Math.ceil(this.bar.shownFrac * CFG.knight.maxHp));
-    $('vitals').classList.toggle('low', hp <= CFG.knight.maxHp * 0.25 && hp > 0);
-    $('vitals').classList.toggle('lastlife', lives === 1);
+    this.hpPips.forEach((p, i) => cls(p, 'gone', i >= lives));
+    text($('hp-num'), String(Math.ceil(this.bar.shownFrac * CFG.knight.maxHp)));
+    cls($('vitals'), 'low', hp <= CFG.knight.maxHp * 0.25 && hp > 0);
+    cls($('vitals'), 'lastlife', lives === 1);
     if (this.toastT > 0) {
       this.toastT -= dt;
-      if (this.toastT <= 0) $('toast').classList.remove('on');
+      if (this.toastT <= 0) cls($('toast'), 'on', false);
     }
-    $('ember-tag').classList.toggle('on', w.knight.ember);
+    cls($('ember-tag'), 'on', w.knight.ember);
     if (this.comboT > 0) {
       this.comboT -= dt;
-      if (this.comboT <= 0) $('combo').classList.remove('on');
+      if (this.comboT <= 0) cls($('combo'), 'on', false);
     }
-    $('clock-roman').textContent = w.chapter.roman;
-    $('clock-label').textContent = `Level ${w.chapterIndex + 1}  ·  ${w.chapter.clock}`;
-    ($('clock-bar').firstElementChild as HTMLElement).style.width = `${(w.progress * 100).toFixed(1)}%`;
+    text($('clock-roman'), w.chapter.roman);
+    text($('clock-label'), `Level ${w.chapterIndex + 1}  ·  ${w.chapter.clock}`);
+    style($('clock-bar').firstElementChild as HTMLElement, 'transform', `scaleX(${w.progress.toFixed(3)})`);
     const hf = Math.max(0, w.hearthHp / CFG.hearth.maxHp);
-    ($('hearth-bar').firstElementChild as HTMLElement).style.width = `${(hf * 100).toFixed(1)}%`;
-    $('hearth').classList.toggle('low', hf < 0.3);
-    $('hearth').style.opacity = w.torch ? '0' : '1';
+    style($('hearth-bar').firstElementChild as HTMLElement, 'transform', `scaleX(${hf.toFixed(3)})`);
+    cls($('hearth'), 'low', hf < 0.3);
+    style($('hearth'), 'opacity', w.torch ? '0' : '1');
     if (this.flashA > 0) {
       this.flashA = Math.max(0, this.flashA - dt * 2.5);
       this.flashEl.style.opacity = String(this.flashA);
@@ -101,6 +112,8 @@ export class Hud {
   }
 
   flash(strength: number, color = '#ffffff'): void {
+    // light flashes add onto the frame; a black one is a fade, which only shows blended normally
+    this.flashEl.style.mixBlendMode = color === '#000' || color === '#000000' ? 'normal' : 'screen';
     this.flashEl.style.background = color;
     this.flashA = Math.max(this.flashA, strength);
     this.flashEl.style.opacity = String(this.flashA);
@@ -124,23 +137,19 @@ export class Hud {
 
   private toastT = 0;
   /** A short line under the clock: embers, braziers, doors. */
-  toast(text: string): void {
+  toast(msg: string): void {
     const el = $('toast');
-    el.textContent = text;
-    el.classList.remove('on');
-    void el.offsetWidth;
-    el.classList.add('on');
+    el.textContent = msg;
+    shown.delete(el);
+    replay(el, 'on');
     this.toastT = 3;
   }
 
   /** The name of a place, the first time he reaches it. */
   place(name: string, sub: string): void {
-    const el = $('place');
     $('place-name').textContent = name;
     $('place-sub').textContent = sub;
-    el.classList.remove('on');
-    void el.offsetWidth;
-    el.classList.add('on');
+    replay($('place'), 'on');
   }
 
   choice(on: boolean): void {

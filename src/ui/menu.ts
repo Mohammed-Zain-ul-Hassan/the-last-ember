@@ -34,13 +34,15 @@ const QUALITY: Quality[] = ['auto', 'high', 'medium', 'low'];
 const QUALITY_NAME: Record<Quality, string> = { auto: 'Auto', high: 'High', medium: 'Medium', low: 'Low' };
 
 const CONTROLS: [string, string][] = [
-  ['W  A  S  D', 'move  ·  relative to the camera'],
-  ['Mouse', 'look  ·  click the game to capture the mouse'],
+  ['W  /  S', 'forward  ·  back (he steps back still facing the fight)  ·  or the up / down arrows'],
+  ['A  /  D', 'turn the camera, and him with it  ·  or the left / right arrows'],
+  ['Mouse', 'optional: look  ·  click the game to capture the mouse'],
   ['Space', 'jump  ·  again in the air to double jump'],
   ['Left click  /  J', 'strike  ·  in the air: aerial  ·  running: lunge  ·  turns toward the nearest shade'],
   ['Right click  /  K', 'heavy cleave  ·  hold to charge, release to rend  ·  in the air: plunge'],
-  ['Shift  /  L', 'shadow-step  ·  strike out of it to pierce'],
+  ['L  /  Shift', 'shadow-step  ·  with A / D held: sidestep  ·  backing off: backstep  ·  strike out of it to pierce'],
   ['Esc', 'pause and settings  ·  releases the mouse'],
+  ['R (hold)', 'restart the level'],
   ['M', 'mute'],
 ];
 
@@ -110,6 +112,7 @@ export class Menu {
       if (!n) return;
       const next = items[i < 0 ? (d > 0 ? 0 : n - 1) : (i + d + n) % n];
       next.focus({ preventScroll: true });
+      next.scrollIntoView({ block: 'nearest' }); // settings and levels can be taller than a short screen
       this.hooks.sound();
     };
     switch (code) {
@@ -142,6 +145,7 @@ export class Menu {
         return true;
       case 'Escape':
       case 'Backspace':
+      case 'KeyK': // keyboard players live on W A S D, J and K: K backs out
         if (!this.back() && this.screen === 'pause') this.hooks.resume();
         else this.hooks.sound();
         return true;

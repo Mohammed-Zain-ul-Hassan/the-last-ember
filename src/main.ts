@@ -9,17 +9,18 @@ import { CHAPTERS, DAWN_SKY, MIDNIGHT_SKY } from './data/chapters';
 import { LEVELS } from './data/levels';
 import { MEMORY_TIME, Memories } from './render/memory';
 import { playEvents, type FxTargets } from './fx';
-import { clearInput, initInput, isLocked, keyTurn, onKey, onLockChange, readInput, requestLock, takeLook } from './input';
+import { clearInput, initInput, isHeld, isLocked, keyTurn, onKey, onLockChange, readInput, requestLock, takeLook } from './input';
 import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, ROAD_CARD_SHOT, TITLE_SHOT } from './render/cameraRig';
 import { angleDiff } from './sim/geom';
 import { Hearth } from './render/hearth';
 import { KnightView, setKnightFade } from './render/knightView';
-import { Particles } from './render/particles';
+import { emitCount, Particles } from './render/particles';
 import { Rain } from './render/rain';
 import { Blobs } from './render/blobs';
+import { LightRing } from './render/lightRing';
 import { ShadeViews } from './render/shadeView';
-import { LevelView } from './render/levelView';
-import { Stage } from './render/stage';
+import { LevelView, BRAZIER_LIGHTS } from './render/levelView';
+import { Stage, SHADOW_FRAME } from './render/stage';
 import { glowTexture, rampTexture } from './render/textures';
 const glowTex = glowTexture();
 import { botInput } from './sim/bot';
@@ -50,6 +51,9 @@ const rain = new Rain();
 stage.scene.add(rain.mesh);
 const blobs = new Blobs();
 stage.world.add(blobs.group);
+for (const l of BRAZIER_LIGHTS) stage.scene.add(l);
+const lightRing = new LightRing();
+stage.world.add(lightRing.mesh);
 const hud = new Hud();
 const worldUi = new WorldUi(stage.camera);
 let timeScale = 1;
@@ -244,8 +248,9 @@ function regionHere(): { x0: number; kind: string; name?: string; sub?: string }
 }
 function placeCheck(dt: number): void {
   if (revealT > 0) {
-    revealT -= dt;
-    if (revealT <= 0) rig.follow(1.4, revealYaw);
+    // a turn key hands the camera straight back: a reveal never holds the view against the player
+    revealT = keyTurn() !== 0 ? 0 : revealT - dt;
+    if (revealT <= 0) rig.follow(0.7, revealYaw);
     return;
   }
   const r = regionHere();
@@ -255,10 +260,13 @@ function placeCheck(dt: number): void {
   seenRegions.add(key);
   hud.place(r.name, r.sub ?? '');
   const shot = REVEAL_SHOTS[r.kind];
-  if (shot) {
+  // the place is always named; the camera only swings away to show it when nothing is coming for him
+  const k = world.knight;
+  const threat = world.shades.some((s) => s.state !== 'dead' && Math.hypot(s.x - k.x, s.z - k.z) < 12);
+  if (shot && !threat) {
     revealYaw = rig.yaw;
-    rig.go(shot, 1.2);
-    revealT = 2.9;
+    rig.go(shot, 1.0);
+    revealT = 1.7;
   }
 }
 
@@ -275,9 +283,10 @@ function beginPlay(): void {
   }
   knight.pose = 'stand';
   rig.torch = world.torch;
-  rig.follow(2.2, world.level.startYaw);
+  rig.follow(0.8, world.level.startYaw);
+  clearInput(); // the key that skipped the card must not also jump or swing on the first frame
   setMode('play');
-  if (!DEMO && !isLocked()) hud.toast('click to take the mouse  ·  look around');
+  if (!DEMO && !isLocked()) hud.toast('A / D turn  ·  W / S move  ·  J / K strike  ·  or click to look with the mouse');
 }
 
 function restartAll(): void {
@@ -311,7 +320,7 @@ function journeyEvents(): void {
         break;
       case 'feed':
         worldUi.pop(`+${CFG.hearth.emberHeal} the hearth drinks`, e.x, 3.4, 'soul big', e.z);
-        hud.flash(0.25, '#ffb070');
+        fx.flash(0.25, '#ffb070');
         sfx('ignite');
         break;
       case 'checkpoint':
@@ -326,12 +335,19 @@ function journeyEvents(): void {
   }
 }
 
+/** The furthest level reached, never past the last one (saved progress can come from an older build). */
+function furthest(): number {
+  return Math.min(reached(), CHAPTERS.length - 1);
+}
+
 // ------------------------------------------------------------------ input
 initInput(stage.renderer.domElement);
 onKey((code) => {
   initAudio();
   // take the mouse for looking whenever the player acts in the game (a click or a key is the gesture it needs)
-  if (!DEMO && (mode === 'play' || mode === 'intro' || mode === 'choice') && code !== 'Escape' && code !== 'KeyP') requestLock();
+  // the mouse is taken only by a click on the game: keyboard players keep their cursor and a bumped mouse never
+  // swings the view
+  if (!DEMO && (mode === 'play' || mode === 'intro' || mode === 'choice') && code.startsWith('Mouse')) requestLock();
   if (code === 'KeyM') return setMuted(!isMuted());
   // Esc opens the menu from anywhere in the game (the title has its own menu; credits go back to it)
   if ((code === 'Escape' || code === 'KeyP') && mode !== 'title' && mode !== 'paused' && mode !== 'credits') return pause();
@@ -355,17 +371,17 @@ onKey((code) => {
       else if (modeT > memEnd + 1.0 && modeT < outroTime()) modeT = outroTime();
       return;
     case 'lost':
-      if (modeT > 0.8 && (code === 'KeyR' || code === 'Enter' || code === 'Space')) retry();
+      if (modeT > 0.8 && (code === 'KeyR' || code === 'Enter' || code === 'Space' || code === 'KeyJ')) retry();
       return;
     case 'credits':
-      if (modeT > 1.5 && (code === 'Enter' || code === 'KeyR' || code === 'Escape')) goTitle();
+      if (modeT > 1.5 && (code === 'Enter' || code === 'KeyR' || code === 'Escape' || code === 'KeyJ' || code === 'Space')) goTitle();
       return;
     case 'paused':
       menu.key(code);
       return;
     case 'play':
       if (code === 'Escape' || code === 'KeyP') pause();
-      else if (code === 'KeyR') startChapter(chapterIndex, true);
+      else if (code === 'KeyR') hud.toast('hold R to restart the level');
       return;
   }
 });
@@ -397,16 +413,15 @@ function pause(): void {
 const menu = new Menu({
   settings,
   levels: () =>
-    CHAPTERS.map((c, i) => ({ roman: c.roman, clock: c.clock, title: c.title, place: LEVELS[c.level].name, best: bestFor(c.id)?.grade, locked: i > reached() })),
-  canContinue: () => (reached() > 0 ? `Level ${reached() + 1}  ·  ${CHAPTERS[reached()].title}` : null),
+    CHAPTERS.map((c, i) => ({ roman: c.roman, clock: c.clock, title: c.title, place: LEVELS[c.level].name, best: bestFor(c.id)?.grade, locked: i > furthest() })),
+  canContinue: () => (furthest() > 0 ? `Level ${furthest() + 1}  ·  ${CHAPTERS[furthest()].title}` : null),
   context: () => levelTitle(chapterIndex),
   begin: () => goLevel(0),
-  continue: () => goLevel(reached()),
+  continue: () => goLevel(furthest()),
   level: (i) => goLevel(i),
   resume: () => {
     menu.close();
     clearInput();
-    if (!DEMO) requestLock();
     if (pausedFrom === 'play') hud.show(true);
     setMode(pausedFrom);
   },
@@ -427,7 +442,6 @@ const menu = new Menu({
 function goLevel(i: number): void {
   initAudio();
   menu.close();
-  if (!DEMO) requestLock();
   endMemory();
   ending = null;
   stage.dawn = 0;
@@ -483,9 +497,15 @@ interface Pose3 {
 let prevWorld: World | null = null;
 const prevK: Pose3 = { x: 0, y: 0, z: 0, yaw: 0 };
 const prevS = new Map<number, Pose3>();
+// his move clock too: the sword arm and its trail are posed from it, so on a 120 Hz screen they stepped at 60
+let prevKState = '';
+let prevKStateT = 0;
+let trueKStateT = NaN;
 function snapshot(): void {
   const k = world.knight;
   prevWorld = world;
+  prevKState = k.state;
+  prevKStateT = k.stateT;
   prevK.x = k.x;
   prevK.y = k.y;
   prevK.z = k.z;
@@ -515,6 +535,11 @@ function interpolate(): void {
   if (prevWorld !== world) return;
   const a = Math.min(1, simAcc / CFG.dt);
   blendPose(world.knight, prevK, a);
+  const k = world.knight;
+  if (k.state === prevKState && k.stateT >= prevKStateT) {
+    trueKStateT = k.stateT;
+    k.stateT = prevKStateT + (k.stateT - prevKStateT) * a;
+  }
   for (const sh of world.shades) {
     const p = prevS.get(sh.id);
     if (p) blendPose(sh, p, a);
@@ -532,6 +557,10 @@ function restorePoses(): void {
   put(world.knight, 0);
   world.shades.forEach((sh, i) => put(sh, 4 + i * 4));
   truePoses.length = 0;
+  if (!Number.isNaN(trueKStateT)) {
+    world.knight.stateT = trueKStateT;
+    trueKStateT = NaN;
+  }
 }
 
 function stepSim(source: Input | (() => Input), dt: number): void {
@@ -616,7 +645,7 @@ function midnight(dt: number): void {
     hearth.setLit(false);
     hearth.strength = 0;
     sfx('ignite');
-    hud.flash(0.55, '#ffb070');
+    fx.flash(0.55, '#ffb070');
     rig.kick(1.2);
     rig.shake(0.3);
     const hx = world.hearthX;
@@ -733,7 +762,10 @@ applySettings();
 if (!DEMO) menu.open('title');
 
 let manualClock = false;
-let lookIdle = 0; // seconds since the player last turned the camera
+let keyTurnV = 0; // rad/s the turn keys are swinging the camera (eased)
+let closeT = 0; // seconds the close-quarters lean still holds
+let restartHold = 0; // seconds R has been held
+let keyHoldT = 0; // seconds a turn key has been held
 let boltT = 9; // seconds to the next lightning // trailer capture drives the game with exact steps (tick) instead of rAF
 function frame(now: number): void {
   if (!manualClock) update(now);
@@ -767,6 +799,7 @@ function adaptQuality(rawDt: number): void {
 }
 
 function update(now: number): void {
+  SHADOW_FRAME.n++;
   const rawDt = Math.max(0, Math.min(0.1, (now - last) / 1000));
   last = Math.max(last, now);
   adaptQuality(rawDt);
@@ -791,7 +824,15 @@ function update(now: number): void {
   if (mode === 'intro' && modeT > 3.8) beginPlay();
 
   if (mode === 'play') {
-    stepSim(DEMO ? () => botInput(world) : () => readInput(rig.yaw), dt);
+    // restart is a held R (it sits beside the turn keys; a stray tap must not throw the level away)
+    restartHold = isHeld('KeyR') ? restartHold + rawDt : 0;
+    if (restartHold > 0.6) {
+      restartHold = 0;
+      startChapter(chapterIndex, true);
+      return;
+    }
+    // he keeps turning with the camera until a key swing has fully settled, so he ends up square with the view
+    stepSim(DEMO ? () => botInput(world) : () => ({ ...readInput(rig.yaw), turning: keyTurnV !== 0 }), dt);
     placeCheck(rawDt);
     if (world.status === 'cleared') {
       knightX = world.knight.x;
@@ -835,6 +876,12 @@ function update(now: number): void {
 
   // ---- render-side updates (drawn from the blend of the last two sim ticks; see interpolate)
   interpolate();
+  // under the turn keys he is drawn square with the camera (the sim reads the camera's heading at 60 Hz and the view
+  // eases toward it: together that drew him visibly swinging behind the view on every turn)
+  {
+    const kk = world.knight;
+    if (truePoses.length && mode === 'play' && keyTurnV !== 0 && (kk.state === 'idle' || kk.state === 'run')) kk.yaw = rig.yaw + keyTurnV * rawDt;
+  }
   if (mode === 'intro' || mode === 'play' || mode === 'outro' || mode === 'lost' || mode === 'title') {
     const sky = mode === 'outro' && CHAPTERS[chapterIndex + 1] && chapterIndex + 1 !== midnightIndex ? CHAPTERS[chapterIndex + 1].sky : world.chapter.sky;
     stage.setSky(sky, Math.min(1, rawDt * (mode === 'outro' ? 0.9 : 0.6)));
@@ -881,24 +928,38 @@ function update(now: number): void {
   if (mode === 'title') rig.target.set(world.hearthX - 0.9, 0, world.hearthZ);
   else if (mode === 'midnight') rig.target.set(world.hearthX - 1.1, 0, world.hearthZ);
   else rig.target.set(k.x, k.y, k.z);
-  // mouse look (and Q / E) while the follow camera is up
+  // mouse look (and A / D or the arrows) while the follow camera is up
   const [lookX, lookY] = takeLook();
   if (rig.following && (mode === 'play' || mode === 'choice')) {
     rig.look(lookX, lookY, settings.sens, settings.invertY);
     const turn = keyTurn();
-    rig.yaw += turn * 2.4 * rawDt;
-    // with the mouse idle, the camera drifts back behind him while he runs (the demo bot relies on it)
-    lookIdle = lookX !== 0 || lookY !== 0 || turn !== 0 ? 0 : lookIdle + rawDt;
+    // the key swing spins up and settles over a few frames: crisp to the touch, never a jolt of the whole view
+    // and speeds up the longer the key is held: fine aim on a tap, a quick about-face on a hold
+    keyHoldT = turn !== 0 ? keyHoldT + rawDt : 0;
+    const ramp = Math.min(1, Math.max(0, (keyHoldT - 0.25) / 0.35));
+    const rate = CFG.knight.keyTurn + (CFG.knight.keyTurnMax - CFG.knight.keyTurn) * ramp * ramp * (3 - 2 * ramp);
+    keyTurnV += (turn * rate - keyTurnV) * Math.min(1, rawDt * CFG.knight.keyTurnEase);
+    if (turn === 0 && Math.abs(keyTurnV) < 0.01) keyTurnV = 0;
+    rig.yaw += keyTurnV * rawDt;
+    // the demo bot's camera drifts back behind him while he runs (never a player's: a camera that wandered after his
+    // facing would change where W takes him)
     const speed = Math.hypot(k.vx, k.vz);
-    if ((DEMO || lookIdle > 1.2) && speed > 1 && k.state !== 'dash') {
-      const rate = (DEMO ? 2.2 : 0.9) * Math.min(1, speed / CFG.knight.speed);
+    if (DEMO && speed > 1 && k.state !== 'dash') {
+      const rate = 2.2 * Math.min(1, speed / CFG.knight.speed);
       rig.yaw += angleDiff(rig.yaw, k.yaw) * Math.min(1, rawDt * rate);
     }
   }
-  // lean in a little when the knight is fighting at close quarters
-  const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.hypot(s.x - k.x, s.z - k.z) < 3.2);
-  rig.zoomTarget = close && (k.state === 'attack' || k.state === 'heavy' || k.state === 'dash') ? 0.88 : close ? 0.94 : 1;
+  // lean in a touch while shades are at close quarters, and hold it a second after: a zoom that followed every
+  // swing pumped the whole view in and out
+  const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.hypot(s.x - k.x, s.z - k.z) < 3.5);
+  closeT = close ? 1 : Math.max(0, closeT - rawDt);
+  rig.zoomTarget = closeT > 0 ? 0.93 : 1;
+  rig.grounded = k.onGround || mode !== 'play';
   rig.update(rawDt, t, world.solids);
+  fitParticles(); // particle sizes follow the lens as it changes (they were fitted to the title's 36 deg once)
+  // the world UI projects through this camera before the render would refresh its matrices: refresh them now, or
+  // every bar and marker trails the view by a frame while it turns
+  stage.camera.updateMatrixWorld();
   // the lens: shallow focus on him for cards, cutscenes and endings; sharp while you play
   stage.focus.set(k.x, k.y + 1.3, k.z);
   stage.setCinematic(mode === 'title' || mode === 'intro' || (mode === 'outro' && memories.active < 0) || mode === 'midnight' || mode === 'dawn' || mode === 'ending' || mode === 'credits');
@@ -908,6 +969,8 @@ function update(now: number): void {
   stage.rain = rain.level;
   const L0 = world.light;
   rain.update(t, stage.camera.position, { x: L0.x, y: L0.y, z: L0.z, radius: L0.radius, on: hearth.lit || knight.torchOn });
+  const ringOn = (mode === 'play' || mode === 'intro') && memories.active < 0 && (world.torch ? knight.torchOn : hearth.lit);
+  lightRing.update(t, rawDt, L0.x, world.floorAt(L0.x, L0.z, 0.2, (world.torch ? world.knight.y : 0) + 0.5), L0.z, L0.radius, ringOn, world.torch ? 1 : hearth.strength);
   rain.mesh.visible = rain.mesh.visible && memories.active < 0;
   setRain(memories.active >= 0 || mode === 'paused' ? rain.level * 0.35 : rain.level);
   // now and then, in the heavier rain, lightning far off, and its thunder a moment later
@@ -943,23 +1006,27 @@ function update(now: number): void {
 
 /** Shadow bolts (a swallowing violet core with a dark trail) and the Marshal's ground waves. */
 const boltSprites: THREE.Sprite[] = [];
+function addBoltSprite(): void {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(0.9, 0.35, 2.8), blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  sp.scale.setScalar(0.75);
+  sp.visible = false;
+  stage.scene.add(sp);
+  boltSprites.push(sp);
+}
+for (let i = 0; i < 12; i++) addBoltSprite(); // made up front, so the warm-up draws them before the first lantern fires
 function drawProjectiles(dt: number): void {
   const live = mode === 'play' ? world.bolts : [];
-  while (boltSprites.length < live.length) {
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(0.9, 0.35, 2.8), blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-    sp.scale.setScalar(0.75);
-    stage.scene.add(sp);
-    boltSprites.push(sp);
-  }
+  while (boltSprites.length < live.length) addBoltSprite();
   boltSprites.forEach((sp, i) => {
     const b = live[i];
     sp.visible = !!b;
     if (!b) return;
     sp.position.set(b.x, b.y, b.z);
     sp.scale.setScalar(0.65 + Math.sin(t * 30 + i) * 0.1);
-    for (let j = 0; j < 2; j++)
+    // trail density per second, not per frame (a 144 Hz screen drew 2.4x the smoke)
+    for (let j = 0, c = emitCount(dt * 120); j < c; j++)
       smoke.emit({ x: b.x, y: b.y, z: b.z, vx: -b.vx * 0.05, vy: -b.vy * 0.05, vz: -b.vz * 0.05, spread: 0.1, life: 0.45, size: 0.45, sizeEnd: 0.15, r: 0.03, g: 0.0, b: 0.06, alpha: 0.85, drag: 2 });
-    glow.emit({ x: b.x, y: b.y, z: b.z, spread: 0.3, life: 0.25, size: 0.08, sizeEnd: 0.01, r: 1.2, g: 0.5, b: 3.5 });
+    if (Math.random() < dt * 60) glow.emit({ x: b.x, y: b.y, z: b.z, spread: 0.3, life: 0.25, size: 0.08, sizeEnd: 0.01, r: 1.2, g: 0.5, b: 3.5 });
   });
   if (mode !== 'play') return;
   // the Marshal's shockwave: a ring of fire and smoke racing outward along the ground
@@ -983,7 +1050,7 @@ function ambient(dt: number): void {
     const L = world.light;
     const cx = rig.target.x;
     const cz = rig.target.z;
-    const tries = Math.round(dt * 900);
+    const tries = Math.round(dt * 420); // ink seeping from the shadows: a hint of where they rise, not a fog over the fight
     for (let i = 0; i < tries; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random()) * 18;
@@ -992,8 +1059,8 @@ function ambient(dt: number): void {
       if (Math.hypot(x - L.x, z - L.z) > L.radius * 1.4 || !world.inShadow(x, z)) continue;
       smoke.emit({
         x, y: 0.05, z,
-        vx: (Math.random() - 0.5) * 0.2, vy: 0.22, spread: 0.08, life: 2.6, size: 1.0, sizeEnd: 1.9,
-        r: 0.035, g: 0.015, b: 0.07, alpha: 0.3, drag: 0.3,
+        vx: (Math.random() - 0.5) * 0.2, vy: 0.22, spread: 0.08, life: 2.2, size: 0.8, sizeEnd: 1.5,
+        r: 0.035, g: 0.015, b: 0.07, alpha: 0.24, drag: 0.3,
       });
       if (Math.random() < 0.08)
         glow.emit({ x, y: 0.1, z, vy: 0.35, spread: 0.05, life: 2.2, size: 0.05, sizeEnd: 0.01, r: 0.9, g: 0.4, b: 2.2, wobble: 0.3 });
@@ -1002,7 +1069,7 @@ function ambient(dt: number): void {
   // rain splashes on whatever is underfoot (the ground, a wall top, the hut's roof), and drips off the eaves
   if (rain.level > 0.02 && memories.active < 0) {
     const ns = dt * 150 * rain.level;
-    for (let i = 0; i < ns + (Math.random() < ns % 1 ? 1 : 0); i++) {
+    for (let i = 0, c = emitCount(ns); i < c; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = 1 + Math.sqrt(Math.random()) * 13;
       const x = rig.target.x + Math.cos(a) * r;
@@ -1013,14 +1080,14 @@ function ambient(dt: number): void {
     const sh = world.level.shelter;
     if (sh) {
       const nd = dt * 26 * rain.level;
-      for (let i = 0; i < nd + (Math.random() < nd % 1 ? 1 : 0); i++) {
+      for (let i = 0, c = emitCount(nd); i < c; i++) {
         const side = Math.random() < 0.5 ? 0 : 2;
         glow.emit({ x: sh.rect[0] + Math.random() * (sh.rect[2] - sh.rect[0]), y: sh.y - 0.05, z: sh.rect[1 + side] + (side ? 0.15 : -0.15), vy: -2, spread: 0.02, life: 0.5, size: 0.035, sizeEnd: 0.025, r: 1.1, g: 0.75, b: 0.5, gravity: 14 });
       }
     }
   }
   const n = dt * (stage.dawn > 0.5 ? 6 : 12);
-  for (let i = 0; i < n + (Math.random() < n % 1 ? 1 : 0); i++) {
+  for (let i = 0, c = emitCount(n); i < c; i++) {
     smoke.emit({
       x: cam.x + (Math.random() - 0.5) * 30, y: 8 + Math.random() * 3, z: cam.z + (Math.random() - 0.5) * 30,
       vx: 0.5, vy: -0.55, spread: 0.1, life: 14, size: 0.06, sizeEnd: 0.045, r: 0.13, g: 0.12, b: 0.14, alpha: 0.6, wobble: 0.5,
@@ -1038,9 +1105,9 @@ if (DEBUG) {
     get state() {
       return { mode, chapter: world.chapter.id, status: world.status, time: +world.time.toFixed(2), hearth: world.hearthHp, hp: world.knight.hp, shades: world.shades.length, kills: world.kills, ending };
     },
-    start: () => { hud.title(false); startChapter(chapterIndex); },
+    start: () => { menu.close(); hud.title(false); startChapter(chapterIndex); },
     restart: () => startChapter(chapterIndex, true),
-    skipTo: (i: number) => { hud.title(false); startChapter(i, true); },
+    skipTo: (i: number) => { menu.close(); hud.title(false); startChapter(i, true); },
     play: () => beginPlay(),
     midnight: () => { hud.title(false); hud.hideCard(); chapterIndex = midnightIndex - 1; world = new World(chapterIndex, seed); applyPhase(chapterIndex); setMode('midnight'); },
     dawn: () => { hud.title(false); hud.hideCard(); chapterIndex = CHAPTERS.length - 1; applyPhase(chapterIndex); knightX = 0; setMode('dawn'); },
@@ -1056,6 +1123,35 @@ if (DEBUG) {
     stage,
     /** Advance the whole game by ms without waiting for animation frames (screenshots of exact moments). */
     tick: (ms: number, steps = 1) => { for (let i = 0; i < steps; i++) update(last + ms); },
+    /**
+     * Frame-time survey of a level under god mode: warm it behind its card, let the GPU settle, then time n frames
+     * (sim + render + GPU finish) through the fight. Median / p95 / worst ms and the frames over 20 ms. One unbroken run:
+     * yielding mid-run let the real frame loop draw in between and polluted the frames after it. gl.finish drains the
+     * GPU each frame, so absolute numbers run high; compare runs, and profile in DevTools for the real picture.
+     */
+    hitches: async (i: number, n = 900) => {
+      const gl = stage.renderer.getContext();
+      godMode = true;
+      menu.close();
+      hud.title(false);
+      startChapter(i, true);
+      for (let f = 0; f < 240; f++) update(last + 1000 / 60);
+      await new Promise((r) => setTimeout(r, 2500));
+      beginPlay();
+      const ms: number[] = [];
+      const spikes: [number, number][] = [];
+      for (let f = 0; f < n; f++) {
+        const t0 = performance.now();
+        update(last + 1000 / 60);
+        gl.finish();
+        const d = performance.now() - t0;
+        ms.push(d);
+        if (d > 20) spikes.push([f, Math.round(d)]);
+      }
+      const s = [...ms].sort((a, b) => a - b);
+      const q = (p: number) => +s[Math.min(n - 1, Math.floor(n * p))].toFixed(1);
+      return { level: CHAPTERS[i].id, median: q(0.5), p95: q(0.95), p99: q(0.99), worst: +s[n - 1].toFixed(0), spikes };
+    },
     /** Render n frames synchronously and return GPU+CPU ms per frame. */
     bench: (n = 60) => {
       const gl = stage.renderer.getContext();
@@ -1065,6 +1161,8 @@ if (DEBUG) {
     },
     rig,
     THREE,
+    /** Live objects for profiling from the console (wrap a method, time it). */
+    parts: { get world() { return world; }, get level() { return levelView; }, glow, smoke, shadeViews, hud, worldUi, rain, memories, hearth },
   };
 }
 

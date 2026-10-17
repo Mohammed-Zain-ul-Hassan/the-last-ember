@@ -145,6 +145,8 @@ export function surface<T extends THREE.MeshStandardMaterial>(mat: T, kind: Surf
           vec3 sfR1 = cross(sfDy, normal);
           vec3 sfR2 = cross(normal, sfDx);
           float sfDet = dot(sfDx, sfR1);
+          // fade the bump out with distance: far off the detail is smaller than a pixel and only sparkles
+          sfH *= 1.0 - smoothstep(12.0, 32.0, length(vViewPosition));
           vec3 sfGrad = sign(sfDet) * (dFdx(sfH) * sfR1 + dFdy(sfH) * sfR2);
           normal = normalize(abs(sfDet) * normal - sfGrad * 0.06);
         }`,

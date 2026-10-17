@@ -12,6 +12,9 @@ export interface Input {
   mx: number; // desired move on the ground, world space; length 0..1
   mz: number;
   aim?: number; // camera yaw: "forward" when he is not moving (and the centre of the soft-aim cone)
+  backpedal?: boolean; // moving back along aim: he steps back still facing forward, not turning to run at the camera
+  turning?: boolean; // the turn keys are held: standing still, he turns with the camera
+  dashSide?: number; // -1 / 1: this dash is a sidestep to his left / right (a turn key held, no forward or back)
   jumpHeld: boolean;
   jump: boolean; // pressed this step
   heavyHeld?: boolean; // held: charge a heavy strike
@@ -50,10 +53,14 @@ export interface Knight {
   chargeT: number; // time spent charging
   chargeLevel: number; // 0..1, for the released strike
   bufferedAttack: boolean;
+  bufferedHeavy: boolean; // the buffered press was the heavy button (it stays a heavy)
   bufferedAimYaw: number; // where a buffered combo step will swing
+  dashBuffer: number; // seconds a dash press waits for the cooldown (or a stagger) to end
   coyote: number;
   jumpBuffer: number;
   dashCd: number;
+  dashSideWant: number; // the buffered dash's side (0 = not a sidestep)
+  dashDir: number; // this shadow-step's heading relative to his facing: 0 forward, PI a backstep, +-PI/2 a sidestep
   airDash: boolean;
   iframes: number;
   hitThisSwing: Set<number>;
@@ -203,8 +210,8 @@ export class World {
     this.knight = {
       x: opts.startX ?? this.level.start, y: opts.startY ?? 0, z: opts.startZ ?? this.level.startZ, vx: 0, vy: 0, vz: 0, yaw: this.level.startYaw,
       onGround: true, hp: CFG.knight.maxHp, lives: CFG.knight.lives,
-      state: 'idle', stateT: 0, combo: 0, move: 'light', swingId: 0, sinceDash: 9, airHits: 0, slamT: -1, ember: false, airJumps: CFG.knight.airJumps, chargeT: 0, chargeLevel: 0, bufferedAttack: false, bufferedAimYaw: this.level.startYaw,
-      coyote: 0, jumpBuffer: 0, dashCd: 0, airDash: true, iframes: 0, hitThisSwing: new Set(),
+      state: 'idle', stateT: 0, combo: 0, move: 'light', swingId: 0, sinceDash: 9, airHits: 0, slamT: -1, ember: false, airJumps: CFG.knight.airJumps, chargeT: 0, chargeLevel: 0, bufferedAttack: false, bufferedHeavy: false, dashBuffer: 0, bufferedAimYaw: this.level.startYaw,
+      coyote: 0, jumpBuffer: 0, dashCd: 0, dashDir: 0, dashSideWant: 0, airDash: true, iframes: 0, hitThisSwing: new Set(),
     };
     this.light = { x: this.hearthX, y: this.chapter.lightHeight, z: this.hearthZ, radius: this.chapter.lightRadius };
     this.updateLight();
@@ -331,7 +338,7 @@ export class World {
     const mx = inp.mx || 0;
     const mz = inp.mz || 0;
     const moving = Math.hypot(mx, mz) > 0.2;
-    const base = moving ? Math.atan2(mz, mx) : (inp.aim ?? k.yaw);
+    const base = moving && !inp.backpedal ? Math.atan2(mz, mx) : (inp.aim ?? k.yaw);
     let best = Infinity;
     let yaw = base;
     for (const s of this.shades) {
@@ -413,11 +420,25 @@ export class World {
     const busy = k.state === 'attack' || k.state === 'heavy' || k.state === 'dash' || k.state === 'hurt' || k.state === 'charge';
 
     // --- dash (can cancel an attack's recovery)
-    if (inp.dash && k.dashCd <= 0 && (k.onGround || k.airDash) && k.state !== 'hurt' && k.state !== 'dash') {
-      if (moving) k.yaw = moveYaw;
+    // a dash pressed a beat early (still on cooldown, still reeling) comes out as soon as it can, not never
+    if (inp.dash) {
+      k.dashBuffer = CFG.knight.dashBuffer;
+      k.dashSideWant = inp.dashSide ?? 0;
+    }
+    else k.dashBuffer = Math.max(0, k.dashBuffer - dt);
+    if (k.dashBuffer > 0 && k.dashCd <= 0 && (k.onGround || k.airDash) && k.state !== 'hurt' && k.state !== 'dash') {
+      k.dashBuffer = 0;
+      // backpedalling it is a backstep, with a turn key and no W / S a sidestep: either way he keeps his eyes on what
+      // he dodges; otherwise he steps where he runs
+      if (k.dashSideWant) {
+        if (inp.aim !== undefined) k.yaw = inp.aim;
+        k.dashDir = (Math.PI / 2) * Math.sign(k.dashSideWant);
+      } else k.dashDir = moving && inp.backpedal ? Math.PI : 0;
+      if (moving && k.dashDir === 0) k.yaw = moveYaw;
       this.setKState('dash');
-      k.vx = fwdX(k.yaw) * K.dashSpeed;
-      k.vz = fwdZ(k.yaw) * K.dashSpeed;
+      const dy = k.yaw + k.dashDir;
+      k.vx = fwdX(dy) * K.dashSpeed;
+      k.vz = fwdZ(dy) * K.dashSpeed;
       k.vy = 0;
       k.dashCd = K.dashCd;
       k.iframes = Math.max(k.iframes, K.dashTime + 0.05);
@@ -427,7 +448,10 @@ export class World {
 
     // --- attacks: the same two buttons become different moves depending on what he is doing
     k.sinceDash += dt;
-    if ((inp.attack || inp.heavy) && (k.state === 'attack' || k.state === 'heavy')) k.bufferedAttack = true;
+    if ((inp.attack || inp.heavy) && (k.state === 'attack' || k.state === 'heavy')) {
+      k.bufferedAttack = true;
+      k.bufferedHeavy = !!inp.heavy && !inp.attack;
+    }
     const canAttack = !busy || (k.state === 'dash' && inp.attack);
     // an aerial can be cancelled into a plunge once its blow has landed
     const airSp = CFG.air;
@@ -451,8 +475,11 @@ export class World {
       k.vy = 0;
       if (k.stateT >= K.dashTime) {
         k.sinceDash = 0;
-        k.vx = fwdX(k.yaw) * K.speed;
-        k.vz = fwdZ(k.yaw) * K.speed;
+        // out of a back- or sidestep he keeps a little of the drift (never flung forward)
+        const dy = k.yaw + k.dashDir;
+        const sp = K.speed * (k.dashDir === 0 ? 1 : k.dashDir === Math.PI ? K.backpedal : 0.25);
+        k.vx = fwdX(dy) * sp;
+        k.vz = fwdZ(dy) * sp;
         this.setKState(k.onGround ? 'run' : 'air');
       }
     } else if (k.state === 'hurt') {
@@ -461,7 +488,7 @@ export class World {
       if (k.stateT >= K.hurtTime) this.setKState(k.onGround ? 'idle' : 'air');
     } else {
       // --- free movement: steer the ground velocity toward where the stick (WASD) points
-      const vmax = K.speed * (k.ember ? 0.82 : 1);
+      const vmax = K.speed * (k.ember ? 0.82 : 1) * (inp.backpedal ? K.backpedal : 1);
       const tvx = moving ? mx * vmax : 0;
       const tvz = moving ? mz * vmax : 0;
       const rate = (moving ? (k.onGround ? K.accel : K.airAccel) : k.onGround ? K.friction : 0) * dt;
@@ -475,7 +502,8 @@ export class World {
         k.vx += (dvx / dl) * rate;
         k.vz += (dvz / dl) * rate;
       }
-      if (moving) this.turnToward(moveYaw, K.turnRate, dt);
+      if (moving && !inp.backpedal) this.turnToward(moveYaw, K.turnRate, dt);
+      else if ((inp.backpedal || inp.turning) && inp.aim !== undefined) this.turnToward(inp.aim, K.turnRate, dt);
       if (k.jumpBuffer > 0 && k.coyote > 0) {
         k.vy = K.jumpV;
         k.onGround = false;
@@ -520,6 +548,17 @@ export class World {
         if (s.y1 <= k.y + STEP || s.y0 >= k.y + K.h - 0.05) continue;
         const p = pushOut(s, k.x, k.z, r);
         if (!p) continue;
+        // and lose the speed going into the wall: no running on the spot, no lunge out of a wall-hug
+        const nx = p[0] - k.x;
+        const nz = p[1] - k.z;
+        const nl = Math.hypot(nx, nz);
+        if (nl > 1e-6) {
+          const vn = (k.vx * nx + k.vz * nz) / nl;
+          if (vn < 0) {
+            k.vx -= (nx / nl) * vn;
+            k.vz -= (nz / nl) * vn;
+          }
+        }
         k.x = p[0];
         k.z = p[1];
       }
@@ -537,12 +576,16 @@ export class World {
         k.vy = Math.min(0, k.vy);
       }
     }
-    if (k.y <= floor) {
+    // walking off a step no taller than a stair keeps him on his feet (no fall, no air pose, no landing thud)
+    const snapDown = wasGround && k.vy <= 0 && k.state !== 'dash' && k.y > floor && prevY - floor <= STEP;
+    if (k.y <= floor || snapDown) {
       k.y = floor;
-      if (k.vy < 0) k.vy = 0;
-      k.onGround = true;
-      k.airDash = true;
-      k.airJumps = CFG.knight.airJumps;
+      if (k.vy <= 0 || snapDown) {
+        k.vy = 0;
+        k.onGround = true;
+        k.airDash = true;
+        k.airJumps = CFG.knight.airJumps;
+      } else k.onGround = false; // rising past a ledge's lip: lifted onto it, but still in the air (no false landing)
     } else k.onGround = false;
     if (!wasGround && k.onGround && k.state !== 'dead') this.events.push({ type: 'land', x: k.x, y: k.y, z: k.z });
   }
@@ -632,10 +675,16 @@ export class World {
     const done = t >= sp.windup + sp.active + sp.recover;
     const early = t >= sp.windup + sp.active + sp.recover * 0.45;
     if (k.bufferedAttack && early) {
-      if (k.move === 'light' && k.combo < CFG.combo.length - 1) return this.startMove('light', k.combo + 1, k.bufferedAimYaw);
-      if (k.move === 'air' && !k.onGround && k.airHits < CFG.airChain) return this.startMove('air', 0, k.bufferedAimYaw);
+      if (k.bufferedHeavy && k.onGround && k.move !== 'heavy' && k.move !== 'charged') return this.startMove('heavy', 0, k.bufferedAimYaw);
+      if (!k.bufferedHeavy && k.move === 'light' && k.combo < CFG.combo.length - 1) return this.startMove('light', k.combo + 1, k.bufferedAimYaw);
+      if (!k.bufferedHeavy && k.move === 'air' && !k.onGround && k.airHits < CFG.airChain) return this.startMove('air', 0, k.bufferedAimYaw);
     }
-    if (done) this.setKState(k.onGround ? 'idle' : 'air');
+    if (done) {
+      // a press during any other move (a lunge, a cleave, a pierce, the end of a combo) is never swallowed: it starts
+      // the next swing the moment this one ends
+      if (k.bufferedAttack && k.onGround) return this.startMove(k.bufferedHeavy ? 'heavy' : 'light', 0, k.bufferedAimYaw);
+      this.setKState(k.onGround ? 'idle' : 'air');
+    }
   }
 
   /** Heavy in the air: hang, dive, and slam the ground in a ring. */

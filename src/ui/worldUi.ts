@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { GameEvent, Move, World } from '../sim/world';
 import { HealthBar } from './healthBar';
+import { replay } from './hud';
 
 // World-anchored UI drawn as crisp DOM over the canvas: a health bar over every shade (with a trailing "chip" that
 // shows the damage just dealt), damage numbers bursting from their heads, the name of the person each shade once
@@ -21,7 +22,14 @@ interface Bar {
   hb: HealthBar;
   lastHit: number;
   shown: number;
+  tf: string; // the transform / opacity the element holds now (only rewritten on change)
+  op: string;
 }
+
+/** A full-health shade further than this from him keeps its bar hidden: the screen stays about the fight at hand. */
+const BAR_NEAR = 8;
+/** At most this many floating numbers at once; the oldest goes first. */
+const MAX_POPS = 24;
 
 export class WorldUi {
   private root = $('worldui') as HTMLDivElement;
@@ -37,6 +45,7 @@ export class WorldUi {
   numbers = true; // damage numbers (a setting)
   private stack = 0;
   private stackT = -9;
+  private pops: HTMLElement[] = [];
 
   constructor(camera: THREE.Camera) {
     this.camera = camera;
@@ -74,11 +83,19 @@ export class WorldUi {
     // stagger stacked numbers so rapid hits never print on top of each other
     this.stack = this.t - this.stackT < 0.35 ? this.stack + 1 : 0;
     this.stackT = this.t;
-    el.style.left = `${p.x + (Math.random() - 0.5) * 50 + (this.stack % 3 - 1) * 22}px`;
-    el.style.top = `${p.y - (this.stack % 4) * 16}px`;
+    el.style.left = `${Math.round(p.x + (Math.random() - 0.5) * 50 + (this.stack % 3 - 1) * 22)}px`;
+    el.style.top = `${Math.round(p.y - (this.stack % 4) * 16)}px`;
     el.style.setProperty('--drift', `${(Math.random() - 0.5) * 60}px`);
+    this.pops.push(el);
+    while (this.pops.length > MAX_POPS) this.pops.shift()!.remove();
     this.root.appendChild(el);
-    el.addEventListener('animationend', () => el.remove());
+    const done = () => {
+      el.remove();
+      const i = this.pops.indexOf(el);
+      if (i >= 0) this.pops.splice(i, 1);
+    };
+    el.addEventListener('animationend', done);
+    setTimeout(done, 4000); // never relies on the animation alone (a hidden layer never ends it)
   }
 
   events(events: readonly GameEvent[], w: World): void {
@@ -122,16 +139,22 @@ export class WorldUi {
           const hb = new HealthBar('ebar');
           hb.reset(Math.max(0, s.hp / s.maxHp));
           this.root.appendChild(hb.el);
-          b = { hb, lastHit: -9, shown: 0 };
+          b = { hb, lastHit: -9, shown: 0, tf: '', op: '' };
           this.bars.set(s.id, b);
         }
         b.hb.set(s.hp / s.maxHp, dt);
         const el = b.hb.el;
-        const target = s.state === 'rise' ? 0 : 1;
+        // a bar only for shades that matter now: hurt, recently struck, or close to him
+        const near = Math.hypot(s.x - w.knight.x, s.z - w.knight.z) < BAR_NEAR;
+        const relevant = s.hp < s.maxHp - 1e-3 || this.t - b.lastHit < 3 || near;
+        const target = s.state === 'rise' || !relevant ? 0 : 1;
         b.shown += (target - b.shown) * Math.min(1, dt * 6);
         const p = this.project(s.x, s.y + this.headY(false, s.kind), s.z);
-        el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
-        el.style.opacity = p.on ? (b.shown * (s.light > 0.05 ? 1 : 0.85)).toFixed(2) : '0';
+        // whole pixels: a 1 px border at fractional offsets shimmers as the camera moves
+        const tf = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%)`;
+        const op = p.on && b.shown > 0.02 ? (b.shown * (s.light > 0.05 ? 1 : 0.85)).toFixed(2) : '0';
+        if (tf !== b.tf) el.style.transform = b.tf = tf;
+        if (op !== b.op) el.style.opacity = b.op = op;
         el.classList.toggle('burning', s.light > 0.05);
         el.classList.toggle('struck', this.t - b.lastHit < 0.15);
       }
@@ -164,13 +187,11 @@ export class WorldUi {
     const left = p.on ? p.x < window.innerWidth / 2 : p.side < 0;
     el.classList.toggle('left', left);
     el.classList.toggle('right', !left);
-    (el.querySelector('.hp') as HTMLElement).textContent = `${Math.round(w.hearthHp)}%`;
+    const hp = el.querySelector('.hp') as HTMLElement;
+    const txt = `${Math.round(w.hearthHp)}%`;
+    if (hp.textContent !== txt) hp.textContent = txt;
     if (w.events.some((e) => e.type === 'hearthHurt')) {
-      if (this.t - this.hearthHitT > 1.5) {
-        el.classList.remove('struck');
-        void el.offsetWidth;
-        el.classList.add('struck');
-      }
+      if (this.t - this.hearthHitT > 1.5) replay(el, 'struck');
       this.hearthHitT = this.t;
     }
   }
@@ -179,5 +200,6 @@ export class WorldUi {
     for (const b of this.bars.values()) b.hb.el.remove();
     this.bars.clear();
     for (const el of Array.from(this.root.querySelectorAll('.pop'))) el.remove();
+    this.pops.length = 0;
   }
 }

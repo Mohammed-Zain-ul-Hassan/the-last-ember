@@ -48,6 +48,13 @@ const WARM_WINDOW = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.
 const WINDOW_SPILL = new THREE.MeshBasicMaterial({ map: glowTexture(), color: new THREE.Color(0.75, 0.32, 0.1), transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false });
 const MOONBEAM = new THREE.MeshBasicMaterial({ map: shaftTexture(), color: new THREE.Color(0.2, 0.25, 0.55), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
 
+
+/**
+ * The checkpoint braziers' lights: two, created once, always in the scene (dark when unused). Main adds them to the
+ * stage. A level places the first ones it needs; the light count, and so every shader, never changes between levels.
+ */
+export const BRAZIER_LIGHTS: THREE.PointLight[] = [0, 1].map(() => new THREE.PointLight(0xff8a3d, 0, 14, 2));
+
 export class LevelView {
   readonly group = new THREE.Group();
   private banners: Banner[] = [];
@@ -409,9 +416,16 @@ export class LevelView {
     flame.strength = 0;
     flame.group.userData.dynamic = true;
     this.target.add(flame.group);
-    const light = new THREE.PointLight(0xff8a3d, 0, 14, 2);
-    light.position.set(x, 1.7, z + 0.4);
-    this.target.add(light);
+    // the light comes from a fixed pair that never leaves the scene (see BRAZIER_LIGHTS): a level adding or removing
+    // its own lights changed the light count, and every material in the game compiled a second set of shaders
+    const light = BRAZIER_LIGHTS[this.braziers.length] ?? new THREE.PointLight(0xff8a3d, 0, 14, 2);
+    if (!BRAZIER_LIGHTS.includes(light)) {
+      console.warn('[level] more braziers than shared lights: this level recompiles shaders');
+      this.target.add(light);
+    }
+    this.target.updateWorldMatrix(true, false);
+    light.position.set(x, 1.7, z + 0.4).applyMatrix4(this.target.matrixWorld);
+    light.intensity = 0;
     this.braziers.push({ x, flame, light, lit: 0 });
   }
 
@@ -484,6 +498,7 @@ export class LevelView {
   }
 
   dispose(): void {
+    for (const l of BRAZIER_LIGHTS) l.intensity = 0;
     this.group.traverse((o) => {
       const m = o as THREE.Mesh;
       if (m.isMesh) m.geometry.dispose();

@@ -93,6 +93,45 @@ describe('world', () => {
     expect(Math.cos(w.knight.yaw - Math.PI / 2)).toBeGreaterThan(0.99);
   });
 
+  it('backpedals: S steps him back along the camera, still facing forward, slower than a run', () => {
+    const w = new World(0, 1);
+    w.knight.yaw = 0;
+    const x0 = w.knight.x;
+    for (let i = 0; i < 20; i++) w.step(press({ mx: -1, mz: 0, aim: 0, backpedal: true }));
+    expect(w.knight.x).toBeLessThan(x0 - 0.8);
+    expect(Math.cos(w.knight.yaw)).toBeGreaterThan(0.99);
+    expect(Math.hypot(w.knight.vx, w.knight.vz)).toBeLessThanOrEqual(CFG.knight.speed * CFG.knight.backpedal + 1e-6);
+  });
+
+  it('standing still, the turn keys turn him with the camera', () => {
+    const w = new World(0, 1);
+    w.knight.yaw = 0;
+    for (let i = 0; i < 30; i++) w.step(press({ aim: 1.2, turning: true }));
+    expect(Math.cos(w.knight.yaw - 1.2)).toBeGreaterThan(0.99);
+    expect(Math.hypot(w.knight.vx, w.knight.vz)).toBeLessThan(0.01);
+  });
+
+  it('a shadow-step while backpedalling is a backstep: back, still facing forward', () => {
+    const w = new World(0, 1);
+    w.knight.yaw = 0;
+    w.step(press({ dash: true, mx: -1, mz: 0, aim: 0, backpedal: true }));
+    expect(w.knight.state).toBe('dash');
+    expect(w.knight.vx).toBeLessThan(-CFG.knight.speed);
+    expect(Math.cos(w.knight.yaw)).toBeGreaterThan(0.99);
+    for (let i = 0; i < 30 && w.knight.state === 'dash'; i++) w.step(press({ mx: -1, mz: 0, aim: 0, backpedal: true }));
+    expect(w.knight.vx).toBeLessThan(0); // comes out of it still moving back, not flung forward
+  });
+
+  it('a dash with a turn key and no W / S is a sidestep: sideways, still facing forward', () => {
+    const w = new World(0, 1);
+    w.knight.yaw = 0;
+    w.step(press({ dash: true, aim: 0, dashSide: 1 }));
+    expect(w.knight.state).toBe('dash');
+    expect(w.knight.vz).toBeGreaterThan(CFG.knight.speed); // +z is his right when he faces +x
+    expect(Math.abs(w.knight.vx)).toBeLessThan(0.01);
+    expect(Math.cos(w.knight.yaw)).toBeGreaterThan(0.99);
+  });
+
   it('loses when the hearth burns out', () => {
     const w = new World(0, 1);
     w.hearthHp = 1;
@@ -224,6 +263,61 @@ describe('world', () => {
     run(w, 12, { mx: 1 });
     w.step(press({ mx: 1, attack: true }));
     expect(w.knight.move).toBe('lunge');
+  });
+
+  it('walks off a low step without leaving the ground', () => {
+    const w = arena();
+    const k = w.knight;
+    w.solids = [box(k.x, k.z, 3, 3, 0.3)];
+    k.y = 0.3;
+    k.onGround = true;
+    const states = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      w.step(press({ mx: 1 }));
+      states.add(k.state);
+    }
+    expect(k.y).toBe(0);
+    expect(states.has('air')).toBe(false);
+    expect(w.events.some((e) => e.type === 'land')).toBe(false);
+  });
+
+  it('a wall soaks up his speed instead of letting him run on the spot', () => {
+    const w = arena();
+    const k = w.knight;
+    w.solids = [box(k.x + 1.2, k.z, 0.6, 6, 3)];
+    run(w, 40, { mx: 1 });
+    expect(Math.abs(k.vx)).toBeLessThan(0.5);
+  });
+
+  it('an attack pressed during a lunge is not swallowed: it swings once the lunge ends', () => {
+    const w = arena();
+    run(w, 12, { mx: 1 });
+    w.step(press({ mx: 1, attack: true }));
+    expect(w.knight.move).toBe('lunge');
+    const id = w.knight.swingId;
+    w.step(press({ mx: 1, attack: true }));
+    for (let i = 0; i < 60 && w.knight.swingId === id; i++) w.step(press({ mx: 0 }));
+    expect(w.knight.swingId).toBe(id + 1);
+  });
+
+  it('heavy pressed mid-combo comes out as a heavy, not another light', () => {
+    const w = arena();
+    w.step(press({ attack: true }));
+    w.step(press({ heavy: true }));
+    for (let i = 0; i < 60 && w.knight.move === 'light'; i++) w.step(press({}));
+    expect(w.knight.move).toBe('heavy');
+  });
+
+  it('a dash pressed just before the cooldown ends still comes out', () => {
+    const w = arena();
+    w.step(press({ dash: true, mx: 1 }));
+    expect(w.knight.state).toBe('dash');
+    let i = 0;
+    while (w.knight.dashCd > CFG.knight.dashBuffer * 0.5 && i++ < 200) w.step(press({}));
+    w.step(press({ dash: true, mx: 1 }));
+    expect(w.knight.state).not.toBe('dash');
+    for (let j = 0; j < 12 && w.knight.state !== 'dash'; j++) w.step(press({ mx: 1 }));
+    expect(w.knight.state).toBe('dash');
   });
 
   it('double jump: one extra leap in the air, restored on landing', () => {

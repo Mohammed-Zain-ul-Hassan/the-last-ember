@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CFG } from '../config';
 import type { Shade } from '../sim/world';
 import type { Particles } from './particles';
-import { rimify } from './rim';
+import { ENEMY_RIM, rimify, setFade, setRimHot } from './rim';
 import { glowTexture, tatterTexture } from './textures';
 
 // The two new kinds of shadow. Same rules as the wraiths: matte black, rimmed by the sky, ember eyes, hit-flash.
@@ -15,7 +15,7 @@ export interface EnemyMesh {
 }
 
 const black = (key: string, side: THREE.Side = THREE.FrontSide) =>
-  rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, side }), 0.8, key);
+  rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, side }), 0.8, key, ENEMY_RIM);
 
 /** Ease a view's facing toward the sim's yaw the short way round; the first call snaps. Returns the eased yaw. */
 export function turnToward(v: { turnYaw?: number }, yaw: number, dt: number): number {
@@ -27,11 +27,11 @@ export function turnToward(v: { turnYaw?: number }, yaw: number, dt: number): nu
   return v.turnYaw;
 }
 
-function fade(mats: THREE.MeshStandardMaterial[], opacity: number, flash: number): void {
+function fade(mats: THREE.MeshStandardMaterial[], opacity: number, flash: number, hot = 0): void {
   const fl = flash * flash;
   for (const m of mats) {
-    m.transparent = opacity < 0.999;
-    m.opacity = opacity;
+    setFade(m, opacity);
+    setRimHot(m, hot);
     m.emissive.setRGB(2.4 * fl, 0.5 * fl, 0.15 * fl);
   }
 }
@@ -109,7 +109,7 @@ export class CrawlerMesh implements EnemyMesh {
     }
     const opacity = s.state === 'dead' ? Math.max(0, 1 - s.deadT * 3.5) : 1;
     this.flash = Math.max(0, this.flash - dt * 6);
-    fade([this.mat], opacity, this.flash);
+    fade([this.mat], opacity, this.flash, crouch * crouch);
     this.root.visible = opacity > 0.01;
     const tel = s.state === 'windup' ? 1 + 2.5 * crouch : 1;
     this.eyeMat.color.setRGB(4.5 * tel, 0.8 * tel, 0.3);
@@ -137,6 +137,7 @@ export class LanternMesh implements EnemyMesh {
       new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, specularIntensity: 0, side: THREE.DoubleSide, alphaMap: tat, alphaTest: 0.5 }),
       0.6,
       'lanterncloak',
+      ENEMY_RIM,
     );
     // the cage: rings and ribs around a hollow head
     const cage = new THREE.Group();
@@ -194,7 +195,7 @@ export class LanternMesh implements EnemyMesh {
     this.arms.forEach((a, i) => (a.rotation.z = 0.6 + Math.sin(tt * 2 + i) * 0.2 + charge * 1.4));
     const opacity = s.state === 'dead' ? Math.max(0, 1 - s.deadT * 3.5) : 1;
     this.flash = Math.max(0, this.flash - dt * 6);
-    fade([this.mat, this.cloakMat], opacity, this.flash);
+    fade([this.mat, this.cloakMat], opacity, this.flash, charge * charge);
     this.root.visible = opacity > 0.01;
     // the stolen ember swells as it gathers a bolt
     const pulse = 0.85 + 0.15 * Math.sin(tt * 5);

@@ -1,6 +1,19 @@
 import * as THREE from 'three';
 
 // CPU-simulated point particles in one draw call per system. Colours may exceed 1 so bloom picks them up.
+
+/** Attributes rewritten every frame (colour only on a birth or a death). */
+const UPLOAD = ['position', 'aSize', 'aAlpha'];
+
+/**
+ * How many to emit this frame for a fractional rate (n per frame): the whole part, plus one more with the leftover
+ * as a chance. (The old inline loops re-rolled that chance on every iteration and always emitted at least one, so
+ * ash, rain splashes and his smoke ran 3-13x their intended rate, more on fast displays, and starved the pools.)
+ */
+export function emitCount(n: number): number {
+  return Math.floor(n) + (Math.random() < n % 1 ? 1 : 0);
+}
+
 export interface EmitOpts {
   x: number;
   y: number;
@@ -111,6 +124,7 @@ export class Particles {
   emit(o: EmitOpts): void {
     if (this.count >= this.max) return;
     const i = this.count++;
+    this.colDirty = true;
     const s = o.spread ?? 0;
     const i3 = i * 3;
     this.pos[i3] = o.x;
@@ -157,8 +171,19 @@ export class Particles {
     }
     const g = this.points.geometry;
     g.setDrawRange(0, this.count);
-    for (const name of ['position', 'aColor', 'aSize', 'aAlpha']) (g.getAttribute(name) as THREE.BufferAttribute).needsUpdate = true;
+    // upload only the live part of each buffer (the whole pool was sent every frame, ~190 KB, however few were alive);
+    // colours change only when one is born or dies
+    for (const name of UPLOAD) this.upload(g.getAttribute(name) as THREE.BufferAttribute);
+    if (this.colDirty) this.upload(g.getAttribute('aColor') as THREE.BufferAttribute);
+    this.colDirty = false;
   }
+
+  private upload(a: THREE.BufferAttribute): void {
+    a.clearUpdateRanges();
+    if (this.count > 0) a.addUpdateRange(0, this.count * a.itemSize);
+    a.needsUpdate = true;
+  }
+  private colDirty = true;
 
   clear(): void {
     this.count = 0;
@@ -166,6 +191,7 @@ export class Particles {
 
   private kill(i: number): void {
     const last = --this.count;
+    this.colDirty = true;
     if (i === last) return;
     const i3 = i * 3;
     const l3 = last * 3;

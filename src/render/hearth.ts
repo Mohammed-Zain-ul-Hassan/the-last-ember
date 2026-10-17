@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SHADOW_FRAME } from './stage';
 import { Flame } from './flame';
 import type { Particles } from './particles';
 import { rimify } from './rim';
@@ -66,9 +67,9 @@ export class Hearth {
     this.light.castShadow = true;
     this.light.shadow.mapSize.set(1024, 1024);
     this.light.shadow.camera.near = 0.3;
-    this.light.shadow.camera.far = 40;
+    this.light.shadow.camera.far = 22; // past the firelight's reach (13 m at most): far ruins needn't be redrawn 6x for it
     this.light.shadow.bias = -0.004;
-    this.light.shadow.radius = 3;
+    this.light.shadow.radius = 1.8;
     this.light.shadow.autoUpdate = false; // a 6-face cube: redrawn every other frame (see update)
     this.group.add(this.light);
 
@@ -93,11 +94,10 @@ export class Hearth {
     for (const c of this.group.children) if (c !== this.light) c.visible = on;
   }
 
-  private frame = 0;
 
   update(dt: number, t: number, glow: Particles, smoke: Particles, camera: THREE.Camera): void {
     // redrawn on odd frames; the moon's shadow takes the even ones, so no frame carries both
-    if (++this.frame % 2 === 1 && this.lit && this.present) this.light.shadow.needsUpdate = true;
+    if (SHADOW_FRAME.n % 2 === 1 && this.lit && this.present) this.light.shadow.needsUpdate = true;
     const s = this.lit && this.present ? this.strength : 0;
     const x = this.group.position.x;
     const fl = 0.86 + 0.08 * Math.sin(t * 17.3) + 0.06 * Math.sin(t * 7.1 + 1.3) + 0.05 * Math.sin(t * 31.7);
@@ -115,8 +115,9 @@ export class Hearth {
     this.flame.update(t, camera);
 
     if (s > 0.02) {
-      // sparks off the flame body and embers lifting into the night
-      if (Math.random() < 0.5 + 0.5 * s) {
+      // sparks off the flame body and embers lifting into the night (per second, not per frame: a fast display doubled
+      // the swarm around the fire)
+      if (Math.random() < dt * (12 + 14 * s)) {
         glow.emit({
           x: x + (Math.random() - 0.5) * 1.2, y: BOWL_TOP + 0.4 + Math.random() * (top - BOWL_TOP), z: (Math.random() - 0.5) * 0.8,
           vx: (Math.random() - 0.5) * 1.4, vy: 1.8 + Math.random() * 2.4, spread: 0.2,

@@ -3,7 +3,7 @@ import { CFG } from '../config';
 import type { Shade, ShadeKind } from '../sim/world';
 import { CrawlerMesh, LanternMesh, turnToward, type EnemyMesh } from './enemyViews';
 import type { Particles } from './particles';
-import { rimify } from './rim';
+import { ENEMY_RIM, rimify, setFade, setRimHot } from './rim';
 import { tatterTexture } from './textures';
 
 const TATTER = tatterTexture(11);
@@ -41,11 +41,12 @@ class ShadeMesh {
   private robeMat: THREE.MeshStandardMaterial;
 
   constructor() {
-    this.mat = rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0 }), 0.75, 'shade');
+    this.mat = rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0 }), 0.75, 'shade', ENEMY_RIM);
     const robeMat = rimify(
       new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, alphaMap: TATTER, alphaTest: 0.5, side: THREE.DoubleSide }),
       0.6,
       'shaderobe',
+      ENEMY_RIM,
     );
     this.eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 0.9, 0.3), transparent: true, toneMapped: false });
 
@@ -84,7 +85,7 @@ class ShadeMesh {
     cowlGeo.computeVertexNormals();
     const cowl = m(cowlGeo, this.hood, 0, 0.2, 0);
     cowl.rotation.z = -0.35; // opening faces forward and down, the point hangs over the brow
-    const cowlMat = rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, side: THREE.DoubleSide }), 0.8, 'shadecowl');
+    const cowlMat = rimify(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 1, metalness: 0, specularIntensity: 0, side: THREE.DoubleSide }), 0.8, 'shadecowl', ENEMY_RIM);
     cowl.material = cowlMat;
     this.cowlMat = cowlMat;
     const eyes = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.16, 4, 8), this.eyeMat);
@@ -155,10 +156,13 @@ class ShadeMesh {
     this.arms.forEach((a, i) => (a.rotation.z = armA + (i ? 0.25 : 0) + Math.sin(tt * 3 + i) * 0.08));
     this.hood.rotation.z = -lean * 0.4 + Math.sin(tt * 1.3) * 0.06;
     // opaque while alive (so they hide the fire behind them); transparent only while dissolving
-    const fading = opacity < 0.999;
+    // the wind-up telegraph: the rim heats from ember red to white over the wind-up and flickers at the end, so the
+    // moment to dodge reads from anywhere on screen
+    const wind = s.state === 'windup' ? Math.min(1, s.stateT / S.windup) : 0;
+    const hot = s.state === 'windup' ? wind * wind * (wind > 0.7 ? 0.8 + 0.2 * Math.sin(tt * 60) : 1) : s.state === 'strike' ? 0.8 : 0;
     for (const m of [this.mat, this.cowlMat, this.robeMat]) {
-      m.transparent = fading;
-      m.opacity = opacity;
+      setFade(m, opacity);
+      setRimHot(m, hot);
     }
     // struck: the shade flares ember-red from inside, and recoils
     this.flash = Math.max(0, this.flash - dt * 6);
@@ -210,13 +214,15 @@ class ShadeMesh {
         vy: 1, spread: 0.5, life: 0.7, size: 0.09, sizeEnd: 0.02, r: 5, g: 1.5, b: 0.3, gravity: -1.2, wobble: 0.6,
       });
     }
-    if (s.state === 'rise' && Math.random() < 0.7) {
+    if (s.state === 'rise' && Math.random() < dt * 40) {
       smoke.emit({ x: s.x + (Math.random() - 0.5) * 1.4, y: s.y + 0.05, z: s.z + (Math.random() - 0.5) * 1.4, vy: 1.6, spread: 0.4, life: 0.9, size: 1.0, sizeEnd: 1.8, r: 0.02, g: 0.01, b: 0.04, alpha: 0.9, drag: 1 });
     }
   }
 }
 
 type AnyMesh = EnemyMesh | ShadeMesh;
+
+const POOL_STOCK: [ShadeKind, number][] = [['shade', 10], ['crawler', 5], ['lantern', 4]];
 
 export class ShadeViews {
   readonly group = new THREE.Group();
@@ -262,6 +268,9 @@ export class ShadeViews {
    * the first crawler leaps out mid-fight. Call before renderer.compile; then `endPrewarm`.
    */
   prewarm(at: THREE.Vector3, smoke: Particles, embers: Particles): void {
+    // stock the pools behind the card too: a view built mid-fight (its geometry, its materials) was a small stall
+    // every time a wave outnumbered the pool
+    for (const [kind, n] of POOL_STOCK) while (this.pools[kind].length < n) this.pools[kind].push(this.make(kind));
     for (const kind of ['shade', 'crawler', 'lantern'] as const) {
       for (const dying of [false, true]) {
         const v = this.pools[kind].pop() ?? this.make(kind);

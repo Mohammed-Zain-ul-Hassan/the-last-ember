@@ -18,7 +18,7 @@ const NOISE = /* glsl */ `
   }`;
 
 /** Turn a standard material into living shadow. erosion 0..1: how much of the silhouette edge smokes away. */
-export function shadowify<T extends THREE.MeshStandardMaterial>(mat: T, erosion = 0.35, key = 'shadow'): T {
+export function shadowify<T extends THREE.MeshStandardMaterial>(mat: T, erosion = 0.35, _key = 'shadow'): T {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = SHADOW.uTime;
     sh.uniforms.uAura = SHADOW.uAura;
@@ -47,7 +47,7 @@ export function shadowify<T extends THREE.MeshStandardMaterial>(mat: T, erosion 
         }`,
       );
   };
-  mat.customProgramCacheKey = () => `${key}-${erosion}`;
+  mat.customProgramCacheKey = () => 'shadow'; // erosion is a uniform: one program for every shadow material (see rim.ts)
   return mat;
 }
 
