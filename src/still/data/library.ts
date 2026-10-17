@@ -96,7 +96,7 @@ export const LIBRARY: District = {
   regions: [],
   solids,
   pits: [],
-  start: { x: 2.5, z: 0, yaw: 0 },
+  start: { x: 6.5, z: 0, yaw: 0 },
   braziers: [
     { id: 'door', x: 6, z: -6.6 },
     { id: 'stacks', x: 64.5, z: 6.4 },

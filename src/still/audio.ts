@@ -21,6 +21,15 @@ let brazierGain: GainNode;
 let coldGain: GainNode;
 let windGain: GainNode;
 let muted = false;
+let recordTap: AudioNode | null = null;
+
+/** The game's mixed sound as a stream (for the recording). */
+export function audioStream(): MediaStream | null {
+  if (!ctx || !recordTap) return null;
+  const dest = ctx.createMediaStreamDestination();
+  recordTap.connect(dest);
+  return dest.stream;
+}
 
 export function audioOn(): boolean {
   return !!ctx && ctx.state === 'running';
@@ -40,6 +49,7 @@ export function initAudio(): void {
   comp.threshold.value = -16;
   comp.ratio.value = 3;
   master.connect(comp).connect(c.destination);
+  recordTap = comp;
   bus = c.createGain();
   bus.connect(master);
   // a stone city's air: a long, dark tail

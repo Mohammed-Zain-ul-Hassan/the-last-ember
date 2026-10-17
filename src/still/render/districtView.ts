@@ -802,7 +802,7 @@ export class DistrictView {
         return;
       }
       l.position.copy(this.torches[n.i].pos);
-      l.intensity = 7 * (0.85 + 0.15 * Math.sin(t * 17 + n.i * 3) * Math.sin(t * 5.3 + n.i));
+      l.intensity = 11 * (0.85 + 0.15 * Math.sin(t * 17 + n.i * 3) * Math.sin(t * 5.3 + n.i));
     });
     // mechanisms
     for (const m of this.mechs) {

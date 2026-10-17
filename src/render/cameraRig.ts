@@ -76,6 +76,8 @@ export class CameraRig {
   yaw = -Math.PI / 2;
   pitch = FOLLOW.pitch; // positive looks down at him
   torch = false; // the torch road sits a little closer
+  /** No higher than this (a vault or a roof overhead): the camera stays under it, never looking down through it. */
+  ceiling = Infinity;
   /** What shots frame and what the follow camera orbits (feet position). */
   readonly target = new THREE.Vector3();
   private v = new THREE.Vector3();
@@ -206,6 +208,11 @@ export class CameraRig {
     const d = Math.min(this.boom, want);
     // never under the ground he stands on (a low pitch on a high wall walk would put the lens in the stones)
     out.pos.set(px + bx * d, Math.max(this.fy + 0.5, py + by * d), pz + bz * d);
+    if (out.pos.y > this.ceiling) {
+      // under a roof: slide the lens along its ray down to the ceiling (closer, not through it)
+      const k = Math.max(0.15, (this.ceiling - py) / Math.max(1e-3, out.pos.y - py));
+      out.pos.set(px + (out.pos.x - px) * k, this.ceiling, pz + (out.pos.z - pz) * k);
+    }
     out.look.set(px + fx * FOLLOW.lookAhead, py - Math.sin(this.pitch) * 1.2 - 0.25, pz + fz * FOLLOW.lookAhead);
     out.fov = FOLLOW.fov;
   }

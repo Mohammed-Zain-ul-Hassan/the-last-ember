@@ -30,6 +30,7 @@ export class StillHud {
   private promptText: HTMLElement;
   private promptKey: HTMLElement;
   private promptFill: HTMLElement;
+  private promptKeyLabel: Text;
   private promptCost: HTMLElement;
   private main: Slot;
   private side: Slot;
@@ -67,6 +68,8 @@ export class StillHud {
     this.promptEl = el('div', 'prompt', this.root);
     this.promptKey = el('span', 'key', this.promptEl);
     this.promptFill = el('span', 'fill', this.promptKey);
+    this.promptKeyLabel = document.createTextNode('E');
+    this.promptKey.appendChild(this.promptKeyLabel);
     this.promptText = el('span', '', this.promptEl);
     this.promptCost = el('span', 'cost', this.promptEl);
     this.cardEl = el('div', 'card', this.root);
@@ -110,8 +113,7 @@ export class StillHud {
     if (this.promptText.textContent !== text) this.promptText.textContent = text;
     if (this.promptKeyText !== key) {
       this.promptKeyText = key;
-      this.promptKey.firstChild?.remove();
-      this.promptKey.insertBefore(document.createTextNode(key), this.promptFill);
+      this.promptKeyLabel.data = key;
     }
     if (this.promptCost.textContent !== cost) this.promptCost.textContent = cost;
     this.promptFill.style.transform = `scaleX(${hold})`;

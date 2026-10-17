@@ -190,7 +190,7 @@ function load(i: number, ash?: number): void {
   const d = DISTRICTS[i];
   city = new City(d, save.words, ash);
   stage.setSky(SKIES[d.sky], 1);
-  stage.ambientK = d.sky === 'interior' ? 0.22 : 0.38;
+  stage.ambientK = d.sky === 'interior' ? 0.42 : 0.62;
   wrongView.mirror = d.wrong?.mode === 'face' || d.wrong?.mode === 'final';
   bot = BOT ? new Bot(SCRIPTS[i], d.start.yaw) : null;
   hints.reset();
@@ -663,6 +663,10 @@ function frame(now: number): void {
   } else if (g) rig.target.set(g.x, 0, g.z);
   else rig.target.set(bx, by, bz);
   rig.grounded = b.onGround;
+  // under a vault or a roof the camera stays beneath it
+  rig.ceiling = Infinity;
+  for (const dc of DISTRICTS[di].decor)
+    if ((dc.kind === 'vault' || dc.kind === 'roof') && rig.target.x > dc.x0 - 2 && rig.target.x < dc.x1 + 2 && rig.target.z > dc.z0 && rig.target.z < dc.z1) rig.ceiling = Math.min(rig.ceiling, dc.y - 0.6);
   rig.update(dt, t, city.solids);
   stage.focus.set(bx, by + 1.3, bz);
   stage.update(t, stage.camera.position);
@@ -759,7 +763,7 @@ function audioBeds(): void {
 load(di);
 rig.snap(TITLE_SHOT);
 rig.target.set(city.s.body.x, 0, city.s.body.z);
-if (params.has('skip')) begin();
+if (params.has('skip') || BOT) begin();
 requestAnimationFrame(frame);
 
 declare global {

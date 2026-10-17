@@ -39,19 +39,19 @@ const clip = (before: Partial<Pose>, after: Partial<Pose>, beat: Partial<Pose>):
 const PRIESTS: FigureDef[] = [
   {
     id: 'idle', kind: 'elder', x: C.x, z: C.z + 4.2, yaw: -Math.PI / 2, frozen: SIT, word: 12, puzzle: 'priests',
-    light: [C.x + 0.4, 1.55, C.z + 2.1], ink: FLOOR, clip: clip(SIT, SIT, { ...SIT, head: -0.3, aF: 0.9, eF: 0.3 }),
+    light: [C.x + 0.4, 2.3, C.z + 2.1], ink: FLOOR, clip: clip(SIT, SIT, { ...SIT, head: -0.3, aF: 0.9, eF: 0.3 }),
   },
   {
     id: 'flee', kind: 'elder', x: C.x + 4.2, z: C.z, yaw: 0, frozen: FLEE, word: 13, puzzle: 'priests',
-    light: [C.x + 2.1, 2.45, C.z + 0.5], ink: FLOOR, clip: clip({ lean: 0, head: 0.2 }, FLEE, { lean: 0.2, head: -0.4, aF: 1.4, aB: 1.2 }),
+    light: [C.x + 2.1, 2.85, C.z + 0.5], ink: FLOOR, clip: clip({ lean: 0, head: 0.2 }, FLEE, { lean: 0.2, head: -0.4, aF: 1.4, aB: 1.2 }),
   },
   {
     id: 'pray', kind: 'elder', x: C.x, z: C.z - 4.2, yaw: Math.PI / 2, frozen: PRAY, word: 14, puzzle: 'priests',
-    light: [C.x - 0.5, 1.3, C.z - 2.0], ink: FLOOR, clip: clip({ ...PRAY, aF: 0.4, aB: 0.3, head: 0 }, PRAY, { ...PRAY, head: -0.4, aF: 2.6, aB: 2.5, eF: 0.3, eB: 0.3 }),
+    light: [C.x - 0.5, 2.15, C.z - 2.0], ink: FLOOR, clip: clip({ ...PRAY, aF: 0.4, aB: 0.3, head: 0 }, PRAY, { ...PRAY, head: -0.4, aF: 2.6, aB: 2.5, eF: 0.3, eB: 0.3 }),
   },
   {
     id: 'up', kind: 'elder', x: C.x - 4.2, z: C.z, yaw: 0, frozen: UP, word: 15, puzzle: 'priests',
-    light: [C.x - 2.0, 2.9, C.z - 0.4], ink: FLOOR, clip: clip({ head: 0.2 }, UP, { ...UP, aF: 2.4, eF: 0.2, head: -0.9 }),
+    light: [C.x - 2.0, 3.0, C.z - 0.4], ink: FLOOR, clip: clip({ head: 0.2 }, UP, { ...UP, aF: 2.4, eF: 0.2, head: -0.9 }),
   },
 ];
 
@@ -108,7 +108,7 @@ export const TEMPLE: District = {
   regions: [],
   solids,
   pits: [],
-  start: { x: 2.5, z: 0, yaw: 0 },
+  start: { x: 6.8, z: 0, yaw: 0 },
   braziers: [
     { id: 'porch', x: 6, z: -7.4 },
     { id: 'false', x: 59, z: -7.2, false: true },

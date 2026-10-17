@@ -60,6 +60,18 @@ function capture(): Plugin {
             if (code === 0) unlinkSync(t.path);
             return done(res, JSON.stringify({ path: mp4, code, bytes: t.bytes, posts: t.posts, size: code === 0 ? statSync(mp4).size : 0, log: log.slice(-1500) }));
           }
+          // a MediaRecorder take (webm, video and audio), streamed in chunks: the gameplay recording
+          if (u.pathname === '/webopen') {
+            const path = join(dir, `${name}.webm`);
+            takes.set(name, { file: createWriteStream(path), path, bytes: 0, posts: 0 });
+            return done(res, 'ok');
+          }
+          if (u.pathname === '/webclose') {
+            if (!t) return done(res, 'no take', 404);
+            takes.delete(name);
+            await new Promise((r) => t.file.end(r));
+            return done(res, JSON.stringify({ path: t.path, bytes: t.bytes, posts: t.posts }));
+          }
           if (u.pathname === '/file') {
             const ext = (u.searchParams.get('ext') ?? 'bin').replace(/[^a-z0-9]/gi, '');
             writeFileSync(join(dir, `${name}.${ext}`), await body(req));

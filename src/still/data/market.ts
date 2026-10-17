@@ -63,7 +63,7 @@ const figures: FigureDef[] = [
   ),
   {
     id: 'beggar', kind: 'man', x: 36.6, z: 2.6, yaw: 0, frozen: beggarClip.keys[0].pose, word: 6, puzzle: 'canal', line: undefined,
-    light: [35.4, 1.5, 1.2], ink: FLOOR, clip: beggarClip,
+    light: [35.4, 2.3, 1.2], ink: FLOOR, clip: beggarClip,
   },
   { id: 'water', kind: 'woman', x: 36.4, z: -5.6, yaw: Math.PI / 2, frozen: { lean: 0.3, head: 0.45, aF: 0.6, eF: 0.4, aB: 0.5 }, word: 11, tol: 16, light: [35.2, 2.2, -3.4], ink: SOUTH },
   { id: 'baker', kind: 'man', x: 5.5, z: 7.0, yaw: -Math.PI / 2, frozen: { lean: -0.05, aF: 0.9, eF: 1.3, aB: 0.85, eB: 1.3, head: -0.1 }, word: 7, tol: 16, light: [6.4, 1.9, 4.6], ink: NORTH },
@@ -127,7 +127,7 @@ export const MARKET: District = {
   regions: [],
   solids,
   pits,
-  start: { x: 2.5, z: 0, yaw: 0 },
+  start: { x: 6.5, z: 0, yaw: 0 },
   braziers: [
     { id: 'square', x: 3, z: -5.8 },
     { id: 'bank', x: 51, z: -6 },
