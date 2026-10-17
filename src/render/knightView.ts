@@ -739,7 +739,7 @@ export class KnightView {
 
     this.updateTrail(dt);
     this.updateCape(k, dt, t);
-    this.torchFlame.strength = 1;
+    this.torchFlame.strength = this.torchOn ? 1 : 0; // (at 1 the flame re-showed itself every frame, torch lit or not)
     this.torchFlame.update(t, camera);
     if (this.torchOn && SHADOW_FRAME.n % 2 === 1) this.torchLight.shadow.needsUpdate = true;
     if (this.torchOn) {
