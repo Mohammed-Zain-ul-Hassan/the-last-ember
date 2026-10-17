@@ -54,6 +54,24 @@ const BOT = params.get('bot') === '1';
 /** ?rec=1: record the run (canvas and sound) to trailer/raw/ through the dev server. */
 const REC = params.get('rec') === '1';
 let recording: Recording | null = null;
+// ?rec=1: every moment of the run (each sim event, each district, the ending's phases) stamped with the recording's own
+// clock and written beside it as <name>-moments.json, so the trailer's shotlist cuts to events, not guessed timestamps
+const moments: Record<string, unknown>[] = [];
+let recT0 = 0;
+function moment(type: string, extra: object = {}): void {
+  if (recording) moments.push({ t: +((performance.now() - recT0) / 1000).toFixed(2), d: DISTRICTS[di].id, type, ...extra });
+}
+/** End the recording: the moments beside it, then the video (window.__recDone says when it is written). */
+async function stopRecording(): Promise<void> {
+  const r = recording;
+  if (!r) return;
+  moment('end');
+  recording = null;
+  const name = params.get('name') ?? 'still-city-run';
+  await fetch(`/__cap/file?name=${name}-moments&ext=json`, { method: 'POST', body: JSON.stringify(moments) });
+  const txt = await r.stop();
+  (window as unknown as { __recDone: string }).__recDone = txt;
+}
 const SCRIPTS = [GATE_SCRIPT, MARKET_SCRIPT, TEMPLE_SCRIPT, LIBRARY_SCRIPT, HEART_SCRIPT];
 let bot: Bot | null = null;
 
@@ -188,18 +206,24 @@ const ending = new Ending({
   shake: (k) => rig.shake(k * 0.1),
   veil: (on) => hud.veil(on),
   autoChoose: BOT,
-  // The Last Ember: from the Heart the game goes on into Act II, the hearth at sunset (a recording, or ?endings=1,
-  // keeps the Still City's own three endings)
-  handoff: params.has('endings') || REC ? null : () => {
-    const q = new URLSearchParams({ from: 'still' });
-    for (const k of ['debug', 'seed']) if (params.has(k)) q.set(k, params.get(k) ?? '');
-    location.href = `classic.html?${q}`;
-  },
+  // The Last Ember: from the Heart the game goes on into Act II, the hearth at sunset (?endings=1 keeps the Still
+  // City's own three endings). A recording ends here, written out before the page changes.
+  handoff: params.has('endings')
+    ? null
+    : () =>
+        void (async () => {
+          if (recording) await stopRecording();
+          if (REC) return; // the recorder's driver takes it from here
+          const q = new URLSearchParams({ from: 'still' });
+          for (const k of ['debug', 'seed']) if (params.has(k)) q.set(k, params.get(k) ?? '');
+          location.href = `classic.html?${q}`;
+        })(),
 });
 
 function startEnding(): void {
   if (mode !== 'play') return;
   mode = 'ending';
+  moment('ending');
   hud.timer(null);
   hud.prompt(null);
   ending.start();
@@ -358,6 +382,7 @@ function establish(): void {
     { at: [d.start.x, 0, d.start.z], yaw: back + 0.3, height: 3.2, dist: 6.5, lookY: 1.7, fov: 50, dur: 3.2 },
   ];
   cine = { frames, i: 0, t: 0 };
+  moment('establish');
   hud.letterbox(true);
   hud.root.classList.add('cine');
   stage.setCinematic(true);
@@ -393,6 +418,7 @@ function updateCine(dt: number): void {
 
 function enterDistrict(first: boolean): void {
   const d = DISTRICTS[di];
+  moment('district', { name: d.name });
   establish();
   bus.setDistrict(d.id);
   if (first && di === 0) bus.emit({ type: 'start' });
@@ -735,6 +761,7 @@ function stepSim(): void {
   const oz = b.z;
   city.step(buildInput());
   for (const e of city.events) handle(e);
+  if (recording) for (const e of city.events) moment(e.type, e);
   const nb = city.s.body;
   if (nb.onGround) {
     stride += Math.hypot(nb.x - ox, nb.z - oz);
@@ -792,11 +819,7 @@ function frame(now: number): void {
     ending.update(dt);
     if (ending.phase === 'credits' && recording) {
       creditsT += dt;
-      if (creditsT > 8) {
-        const r = recording;
-        recording = null;
-        void r.stop().then((txt) => ((window as unknown as { __recDone: string }).__recDone = txt));
-      }
+      if (creditsT > 8) void stopRecording();
     }
   }
   if (mode === 'play' && !cine) {
@@ -1070,6 +1093,8 @@ if (REC) {
     audio.initAudio();
     await new Promise((r) => setTimeout(r, 300));
     recording = await startRecording(stage.renderer.domElement, audio.audioStream(), params.get('name') ?? 'still-city-run');
+    recT0 = performance.now();
+    moment('title');
     (window as unknown as { __recStop: () => Promise<string> | undefined }).__recStop = () => recording?.stop();
     setTimeout(begin, 5000);
   };

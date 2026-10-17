@@ -2,35 +2,35 @@
   "fps": 60,
   "width": 1920,
   "height": 1080,
-  "bpm": 80,
-  "bar": 3.0,
-  "duration": 177.75,
+  "bpm": 120,
+  "bar": 2.0,
+  "duration": 176.0,
   "url": "the-last-ember-xi.vercel.app",
   "title": "THE LAST EMBER",
-  "logline": "A shadow knight. One fire. One night.",
+  "logline": "Carry the last fire. Hold back the night.",
   "themes": [
     {
       "name": "FIRE",
-      "how": "the hearth is your life and your weapon",
+      "how": "the flame you carry casts every shadow",
       "card": [
-        "The hearth is your life, your weapon, your story.",
-        "Feed it embers. Carry its last flame."
-      ]
-    },
-    {
-      "name": "SHADOW",
-      "how": "they rise from the shadows the fire throws",
-      "card": [
-        "Enemies rise from the shadows the fire throws.",
-        "And you are a shadow, guarding the light."
+        "Aim the flame: every shadow in the city swings with it.",
+        "At the hearth, the fire is your life."
       ]
     },
     {
       "name": "TIME",
-      "how": "one night, hour by hour, until dawn",
+      "how": "frozen in the city, running out at the hearth",
       "card": [
-        "Each level is one hour of a single night, 7 PM to dawn.",
-        "Between the hours, the past returns."
+        "Light a frozen figure from its true angle: its last ten seconds return.",
+        "Ash is time. Spend it to step in, or rewind."
+      ]
+    },
+    {
+      "name": "SHADOW",
+      "how": "shadows hold you up, and one hunts you",
+      "card": [
+        "A lit shadow turns solid: walk the bridge your body casts.",
+        "And one shadow moves only when you look away."
       ]
     }
   ],
@@ -40,379 +40,582 @@
       "kind": "gameplay",
       "start": 0.0,
       "dur": 6.0,
-      "src": "clips/16_11pm_embers_charge.mp4",
-      "in": 10.5,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Hook: a charged shadow rend at the hearth, ring of shadow, crawler; impact on frame 1"
+      "why": "Hook: he sweeps the flame down a frozen street; every shadow swings; far off, a figure that is not frozen",
+      "anchor": "wrongSeen@gateWard",
+      "missing": true,
+      "vol": 1.0
     },
     {
       "id": "title",
       "kind": "title",
       "start": 6.0,
-      "dur": 5.25,
+      "dur": 5.0,
       "raw": false,
-      "why": "Title: THE LAST EMBER, logline, theme chips FIRE / SHADOW / TIME",
-      "src": "clips/01_title_oath.mp4",
-      "in": 1.0
+      "why": "Title: THE LAST EMBER, the logline, FIRE / SHADOW / TIME"
     },
     {
-      "id": "mem_oath",
-      "kind": "scene",
-      "start": 11.25,
-      "dur": 5.25,
-      "src": "clips/10_memory_oath.mp4",
-      "in": 1.4,
-      "speed": 1.0,
+      "id": "act1",
+      "kind": "act",
+      "start": 11.0,
+      "dur": 3.0,
       "raw": false,
-      "why": "Story: the oath, the king's blade on the kneeling knight",
-      "subtitle": "Long ago, he swore to keep the fire.",
-      "kicker": "a memory"
+      "why": "ACT I: The Still City",
+      "act": "ACT I",
+      "name": "THE STILL CITY",
+      "subtitle": "Everyone stopped one second before the flood."
+    },
+    {
+      "id": "walk",
+      "kind": "gameplay",
+      "start": 14.0,
+      "dur": 8.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "The frozen city: rain hanging in the air, statues mid-step, the flame the only light",
+      "anchor": "district@gateWard",
+      "missing": true,
+      "vol": 1.0
     },
     {
       "id": "card_fire",
       "kind": "card",
-      "start": 16.5,
-      "dur": 5.25,
+      "start": 22.0,
+      "dur": 5.0,
       "raw": false,
-      "why": "Theme 1 explainer: Fire, literal",
+      "why": "Theme explainer: FIRE",
       "theme": 0
     },
     {
-      "id": "b1_sunset",
+      "id": "fire_take",
       "kind": "gameplay",
-      "start": 21.75,
-      "dur": 15.75,
-      "src": "clips/02_7pm_sunset_combat.mp4",
-      "in": 4.0,
+      "start": 27.0,
+      "dur": 20.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Learn: 7 PM sunset on the hearth grounds; the first shades; the knight's moveset"
-    },
-    {
-      "id": "b1_embers",
-      "kind": "gameplay",
-      "start": 37.5,
-      "dur": 9.0,
-      "src": "clips/16_11pm_embers_charge.mp4",
-      "in": 1.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Learn: the hearth burning, embers, fighting at the fire"
-    },
-    {
-      "id": "card_shadow",
-      "kind": "card",
-      "start": 46.5,
-      "dur": 5.25,
-      "raw": false,
-      "why": "Theme 2 explainer: Shadow, literal",
-      "theme": 1
-    },
-    {
-      "id": "b2_rise",
-      "kind": "gameplay",
-      "start": 51.75,
-      "dur": 14.25,
-      "src": "clips/03_9pm_shades_rise.mp4",
-      "in": 4.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Mastery: 9 PM, shades rise from the cast shadows, aerials and slashes"
-    },
-    {
-      "id": "b2_crawlers",
-      "kind": "gameplay",
-      "start": 66.0,
-      "dur": 7.5,
-      "src": "clips/04_11pm_hearth_falters.mp4",
-      "in": 2.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Mastery: 11 PM, crawlers and lantern-eaters; the hearth falters"
-    },
-    {
-      "id": "mem_faces",
-      "kind": "scene",
-      "start": 73.5,
-      "dur": 4.5,
-      "src": "clips/11_memory_faces.mp4",
-      "in": 1.0,
-      "speed": 1.0,
-      "raw": false,
-      "why": "Story: their faces at the hearth",
-      "subtitle": "They slept safe because he kept the fire.",
-      "kicker": "a memory"
+      "why": "One take: aim the flame, the coaching ring, the shadow lines up, the figure wakes and replays its last ten seconds",
+      "anchor": "wake#1",
+      "missing": true,
+      "vol": 1.0
     },
     {
       "id": "card_time",
       "kind": "card",
-      "start": 78.0,
-      "dur": 5.25,
+      "start": 47.0,
+      "dur": 5.0,
       "raw": false,
-      "why": "Theme 3 explainer: Time, literal",
+      "why": "Theme explainer: TIME",
+      "theme": 1
+    },
+    {
+      "id": "step_in",
+      "kind": "gameplay",
+      "start": 52.0,
+      "dur": 8.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Spend Ash: step into the replay as a ghost and do what the figure did",
+      "anchor": "stepIn#1",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "replay2",
+      "kind": "gameplay",
+      "start": 60.0,
+      "dur": 4.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "A second figure, a second last moment (the Market or the Temple)",
+      "anchor": "wake#3",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "card_shadow",
+      "kind": "card",
+      "start": 64.0,
+      "dur": 5.0,
+      "raw": false,
+      "why": "Theme explainer: SHADOW",
       "theme": 2
     },
     {
-      "id": "b3_hour",
+      "id": "bridge",
       "kind": "gameplay",
-      "start": 83.25,
-      "dur": 12.75,
-      "src": "clips/16_11pm_embers_charge.mp4",
-      "in": 16.6,
+      "start": 69.0,
+      "dur": 8.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Time: 11 PM, the hour runs, the hearth marker, charged rends"
+      "why": "Draw the flame back: his own shadow runs out over the canal and holds him up",
+      "anchor": "bridge",
+      "missing": true,
+      "vol": 1.0
     },
     {
-      "id": "mem_fireout",
+      "id": "stalk1",
+      "kind": "gameplay",
+      "start": 77.0,
+      "dur": 6.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "The Wrong Shadow, wearing his face, frozen in the lamplight",
+      "anchor": "wrongSeen@library",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "stalk2",
+      "kind": "gameplay",
+      "start": 83.0,
+      "dur": 3.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Look away: it is closer",
+      "anchor": "wrongShift@library",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "stalk3",
+      "kind": "gameplay",
+      "start": 86.0,
+      "dur": 3.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Swing the flame onto it: it stops dead",
+      "anchor": "wrongLit@library",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "heart",
       "kind": "scene",
-      "start": 96.0,
-      "dur": 5.25,
-      "src": "clips/12_memory_fire_out.mp4",
-      "in": 2.0,
+      "start": 89.0,
+      "dur": 6.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": false,
-      "why": "Story: he closed his eyes; the fire went out",
-      "subtitle": "One night, he closed his eyes.",
-      "kicker": "a memory"
+      "why": "The Heart: \"It has your hands.\" The shadow is him; he lit the flame",
+      "anchor": "ending",
+      "missing": true,
+      "vol": 0.9
+    },
+    {
+      "id": "act2",
+      "kind": "act",
+      "start": 95.0,
+      "dur": 4.0,
+      "raw": false,
+      "why": "ACT II: The Hearth",
+      "act": "ACT II",
+      "name": "THE HEARTH",
+      "subtitle": "Carry it out. Hold it until dawn."
+    },
+    {
+      "id": "sunset",
+      "kind": "gameplay",
+      "start": 99.0,
+      "dur": 10.0,
+      "src": "clips/A2_7pm.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "7 PM: sunset on the hearth grounds, the first shades, the knight's sword cuts",
+      "anchor": "mode:play",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "rise",
+      "kind": "gameplay",
+      "start": 109.0,
+      "dur": 6.0,
+      "src": "clips/A2_9pm.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "9 PM: shades rise out of the shadows the fire throws",
+      "anchor": "spawn#3",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "crawl",
+      "kind": "gameplay",
+      "start": 115.0,
+      "dur": 3.0,
+      "src": "clips/A2_11pm.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "11 PM: a crawler pounces, the cleave answers",
+      "anchor": "pounce#1",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "ember",
+      "kind": "gameplay",
+      "start": 118.0,
+      "dur": 3.0,
+      "src": "clips/A2_11pm.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "An ember carried home: the hearth flares",
+      "anchor": "feed#1",
+      "missing": true,
+      "vol": 1.0
     },
     {
       "id": "midnight",
       "kind": "scene",
-      "start": 101.25,
-      "dur": 4.5,
-      "src": "clips/05_midnight_torch.mp4",
-      "in": 3.0,
+      "start": 121.0,
+      "dur": 6.0,
+      "src": "clips/A2_midnight.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": false,
-      "why": "Midnight: the hearth dies; he lights a torch from its last flame",
-      "kicker": "midnight"
+      "why": "Midnight: the hearth dies; he lights the torch from its last flame",
+      "anchor": "mode:midnight",
+      "missing": true,
+      "vol": 0.9
     },
     {
-      "id": "e_city",
+      "id": "e1",
       "kind": "gameplay",
-      "start": 105.75,
-      "dur": 6.0,
-      "src": "clips/06_1am_carrying_flame.mp4",
-      "in": 0.5,
+      "start": 127.0,
+      "dur": 4.0,
+      "src": "clips/A2_1am.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Escalation: 1 AM, the lower city, the torch swings every shadow"
+      "why": "1 AM: the lower city, the torch swings every shadow",
+      "anchor": "kill#2",
+      "missing": true,
+      "vol": 1.0
     },
     {
-      "id": "e_roofs",
+      "id": "e2",
       "kind": "gameplay",
-      "start": 111.75,
-      "dur": 4.5,
-      "src": "clips/06_1am_carrying_flame.mp4",
-      "in": 6.5,
+      "start": 131.0,
+      "dur": 2.0,
+      "src": "clips/A2_5am.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Escalation: rooftops, lantern-eater bolts"
+      "why": "5 AM: lantern-eater bolts over the wall walk",
+      "anchor": "bolt#3",
+      "missing": true,
+      "vol": 1.0
     },
     {
-      "id": "e_wall",
+      "id": "e3",
       "kind": "gameplay",
-      "start": 116.25,
-      "dur": 4.5,
-      "src": "clips/15_5am_city_wall.mp4",
-      "in": 0.5,
+      "start": 133.0,
+      "dur": 1.0,
+      "src": "clips/A2_1am.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Escalation: 5 AM, the city wall, the torch"
+      "why": "A kill in torchlight",
+      "anchor": "kill#5",
+      "missing": true,
+      "vol": 1.0
     },
     {
-      "id": "e_lanterns",
+      "id": "e4",
       "kind": "gameplay",
-      "start": 120.75,
-      "dur": 3.0,
-      "src": "clips/15_5am_city_wall.mp4",
-      "in": 11.5,
+      "start": 134.0,
+      "dur": 1.0,
+      "src": "clips/A2_9pm.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Escalation: lanterns over the wall walk, bolts"
+      "why": "A dash-strike through a shade",
+      "anchor": "kill#6",
+      "missing": true,
+      "vol": 1.0
     },
     {
-      "id": "e_slash",
+      "id": "e5",
       "kind": "gameplay",
-      "start": 123.75,
-      "dur": 3.0,
-      "src": "clips/03_9pm_shades_rise.mp4",
-      "in": 19.5,
+      "start": 135.0,
+      "dur": 1.0,
+      "src": "clips/A2_5am.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Escalation: a slash trail through a shade"
+      "why": "On the wall",
+      "anchor": "kill#4",
+      "missing": true,
+      "vol": 1.0
     },
     {
-      "id": "e_crawler",
+      "id": "e6",
       "kind": "gameplay",
-      "start": 126.75,
-      "dur": 3.0,
-      "src": "clips/04_11pm_hearth_falters.mp4",
-      "in": 16.0,
+      "start": 136.0,
+      "dur": 1.0,
+      "src": "clips/A2_3am.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Escalation: a crawler pounces, the cleave answers"
-    },
-    {
-      "id": "e_sunset",
-      "kind": "gameplay",
-      "start": 129.75,
-      "dur": 2.25,
-      "src": "clips/02_7pm_sunset_combat.mp4",
-      "in": 20.5,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Escalation: a dash-strike at the hearth"
-    },
-    {
-      "id": "e_ring",
-      "kind": "gameplay",
-      "start": 132.0,
-      "dur": 2.25,
-      "src": "clips/04_11pm_hearth_falters.mp4",
-      "in": 22.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Escalation: lantern bolts at the falling hearth"
-    },
-    {
-      "id": "e_nave",
-      "kind": "gameplay",
-      "start": 134.25,
-      "dur": 2.25,
-      "src": "clips/07_3am_great_shade.mp4",
-      "in": 30.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Escalation: the cathedral nave, torch and lanterns"
-    },
-    {
-      "id": "e_last",
-      "kind": "gameplay",
-      "start": 136.5,
-      "dur": 3.0,
-      "src": "clips/02_7pm_sunset_combat.mp4",
-      "in": 26.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Escalation: the last breath before the boss"
+      "why": "The cathedral: something vast stirs",
+      "anchor": "spawn#2",
+      "missing": true,
+      "vol": 1.0
     },
     {
       "id": "climax",
       "kind": "gameplay",
-      "start": 139.5,
+      "start": 137.0,
       "dur": 21.0,
-      "src": "clips/07_3am_great_shade.mp4",
-      "in": 8.0,
+      "src": "clips/A2_3am.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Climax: one uninterrupted 21 s take: the Hollow Marshal, his cry, the waves, the kill"
-    },
-    {
-      "id": "mem_shadow",
-      "kind": "scene",
-      "start": 160.5,
-      "dur": 4.5,
-      "src": "clips/14_memory_shadow.mp4",
-      "in": 3.5,
-      "speed": 1.0,
-      "raw": false,
-      "why": "Story: he became what took them; his eye opens",
-      "subtitle": "He did not die that night. He became the dark.",
-      "kicker": "a memory"
+      "why": "Climax, one take: the Hollow Marshal rises, his cry, the waves jumped, the kill",
+      "anchor": "marshalCry#1",
+      "missing": true,
+      "vol": 1.0
     },
     {
       "id": "dawn",
       "kind": "scene",
-      "start": 165.0,
-      "dur": 4.5,
-      "src": "clips/08_dawn_light_ending.mp4",
-      "in": 9.5,
+      "start": 158.0,
+      "dur": 6.0,
+      "src": "clips/A2_dawn.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": false,
-      "why": "Aftermath: dawn, the choice, he steps into the light",
-      "kicker": "dawn"
+      "why": "Dawn: the light reaches the gate; the choice",
+      "anchor": "mode:choice",
+      "missing": true,
+      "vol": 0.9
+    },
+    {
+      "id": "button",
+      "kind": "gameplay",
+      "start": 164.0,
+      "dur": 3.0,
+      "src": "clips/A1_library.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Button: in the still city a shadow with his face turns toward the camera",
+      "anchor": "wrongSeen#1",
+      "missing": true,
+      "vol": 1.0
     },
     {
       "id": "m_fire",
       "kind": "gameplay",
-      "start": 169.5,
+      "start": 167.0,
       "dur": 1.0,
-      "src": "clips/04_11pm_hearth_falters.mp4",
-      "in": 24.5,
+      "src": "clips/A2_7pm.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Theme montage: FIRE"
-    },
-    {
-      "id": "m_shadow",
-      "kind": "gameplay",
-      "start": 170.5,
-      "dur": 1.0,
-      "src": "clips/03_9pm_shades_rise.mp4",
-      "in": 26.0,
-      "speed": 1.0,
-      "raw": true,
-      "why": "Theme montage: SHADOW"
+      "why": "Montage FIRE: a burst of hearth fire",
+      "anchor": "fireburst#1",
+      "missing": true,
+      "vol": 1.0
     },
     {
       "id": "m_time",
       "kind": "gameplay",
-      "start": 171.5,
+      "start": 168.0,
       "dur": 1.0,
-      "src": "clips/15_5am_city_wall.mp4",
-      "in": 9.0,
+      "src": "clips/A1_main.mp4",
+      "in": 0.0,
       "speed": 1.0,
       "raw": true,
-      "why": "Theme montage: TIME"
+      "why": "Montage TIME: a rewind",
+      "anchor": "rewind#1",
+      "missing": true,
+      "vol": 1.0
+    },
+    {
+      "id": "m_shadow",
+      "kind": "gameplay",
+      "start": 169.0,
+      "dur": 1.0,
+      "src": "clips/A2_9pm.mp4",
+      "in": 0.0,
+      "speed": 1.0,
+      "raw": true,
+      "why": "Montage SHADOW: a shade rising from a cast shadow",
+      "anchor": "spawn#8",
+      "missing": true,
+      "vol": 1.0
     },
     {
       "id": "end",
       "kind": "end",
-      "start": 172.5,
-      "dur": 5.25,
+      "start": 170.0,
+      "dur": 6.0,
       "raw": false,
-      "why": "End card: name, play link, themes, Built in 3 days with Claude Code; held 5.25 s"
+      "why": "End card: name, play link, FIRE / SHADOW / TIME, Built in 3 days with Claude Code"
     }
   ],
   "overlays": [
     {
+      "kind": "line",
+      "start": 15.0,
+      "dur": 5.0,
+      "theme": 0,
+      "text": "You carry the last flame."
+    },
+    {
       "kind": "lowerThird",
-      "start": 22.5,
-      "dur": 6.75,
+      "start": 28.0,
+      "dur": 5.0,
       "theme": 0
     },
     {
       "kind": "lowerThird",
-      "start": 52.5,
-      "dur": 6.75,
+      "start": 53.0,
+      "dur": 5.0,
       "theme": 1
     },
     {
       "kind": "lowerThird",
-      "start": 84.0,
-      "dur": 6.75,
+      "start": 70.0,
+      "dur": 5.0,
       "theme": 2
     },
     {
+      "kind": "line",
+      "start": 101.0,
+      "dur": 5.0,
+      "theme": 0,
+      "text": "For the first time in four thousand years, the sun sets."
+    },
+    {
       "kind": "tag",
-      "start": 169.5,
+      "start": 167.0,
       "dur": 1.0,
       "theme": 0
     },
     {
       "kind": "tag",
-      "start": 170.5,
+      "start": 168.0,
       "dur": 1.0,
       "theme": 1
     },
     {
       "kind": "tag",
-      "start": 171.5,
+      "start": 169.0,
       "dur": 1.0,
       "theme": 2
+    }
+  ],
+  "cues": [
+    {
+      "name": "cold",
+      "b0": 0.0,
+      "b1": 3.0
+    },
+    {
+      "name": "title",
+      "b0": 3.0,
+      "b1": 7.0
+    },
+    {
+      "name": "still",
+      "b0": 7.0,
+      "b1": 13.5
+    },
+    {
+      "name": "puzzle",
+      "b0": 13.5,
+      "b1": 26.0
+    },
+    {
+      "name": "still",
+      "b0": 26.0,
+      "b1": 38.5
+    },
+    {
+      "name": "stalk",
+      "b0": 38.5,
+      "b1": 44.5
+    },
+    {
+      "name": "reveal",
+      "b0": 44.5,
+      "b1": 47.5
+    },
+    {
+      "name": "act",
+      "b0": 47.5,
+      "b1": 49.5
+    },
+    {
+      "name": "hearth",
+      "b0": 49.5,
+      "b1": 54.5
+    },
+    {
+      "name": "drive",
+      "b0": 54.5,
+      "b1": 60.5
+    },
+    {
+      "name": "midnight",
+      "b0": 60.5,
+      "b1": 63.5
+    },
+    {
+      "name": "escalate",
+      "b0": 63.5,
+      "b1": 68.5
+    },
+    {
+      "name": "climax",
+      "b0": 68.5,
+      "b1": 79.0
+    },
+    {
+      "name": "dawn",
+      "b0": 79.0,
+      "b1": 82.0
+    },
+    {
+      "name": "after",
+      "b0": 82.0,
+      "b1": 83.5
+    },
+    {
+      "name": "montage",
+      "b0": 83.5,
+      "b1": 85.0
+    },
+    {
+      "name": "end",
+      "b0": 85.0,
+      "b1": 88.0
     }
   ]
 }

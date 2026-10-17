@@ -30,6 +30,7 @@ import { botInput } from './sim/bot';
 import { NO_INPUT, World, type Input, type WorldOpts } from './sim/world';
 import { Hud } from './ui/hud';
 import { initCursor, requestLock, wantCursorHidden } from './ui/cursor';
+import { startRecording, type Recording } from './still/record';
 import { WorldUi } from './ui/worldUi';
 
 const params = new URLSearchParams(location.search);
@@ -40,6 +41,34 @@ let seed = Number(params.get('seed') ?? 1) || 1;
 //   ?from=still      straight on from the Heart: the bridge, then sunset (no title)
 //   ?from=chapters   an hour chosen on the shared title's chapter list (?chapter=n)
 const FROM = params.get('from');
+// ?rec=1&name=x: record this tab as seen and heard (the trailer's screen recording; the first click starts it), with a
+// <name>-moments.json of every event and mode change on the recording's clock. window.__recStop() ends it.
+const REC = params.get('rec') === '1';
+let recording: Recording | null = null;
+let recT0 = 0;
+const moments: Record<string, unknown>[] = [];
+function moment(type: string, extra: object = {}): void {
+  if (recording) moments.push({ t: +((performance.now() - recT0) / 1000).toFixed(2), hour: CHAPTERS[chapterIndex]?.clock, type, ...extra });
+}
+if (REC) {
+  const name = params.get('name') ?? 'hearth-run';
+  addEventListener(
+    'pointerdown',
+    () =>
+      void startRecording(stage.renderer.domElement, null, name).then((r) => {
+        recording = r;
+        recT0 = performance.now();
+        moment(`mode:${mode}`);
+        (window as unknown as { __recStop: () => Promise<string> }).__recStop = async () => {
+          moment('end');
+          await fetch(`/__cap/file?name=${name}-moments&ext=json`, { method: 'POST', body: JSON.stringify(moments) });
+          recording = null;
+          return r.stop();
+        };
+      }),
+    { once: true, capture: true },
+  );
+}
 if (params.get('capture') === '1') document.body.classList.add('capture');
 
 // ------------------------------------------------------------------ setup
@@ -196,6 +225,7 @@ let beat = -1; // index of the last scripted beat fired in a timeline
 const midnightIndex = CHAPTERS.findIndex((c) => c.phase === 'torch');
 
 function setMode(m: Mode): void {
+  if (m !== mode) moment(`mode:${m}`);
   mode = m;
   modeT = 0;
   beat = -1;
@@ -769,6 +799,7 @@ function stepSim(source: Input | (() => Input), dt: number): void {
     }
     snapshot();
     world.step(input);
+    if (recording) for (const e of world.events) moment(e.type, e);
     for (const e of world.events) {
       if (e.type === 'knightHurt') levelStats.wounds += e.dmg;
       else if (e.type === 'feed') levelStats.embers++;

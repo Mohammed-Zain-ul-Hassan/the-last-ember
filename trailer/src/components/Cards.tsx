@@ -1,6 +1,6 @@
 import React from "react";
 import { AbsoluteFill, Easing, interpolate, OffthreadVideo, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
-import { C, DISPLAY, glow, ROMAN, SERIF, THEME_COLORS } from "../theme";
+import { C, colorOf, DISPLAY, glow, ROMAN, SERIF } from "../theme";
 import type { Theme } from "../types";
 import { Embers, Flame } from "./Embers";
 
@@ -70,7 +70,7 @@ export const TitleCard: React.FC<{ title: string; logline: string; themes: Theme
         </div>
         <div style={{ display: "flex", gap: 70, marginTop: 30 }}>
           {themes.map((th, i) => (
-            <Chip key={th.name} text={th.name} color={THEME_COLORS[i]} o={interpolate(t, [1.8 + i * 0.3, 2.4 + i * 0.3], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease })} />
+            <Chip key={th.name} text={th.name} color={colorOf(th.name, i)} o={interpolate(t, [1.8 + i * 0.3, 2.4 + i * 0.3], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease })} />
           ))}
         </div>
       </AbsoluteFill>
@@ -212,7 +212,7 @@ export const ThemeCard: React.FC<{ index: number; theme: Theme }> = ({ index, th
   const l1 = useIn(0.55, 0.6);
   const l2 = useIn(1.15, 0.6);
   const out = useOut(0.35);
-  const col = THEME_COLORS[index];
+  const col = colorOf(theme.name, index);
   return (
     <AbsoluteFill style={{ opacity: out }}>
       <Embers seed={`card${index}`} tint={col} glowAt={[78, 80]} />
@@ -230,7 +230,7 @@ export const ThemeCard: React.FC<{ index: number; theme: Theme }> = ({ index, th
           <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 56, color: C.mist, lineHeight: 1.2, opacity: l2, transform: `translateY(${(1 - l2) * 16}px)` }}>{theme.card[1]}</div>
         </div>
         <div style={{ opacity: a, transform: `scale(${interpolate(a, [0, 1], [0.94, 1])})` }}>
-          {index === 0 ? <FireDiagram t={t} /> : index === 1 ? <ShadowDiagram t={t} /> : <TimeDiagram t={t} />}
+          {theme.name === "FIRE" ? <FireDiagram t={t} /> : theme.name === "SHADOW" ? <ShadowDiagram t={t} /> : <TimeDiagram t={t} />}
         </div>
       </AbsoluteFill>
     </AbsoluteFill>
@@ -238,7 +238,7 @@ export const ThemeCard: React.FC<{ index: number; theme: Theme }> = ({ index, th
 };
 
 // ------------------------------------------------------------------ in-engine scenes (memories, midnight, dawn)
-export const Scene: React.FC<{ src: string; at: number; subtitle?: string; kicker?: string }> = ({ src, at, subtitle, kicker }) => {
+export const Scene: React.FC<{ src: string; at: number; subtitle?: string; kicker?: string; vol?: number }> = ({ src, at, subtitle, kicker, vol }) => {
   const { fps } = useVideoConfig();
   const fadeIn = useIn(0, 0.35);
   const out = useOut(0.35);
@@ -247,7 +247,7 @@ export const Scene: React.FC<{ src: string; at: number; subtitle?: string; kicke
   return (
     <AbsoluteFill style={{ background: "#000" }}>
       <AbsoluteFill style={{ opacity: Math.min(fadeIn, out) }}>
-        <OffthreadVideo src={staticFile(src)} trimBefore={Math.round(at * fps)} muted style={{ width: "100%", height: "100%", filter: memory ? "sepia(0.08)" : "brightness(1.1) contrast(1.04)" }} />
+        <OffthreadVideo src={staticFile(src)} trimBefore={Math.round(at * fps)} muted={!vol} volume={vol ?? 0} style={{ width: "100%", height: "100%", filter: memory ? "sepia(0.08)" : "brightness(1.1) contrast(1.04)" }} />
       </AbsoluteFill>
       {memory && (
         <>
@@ -294,7 +294,7 @@ export const EndCard: React.FC<{ title: string; url: string; themes: Theme[] }> 
         </div>
         <div style={{ display: "flex", gap: 60, marginTop: 18 }}>
           {themes.map((th, i) => (
-            <Chip key={th.name} text={th.name} color={THEME_COLORS[i]} o={c} size={40} />
+            <Chip key={th.name} text={th.name} color={colorOf(th.name, i)} o={c} size={40} />
           ))}
         </div>
         <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 48, color: C.bone, opacity: c * 0.85, marginTop: 10 }}>Built in 3 days with Claude Code</div>
@@ -308,7 +308,7 @@ export const LowerThird: React.FC<{ index: number; theme: Theme }> = ({ index, t
   const a = useIn(0, 0.5);
   const b = useIn(0.3, 0.5);
   const out = useOut(0.4);
-  const col = THEME_COLORS[index];
+  const col = colorOf(theme.name, index);
   return (
     <AbsoluteFill style={{ opacity: out }}>
       <div style={{ position: "absolute", left: 0, bottom: 0, width: 1250, height: 330, background: `linear-gradient(90deg, ${C.ink}cc 0%, ${C.ink}77 55%, transparent 100%)`, maskImage: "linear-gradient(0deg, black 55%, transparent 100%)", opacity: a }} />
@@ -329,7 +329,7 @@ export const LowerThird: React.FC<{ index: number; theme: Theme }> = ({ index, t
 export const Tag: React.FC<{ index: number; theme: Theme }> = ({ index, theme }) => {
   const a = useIn(0, 0.2);
   const out = useOut(0.12);
-  const col = THEME_COLORS[index];
+  const col = colorOf(theme.name, index);
   return (
     <AbsoluteFill style={{ opacity: out }}>
       <div style={{ position: "absolute", left: 0, bottom: 0, width: 1000, height: 260, background: `linear-gradient(90deg, ${C.ink}b0, transparent)`, maskImage: "linear-gradient(0deg, black 50%, transparent 100%)" }} />
@@ -337,6 +337,57 @@ export const Tag: React.FC<{ index: number; theme: Theme }> = ({ index, theme })
         <Diamond color={col} size={16} />
         <div style={{ fontFamily: DISPLAY, fontSize: 96, letterSpacing: "0.14em", color: C.bone, lineHeight: 1, ...glow(col, 24) }}>{theme.name}</div>
       </div>
+    </AbsoluteFill>
+  );
+};
+
+// ------------------------------------------------------------------ v2: acts, story lines, slates
+/** ACT I / THE STILL CITY: the two acts named, over black and embers (produced footage). */
+export const ActCard: React.FC<{ act: string; name: string; line?: string; color?: string }> = ({ act, name, line, color = C.ember }) => {
+  const a = useIn(0.1, 0.7);
+  const b = useIn(0.55, 0.8);
+  const c = useIn(1.1, 0.8);
+  const out = useOut(0.45);
+  return (
+    <AbsoluteFill style={{ background: C.ink, opacity: out }}>
+      <Embers seed={act} glowAt={[50, 104]} count={60} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 22, opacity: a }}>
+          <div style={{ width: interpolate(a, [0, 1], [0, 120]), height: 2, background: color, boxShadow: `0 0 12px ${color}` }} />
+          <div style={{ fontFamily: DISPLAY, fontSize: 40, letterSpacing: "0.6em", color }}>{act}</div>
+          <div style={{ width: interpolate(a, [0, 1], [0, 120]), height: 2, background: color, boxShadow: `0 0 12px ${color}` }} />
+        </div>
+        <div style={{ fontFamily: DISPLAY, fontSize: 118, letterSpacing: "0.16em", color: C.bone, opacity: b, transform: `scale(${1.04 - 0.04 * b})`, ...glow(color, 28) }}>{name}</div>
+        {line && <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 54, color: C.mist, opacity: c }}>{line}</div>}
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+/** One story line over live gameplay, low and centred, on a soft gradient (the footage stays visible). */
+export const StoryLine: React.FC<{ text: string }> = ({ text }) => {
+  const a = useIn(0.05, 0.6);
+  const out = useOut(0.5);
+  return (
+    <AbsoluteFill style={{ opacity: Math.min(a, out) }}>
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 300, background: `linear-gradient(0deg, ${C.ink}c0, transparent)` }} />
+      <div style={{ position: "absolute", left: 160, right: 160, bottom: 96, textAlign: "center", fontFamily: SERIF, fontStyle: "italic", fontSize: 60, lineHeight: 1.15, color: C.bone, transform: `translateY(${(1 - a) * 10}px)`, ...glow("#000000", 14) }}>
+        {text}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/** Before the footage exists: what this shot will be (take, anchor, why), so the animatic plays with cards and score. */
+export const Slate: React.FC<{ id: string; src?: string; anchor?: string; why: string; kind: string }> = ({ id, src, anchor, why, kind }) => {
+  const t = useT();
+  return (
+    <AbsoluteFill style={{ background: kind === "gameplay" ? "#0d0b14" : "#140d10", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 18, border: `6px solid ${kind === "gameplay" ? "#3a3360" : "#5a3328"}` }}>
+      <div style={{ fontFamily: DISPLAY, fontSize: 34, letterSpacing: "0.4em", color: C.mist }}>{kind === "gameplay" ? "RAW GAMEPLAY" : "IN-ENGINE SCENE"}</div>
+      <div style={{ fontFamily: DISPLAY, fontSize: 64, color: C.bone }}>{id}</div>
+      <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 40, color: C.gold }}>{src ?? "-"}{anchor ? `  @ ${anchor}` : ""}</div>
+      <div style={{ fontFamily: SERIF, fontSize: 36, color: C.bone, maxWidth: 1400, textAlign: "center", opacity: 0.8 }}>{why}</div>
+      <div style={{ fontFamily: DISPLAY, fontSize: 28, color: C.mist, opacity: 0.6 }}>{t.toFixed(2)} s</div>
     </AbsoluteFill>
   );
 };
