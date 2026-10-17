@@ -53,3 +53,38 @@ each is easy to reverse.
 ## Proposed, not built (needs a yes)
 - More Last Words placed one detour away in each district once the levels are larger.
 - Recorded voice for the narrator and the flame.
+
+## Status (2026-10-17, commit on `3D_Branch` / live)
+
+### Implemented
+- **Playing style:** flame height sets his pace (low: careful; up: walk; drawn back: run). Flame Lock is the only
+  "combat": light holds the Wrong Shadow (a cold halo shows it is held). Each district's lesson is its puzzles.
+- **Environment storytelling:** frozen ink shadows; carved reliefs in every district (the crowd at the gate, the
+  market, the water rising, the priests, the fire held up, the wave, the door); brazier colours (warm gold, cold blue,
+  plainly blue once the sundial shows it); the Rumble louder each district and the floor trembling at the Heart; colder,
+  closer light and fog by district; rain frozen mid-fall that glints in the flame; birds stopped mid-wingbeat.
+- **Event-driven narrative:** `narrative/bus.ts` (central bus), `narrative/lines.json` (every line, the 36 Last Words,
+  the riddles, sound-cue captions), `narrative/beats.json` (event to lines: once, variants, delays, cooldowns,
+  priorities). Every doc trigger is wired, including the death variants and the Library's late echo.
+- **Hints:** one state machine per puzzle (time on the step, failed attempts, riddle reads, tier, 90 s cooldown, reset
+  on progress) plus the Ash, caught and Last-Word triggers; quiet during every chase; Off / Gentle / Guided.
+- **Captions:** narrator, flame, Wrong Shadow, Last Words (their own row) and inscriptions styled apart; sound cues in
+  brackets; priority lanes (an urgent line cuts a lesser one, which returns after); timed by length; low on the screen
+  under the knight; settings: on/off, size, backing, sound cues. Default on.
+- **Guidance:** an objective line for every step; an ember trail of chevrons on the floor to the next place; a ring of
+  light where to stand for a true angle; the flame coaching in plain words once there (turn, lower, raise, hold); every
+  shut way says what opens it; a warmth ring that fills as the angle nears.
+- **Cutscenes:** one short, skippable establishing shot per district; the ending.
+- **Tests:** a script bot plays every district through the sim (full and main-path), plus the maze and canal rules.
+- **Critic loop:** two independent review passes against this brief and the doc; their findings fixed.
+
+### Partial
+- **Action beats are short** (about 5-15 s each, against the doc's 60-90 s): the districts are jam-sized. The Heart's
+  run now goes round to a gap on the far side; longer chases need longer levels.
+- **The Wrong Shadow in the Library** only appears for the stacks chase, so its late echo is heard there.
+- **Play time** is about 20-40 minutes, not the doc's 3-4 hours.
+
+### Next
+1. Lengthen each action beat to the doc's 60-90 s (longer routes, staged openings).
+2. Recorded voice for the narrator and the flame (lines are keyed by id).
+3. More Last Words one detour away in larger districts.
