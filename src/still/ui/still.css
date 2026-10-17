@@ -234,7 +234,9 @@
 }
 #sc .card .title {
   font-family: 'Cinzel', serif;
-  font-size: 54px;
+  font-size: clamp(28px, 5.2vw, 54px);
+  text-align: center;
+  padding: 0 16px;
   letter-spacing: 0.12em;
   margin: 10px 0 6px;
   color: #f3e7d0;
@@ -696,7 +698,9 @@
 #sc.cine .vitals,
 #sc.cine .words,
 #sc.cine .objective,
-#sc.cine .align {
+#sc.cine .align,
+#sc.cine .prompt,
+#sc.cine .timer {
   opacity: 0 !important;
 }
 
@@ -724,9 +728,9 @@
 }
 #sc-caps .lane.sound {
   position: fixed;
-  left: 24px;
-  bottom: 4.5vh;
-  justify-content: flex-start;
+  right: 24px;
+  bottom: 15vh;
+  justify-content: flex-end;
 }
 #sc-caps .cap {
   max-width: min(860px, 84vw);

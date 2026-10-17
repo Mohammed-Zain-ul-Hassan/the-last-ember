@@ -141,6 +141,8 @@ export const LIBRARY: District = {
     { kind: 'arch', x: 10, z0: -2, z1: 2, y: 4.6, thick: 1.2 },
     { kind: 'arch', x: 62, z0: -2.2, z1: 2.2, y: 4.6, thick: 1.2 },
     { kind: 'rubble', x: 58, z: 6.5, n: 4, r: 1 },
+    { kind: 'carving', x: 4, y: 4.0, z: 7.95, ry: Math.PI, scene: 'fire' },
+    { kind: 'carving', x: 64, y: 4.6, z: -7.95, ry: 0, scene: 'wave' },
   ],
   lines: { wrongSeen: 'library.face', wrongLit: 'wrong.kinder', caught: 'wrong.face' },
   rumble: 0.65,

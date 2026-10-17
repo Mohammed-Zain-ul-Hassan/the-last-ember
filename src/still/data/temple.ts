@@ -147,6 +147,8 @@ export const TEMPLE: District = {
     { kind: 'banner', x: 26, y: 8, z: -8.95, ry: 0, len: 4.4 },
     { kind: 'rubble', x: 48, z: -6, n: 6, r: 1.5 },
     { kind: 'rubble', x: 55, z: 5.5, n: 5, r: 1.2 },
+    { kind: 'carving', x: 26, y: 4.4, z: 8.95, ry: Math.PI, scene: 'priests' },
+    { kind: 'carving', x: 6, y: 4.0, z: 8.95, ry: Math.PI, scene: 'water' },
     { kind: 'roof', x0: 0, x1: 40, z0: -9.5, z1: 9.5, y: 9 },
     { kind: 'roof', x0: 62, x1: 85, z0: -9.5, z1: 9.5, y: 9 },
   ],

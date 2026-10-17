@@ -216,6 +216,8 @@ export const GATE_WARD: District = {
     { kind: 'rubble', x: -2, z: -5.2, n: 5, r: 1.2 },
     { kind: 'rubble', x: 7, z: -5.3, n: 4, r: 1 },
     { kind: 'rubble', x: 48, z: 5.8, n: 5, r: 1.3 },
+    { kind: 'carving', x: -14, y: 3.4, z: 5.95, ry: Math.PI, scene: 'crowd' },
+    { kind: 'carving', x: 44, y: 4.2, z: -6.45, ry: 0, scene: 'market' },
   ],
   lines: { replayEnd: 'gate.replayEnds', stepIn: 'gate.stepIn', wrongSeen: 'gate.wrongSeen', flags: { bar: 'gate.opens' } },
   rumble: 0.1,

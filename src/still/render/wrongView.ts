@@ -34,6 +34,7 @@ export class WrongView {
   private shown = 0;
   /** Seconds left of the tier-3 hint's glow around it. */
   reveal = 0;
+  private held = 0;
   /** From the Library on, it wears his face. */
   mirror = false;
   override: WrongOverride | null = null;
@@ -104,7 +105,9 @@ export class WrongView {
     this.eyes.position.set(Math.cos(yaw) * 0.12, 1.8, Math.sin(yaw) * 0.12);
     (this.eyes.material as THREE.SpriteMaterial).opacity = mirror ? 0 : 0.55 * this.shown * (0.8 + 0.2 * Math.sin(t * 3));
     this.reveal = Math.max(0, this.reveal - dt);
-    (this.outline.material as THREE.SpriteMaterial).opacity = Math.min(1, this.reveal) * 0.6;
+    // held in the light (the Flame Lock's whole point): a cold halo says it cannot move while it is lit
+    this.held += ((w.lit && w.on ? 1 : 0) - this.held) * Math.min(1, dt * 6);
+    (this.outline.material as THREE.SpriteMaterial).opacity = Math.max(Math.min(1, this.reveal) * 0.6, this.held * 0.3);
     // it sheds a little dark, like he does
     if (!mirror && Math.random() < dt * 10 * this.shown)
       smoke.emit({ x: x + (Math.random() - 0.5) * 0.5, y: 0.4 + Math.random() * 1.5, z: z + (Math.random() - 0.5) * 0.5, vy: 0.5, spread: 0.1, life: 1.1, size: 0.4, sizeEnd: 0.9, r: 0.01, g: 0.01, b: 0.03, alpha: 0.5, drag: 1.2 });

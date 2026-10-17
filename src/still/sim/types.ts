@@ -180,7 +180,9 @@ export type Decor =
   | { kind: 'shaft'; x0: number; x1: number; z0: number; z1: number } // a shaft of real light through a broken roof
   | { kind: 'dial'; x: number; z: number; r: number } // a sundial's ring of hours on the floor
   | { kind: 'roof'; x0: number; x1: number; z0: number; z1: number; y: number } // a dark ceiling (render only)
-  | { kind: 'plate'; x: number; z: number; s: number; flag: string }; // a stone plate that lights when its flag is set
+  | { kind: 'plate'; x: number; z: number; s: number; flag: string } // a stone plate that lights when its flag is set
+  // a carved relief that tells the story without words (who came through the gate, the water rising, the fire held up)
+  | { kind: 'carving'; x: number; y: number; z: number; ry: number; scene: 'crowd' | 'market' | 'water' | 'priests' | 'fire' | 'wave' | 'door' };
 
 /** A camera framing for the director: the same fields as the camera rig's authored shots, around `at`. */
 export interface Frame {

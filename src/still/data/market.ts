@@ -175,6 +175,8 @@ export const MARKET: District = {
     { kind: 'banner', x: 70, y: 4.6, z: 3.55, ry: Math.PI, len: 2.6 },
     { kind: 'rubble', x: 50, z: 6, n: 5, r: 1.2 },
     { kind: 'rubble', x: 30, z: -6.5, n: 4, r: 1 },
+    { kind: 'carving', x: 12, y: 3.6, z: -7.95, ry: 0, scene: 'market' },
+    { kind: 'carving', x: 50, y: 3.4, z: 7.95, ry: Math.PI, scene: 'water' },
   ],
   lines: { bridge: 'market.bridge', flags: { scale1: 'market.balanced', scale2: 'market.balanced', scale3: 'market.balanced', collapse: 'market.collapse' } },
   rumble: 0.3,

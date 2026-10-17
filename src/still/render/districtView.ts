@@ -9,6 +9,7 @@ import { mergeStatic } from '../../render/merge';
 import { column, stoneBox } from '../../render/shapes';
 import { glowTexture, tatterTexture } from '../../render/textures';
 import { RIDDLES } from '../../data/stillCity';
+import { carving, frozenBirds, frozenRain, skyline } from './scenery';
 import type { City } from '../sim/city';
 import type { Decor, District, MechDef } from '../sim/types';
 
@@ -167,6 +168,13 @@ export class DistrictView {
       if (pl.casters.some((c) => typeof c === 'object' && 'fig' in c)) this.balance(i);
     });
     d.pages.forEach((pg, i) => this.page(i, pg.x, pg.y, pg.z, pg.lie, pg.truth));
+    // the open-air districts: rain stopped in the air, birds stopped mid-wingbeat, the frozen city beyond the walls
+    if (d.rain) {
+      this.group.add(frozenRain(d), frozenBirds(d));
+      const sky = skyline(d);
+      sky.userData.dynamic = true;
+      this.group.add(sky);
+    }
     const m = mergeStatic(this.group);
     console.info(`[still] ${d.id}: ${m.before} static meshes merged into ${m.after}`);
   }
@@ -603,6 +611,15 @@ export class DistrictView {
       case 'plate':
         this.plateInlay(dc.x, dc.z, dc.s, dc.s, dc.flag);
         return;
+      case 'carving': {
+        const m = carving(dc.scene, Math.round(dc.x * 7 + dc.z));
+        m.position.set(dc.x, dc.y, dc.z);
+        m.rotation.y = dc.ry;
+        m.translateZ(0.06);
+        m.userData.dynamic = true;
+        this.group.add(m);
+        return;
+      }
       case 'rubble':
         for (let i = 0; i < dc.n; i++) {
           const s = rng.range(0.25, 0.6);

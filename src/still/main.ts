@@ -8,11 +8,13 @@ import { Particles } from '../render/particles';
 import { Flame } from '../render/flame';
 import { glowTexture } from '../render/textures';
 import type { Knight } from '../sim/world';
+import type { Frame } from './sim/types';
 import { LAST_WORDS, PEOPLE_WORDS, RIDDLES } from '../data/stillCity';
 import { City, DT, type CityEvent, type StillInput } from './sim/city';
 import { flameState } from './sim/flame';
 import { BRAZIER_POOL, DistrictView, TORCH_LIGHTS } from './render/districtView';
 import { FigureViews } from './render/figureView';
+import { SCENERY } from './render/scenery';
 import { WrongView } from './render/wrongView';
 import { StillHud } from './ui/hud';
 import { StillMenu } from './ui/menu';
@@ -180,11 +182,15 @@ let figs: FigureViews | undefined;
 const prevBody = new THREE.Vector3();
 const prevFlame = new THREE.Vector3();
 
-const SKIES = {
-  night: { top: '#05040a', horizon: '#120e1c', glow: '#3a3e66', glowY: 0.9, fog: '#07060c', stars: 0.55, disc: 0.03, fogDensity: 0.03 },
-  deep: { top: '#020205', horizon: '#0a0812', glow: '#2a2440', glowY: 0.9, fog: '#050409', stars: 0.3, disc: 0.0, fogDensity: 0.035 },
-  interior: { top: '#020203', horizon: '#060509', glow: '#14121e', glowY: 0.9, fog: '#040306', stars: 0, disc: 0, fogDensity: 0.04 },
-};
+// the light grows colder and the air closer, district by district (the Rumble is louder each time, too)
+const SKIES = [
+  { top: '#07060d', horizon: '#16112a', glow: '#40457a', glowY: 0.9, fog: '#09070f', stars: 0.6, disc: 0.035, fogDensity: 0.024 },
+  { top: '#05050c', horizon: '#111024', glow: '#363d70', glowY: 0.9, fog: '#07070f', stars: 0.45, disc: 0.03, fogDensity: 0.028 },
+  { top: '#030307', horizon: '#0a0a16', glow: '#262c52', glowY: 0.9, fog: '#05050b', stars: 0, disc: 0, fogDensity: 0.034 },
+  { top: '#020205', horizon: '#080811', glow: '#1c2244', glowY: 0.9, fog: '#04040a', stars: 0, disc: 0, fogDensity: 0.04 },
+  { top: '#020206', horizon: '#0b0c1c', glow: '#2a3466', glowY: 0.95, fog: '#05060e', stars: 0.25, disc: 0.0, fogDensity: 0.036 },
+];
+const AMBIENT = [0.7, 0.6, 0.44, 0.38, 0.48];
 
 function load(i: number, ash?: number): void {
   di = i;
@@ -192,8 +198,8 @@ function load(i: number, ash?: number): void {
   figs?.group.removeFromParent();
   const d = DISTRICTS[i];
   city = new City(d, save.words, ash);
-  stage.setSky(SKIES[d.sky], 1);
-  stage.ambientK = d.sky === 'interior' ? 0.42 : 0.62;
+  stage.setSky(SKIES[d.index], 1);
+  stage.ambientK = AMBIENT[d.index];
   wrongView.mirror = d.wrong?.mode === 'face' || d.wrong?.mode === 'final';
   bot = BOT ? new Bot(SCRIPTS[i], d.start.yaw) : null;
   hints.reset();
@@ -252,13 +258,61 @@ function begin(): void {
   title.classList.add('off');
   mode = 'play';
   hud.show(true);
-  rig.follow(2.4, DISTRICTS[di].start.yaw);
   clearInput();
   enterDistrict(true);
 }
 
+// ------------------------------------------------------------------ the one cinematic: a short look at each place
+// (the brief: cutscenes minimal, the story told in play). Two letterboxed views, about five seconds, skippable.
+let cine: { frames: Frame[]; i: number; t: number } | null = null;
+function establish(): void {
+  const d = DISTRICTS[di];
+  // a crane over him and his flame, looking down the place he has come to (lit by the fire he carries), easing
+  // down behind him as play begins
+  const sy = d.start.yaw;
+  const back = Math.atan2(-Math.cos(sy), -Math.sin(sy));
+  const at: [number, number, number] = [d.start.x + Math.cos(sy) * 3, 0, d.start.z + Math.sin(sy) * 3];
+  const frames: Frame[] = [
+    { at, yaw: back - 0.55, height: 7.5, dist: 9, lookY: 0.6, fov: 54, dur: 3 },
+    { at: [d.start.x, 0, d.start.z], yaw: back + 0.3, height: 3.2, dist: 6.5, lookY: 1.7, fov: 50, dur: 3.2 },
+  ];
+  cine = { frames, i: 0, t: 0 };
+  hud.letterbox(true);
+  hud.root.classList.add('cine');
+  stage.setCinematic(true);
+  frameShot(0, 0.01);
+}
+function frameShot(i: number, dur: number): void {
+  const f = cine!.frames[i];
+  rig.target.set(...f.at);
+  rig.go({ yaw: f.yaw, height: f.height, dist: f.dist, lookY: f.lookY, fov: f.fov }, dur);
+}
+function endCine(): void {
+  if (!cine) return;
+  cine = null;
+  hud.letterbox(false);
+  hud.root.classList.remove('cine');
+  stage.setCinematic(false);
+  const b = city.s.body;
+  rig.target.set(b.x, b.y, b.z);
+  rig.follow(1.6, DISTRICTS[di].start.yaw);
+  clearInput();
+}
+function updateCine(dt: number): void {
+  if (!cine) return;
+  cine.t += dt;
+  const f = cine.frames[cine.i];
+  if (cine.t >= (f.dur ?? 3.2) * 0.8) {
+    cine.t = 0;
+    cine.i++;
+    if (cine.i >= cine.frames.length) endCine();
+    else frameShot(cine.i, 2.4);
+  }
+}
+
 function enterDistrict(first: boolean): void {
   const d = DISTRICTS[di];
+  establish();
   bus.setDistrict(d.id);
   if (first && di === 0) bus.emit({ type: 'start' });
   bus.emit({ type: 'enter' });
@@ -274,7 +328,6 @@ function nextDistrict(): void {
     load(di + 1, city.s.ash);
     hud.veil(false);
     mode = 'play';
-    rig.follow(0.01, DISTRICTS[di].start.yaw);
     enterDistrict(false);
   }, 1600);
 }
@@ -284,10 +337,12 @@ initInput(stage.renderer.domElement);
 // a click anywhere starts it (the title lies over the canvas)
 document.addEventListener('pointerdown', (e) => {
   if ((e.target as HTMLElement).closest('#sc-menu, #sc-choice, #sc-credits')) return;
-  if (mode === 'title' && !REC) begin();
+  if (cine) endCine();
+  else if (mode === 'title' && !REC) begin();
   audio.initAudio();
 });
 onKey((code) => {
+  if (cine && (code === 'Space' || code === 'Enter' || code === 'Escape')) return endCine();
   if (mode === 'title' && (code === 'Enter' || code === 'Space' || code === 'KeyE')) begin();
   if (code === 'Escape') setPaused(mode === 'play');
   if (code === 'KeyH' && mode === 'play') {
@@ -623,7 +678,8 @@ function frame(now: number): void {
   t += dt;
   SHADOW_FRAME.n++;
   const [lx, ly] = takeLook();
-  if (mode === 'play') {
+  if (cine) updateCine(dt);
+  if (mode === 'play' && !cine) {
     if (lockT > 0) {
       lockT = Math.min(1, lockT + dt / 0.28);
       const k = lockT * lockT * (3 - 2 * lockT);
@@ -698,6 +754,8 @@ function frame(now: number): void {
     glow.emit({ x: flameAt.x, y: flameAt.y + 0.1, z: flameAt.z, vy: 0.9, spread: 0.15, life: 0.9, size: 0.05, sizeEnd: 0.01, r: 4, g: 1.6, b: 0.4, gravity: -0.6, wobble: 0.5 });
 
   // the city
+  SCENERY.uFlame.value.copy(flameAt);
+  SCENERY.uLight.value = vig;
   dview?.update(dt, t, stage.camera, city, tmp.set(bx, 1.5, bz));
   figs?.update(dt, t, city);
   wrongView.update(dt, t, city, smoke, glow, stage.camera, flameAt);
@@ -717,8 +775,8 @@ function frame(now: number): void {
 
   // the camera follows him, or the ghost he has stepped into
   const g = s.ghost;
-  if (mode === 'ending') {
-    /* the ending's shots frame the centre */
+  if (mode === 'ending' || cine) {
+    /* the ending's shots, and the establishing shot, frame their own places */
   } else if (g) rig.target.set(g.x, 0, g.z);
   else rig.target.set(bx, by, bz);
   rig.grounded = b.onGround;
@@ -735,7 +793,7 @@ function frame(now: number): void {
   hud.update(dt);
   captions.update(dt);
   narrative.update(dt);
-  guide.update(dt, t, city, flameAt, hud, glow, mode === 'play');
+  guide.update(dt, t, city, flameAt, hud, glow, mode === 'play' && !cine);
   if (mode === 'play' || mode === 'pause') drawHud();
   audioBeds();
 
