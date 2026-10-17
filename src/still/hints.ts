@@ -1,4 +1,4 @@
-import { HINTS, PUZZLE_WHISPERS, type HintTrigger, type Line } from '../data/stillCity';
+import { HINTS, LINES, PUZZLE_WHISPERS, type HintTrigger, type Line } from '../data/stillCity';
 import type { City } from './sim/city';
 import { save } from './save';
 
@@ -103,7 +103,8 @@ export class Hints {
   private get calm(): boolean {
     const c = this.city();
     const w = c.s.wrong;
-    return !(w.on && !w.gone && w.dist < 9) && !c.flag('collapse') && c.s.status === 'play' && !c.s.ghost;
+    const chase = ['collapse', 'hunt', 'chase', 'plates'].some((f) => c.flag(f));
+    return !(w.on && !w.gone && w.dist < 9) && !chase && c.s.status === 'play' && !c.s.ghost;
   }
 
   /** The figure the current puzzle turns on: the nearest one not yet woken (or not yet found). */
@@ -133,7 +134,13 @@ export class Hints {
   private give(trig: HintTrigger, tier: number): void {
     const c = this.city();
     const d = c.d;
-    this.speak(HINTS[trig][tier - 1], 1);
+    // the riddle's plain answer is the district's own (the doc's table line answers the Gate and the Heart)
+    const own = trig === 'riddle' && tier === 3 ? LINES[`hint.riddle.3.${d.id}`] : undefined;
+    this.speak(own ?? HINTS[trig][tier - 1], 1);
+    if (trig === 'stuck' && tier === 1) {
+      const pz = PUZZLE_WHISPERS[d.id];
+      if (pz?.length) this.speak(pz[0], 1);
+    }
     const key = this.keyFigure();
     const f = key >= 0 ? d.figures[key] : null;
     switch (trig) {
@@ -162,6 +169,7 @@ export class Hints {
           }
         });
         if (bi >= 0 && tier === 1) this.cues.glintBrazier(bi, 4);
+        if (bi >= 0 && tier === 2) this.cues.leanFlame(d.braziers[bi].x, d.braziers[bi].z, 5);
         if (bi >= 0 && tier === 3) this.cues.emberPath(d.braziers[bi].x, d.braziers[bi].z, 10);
         break;
       }

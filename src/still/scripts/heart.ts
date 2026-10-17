@@ -50,7 +50,11 @@ export const HEART_SCRIPT: Goal[] = [
   { aim: 'twin' },
   { wait: 1.5 },
   { until: 'plates', t: 4 },
-  { wait: 3, pitch: 0.3 },
-  { go: [HEART.x - 4.5, HEART.z - 2] },
-  { go: [HEART.x - 1.05, HEART.z], r: 0.3 },
+  { wait: 2, pitch: 0.3 },
+  // the final run: round the west side to the far gap, the flame drawn back to run
+  { go: [HEART.x - 10.5, HEART.z - 2], back: true, pitch: 0.4 },
+  { go: [HEART.x - 9, HEART.z + 7], back: true, pitch: 0.4 },
+  { go: [HEART.x - 3, HEART.z + 9.5], back: true, pitch: 0.4 },
+  { go: [HEART.x, HEART.z + 5], back: true, pitch: 0.4 },
+  { go: [HEART.x, HEART.z + 1.05], r: 0.3 },
 ];

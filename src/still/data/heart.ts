@@ -58,11 +58,13 @@ for (const [k, r] of [[0, 13], [1, 13], [2, 13], [3, 13], [4, 13]] as const) {
   solids.push(cyl(x, z, 0.7, 10, 0, 'pillar'));
 }
 
-// the ring around the centre: low stones that sink into the floor once the five plates are lit
+// the ring around the centre: low stones; when the five plates are lit only the far (north) ones sink, so the way
+// to the fire's first place is a run round the Heart under falling stone (the final chase)
 const ring: Solid[] = [];
+const ringGap: Solid[] = [];
 for (let k = 0; k < 12; k++) {
   const a = (k / 12) * Math.PI * 2;
-  ring.push(box(HEART.x + Math.cos(a) * 3.2, HEART.z + Math.sin(a) * 3.2, 1.75, 0.5, 1.1, -a + Math.PI / 2, 0, 'mech'));
+  (k === 3 ? ringGap : ring).push(box(HEART.x + Math.cos(a) * 3.2, HEART.z + Math.sin(a) * 3.2, 1.75, 0.5, 1.1, -a + Math.PI / 2, 0, 'mech'));
 }
 
 const plates: Plate[] = [
@@ -96,7 +98,10 @@ export const HEART_D: District = {
     { id: 'h4', x: HEART.x + 8, y: 3, z: 16, ry: -Math.PI / 2 - 0.4 },
   ],
   figures,
-  mechs: [{ id: 'ring', kind: 'ring', x: HEART.x, z: HEART.z, w: 6.4, h: 1.1, ry: 0, opens: 'plates', blocks: ring }],
+  mechs: [
+    { id: 'ring', kind: 'ring', x: HEART.x, z: HEART.z, w: 6.4, h: 1.1, ry: 0, opens: 'never', blocks: ring },
+    { id: 'gap', kind: 'ring', x: HEART.x, z: HEART.z, w: 6.4, h: 1.1, ry: 0, opens: 'plates', blocks: ringGap },
+  ],
   riddles: [
     { id: 'heart', x: HEART.x, y: 0.62, z: HEART.z - 0.78, ry: Math.PI, puzzle: 'plates' },
     { id: 'order', text: 'The old first. Then the one who danced. The child last.', x: p3x + 0.2, y: 1.2, z: p3z - 3.2, ry: 0, puzzle: 'plates' },
@@ -112,7 +117,7 @@ export const HEART_D: District = {
   derive: [{ flag: 'plates', all: ['p1', 'p2', 'p3', 'p4', 'p5'] }],
   pages: [HEART_PAGE],
   maze: null,
-  wrong: { mode: 'final', spawn: [HEART.x, 15], nodes, speed: 3.0, sprint: 5.2, after: 'plates' },
+  wrong: { mode: 'final', spawn: [HEART.x, -15], nodes, speed: 3.0, sprint: 5.2, after: 'plates' },
   exit: { x0: 999, z0: 999, x1: 1000, z1: 1000 },
   decor: [
     { kind: 'dial', x: HEART.x, z: HEART.z, r: 9.5 },

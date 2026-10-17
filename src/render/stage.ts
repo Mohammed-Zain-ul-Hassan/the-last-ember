@@ -294,6 +294,12 @@ export class Stage {
     this.composer.render(); // and leave an ordinary frame on screen, never the all-visible one
   }
 
+  /** The Still City: only the carried flame casts shadows (the moon and the sun neither draw nor sample a map). */
+  flameOnlyShadows(): void {
+    this.moon.castShadow = false;
+    this.sun.castShadow = false;
+  }
+
   /** Cards, cutscenes and endings get a shallow depth of field; play stays sharp. */
   setCinematic(on: boolean): void {
     this.cineTarget = on ? 1 : 0;

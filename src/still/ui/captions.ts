@@ -15,6 +15,7 @@ interface Item {
   id: string;
   priority: number;
   dur: number;
+  ttl: number; // seconds it may wait in the queue before it is no longer worth saying
 }
 interface Lane {
   box: HTMLElement;
@@ -55,19 +56,19 @@ export class Captions {
     this.root.classList.toggle('off', !c.on);
   }
 
-  say(line: Line, priority = 2): void {
+  say(line: Line, priority = 2, laneName?: 'story' | 'whisper' | 'sound'): void {
     if (line.voice === 'cue' && !save.captions.cues) return;
-    const lane = line.voice === 'cue' ? this.sound : line.voice === 'flame' ? this.whisper : this.story;
+    const lane = laneName ? this[laneName] : line.voice === 'cue' ? this.sound : line.voice === 'flame' ? this.whisper : this.story;
     const html =
       line.voice === 'word' || line.voice === 'inscription'
         ? `<span class="who">${esc(line.who ?? '')}</span>${line.voice === 'word' ? '&ldquo;' : ''}${esc(line.text)}${line.voice === 'word' ? '&rdquo;' : ''}`
         : esc(line.text);
-    this.push(lane, { html, cls: line.voice, id: line.id, priority, dur: read(line.text, line.voice) });
+    this.push(lane, { html, cls: line.voice, id: line.id, priority, dur: read(line.text, line.voice), ttl: line.voice === 'cue' ? 4 : priority >= 3 ? 20 : 14 });
   }
 
   /** A plain note (how to do something, why something failed): whisper lane, shown at once. */
   note(text: string, priority = 1): void {
-    this.push(this.whisper, { html: esc(text), cls: 'note', id: 'note:' + text, priority, dur: read(text, 'note') });
+    this.push(this.whisper, { html: esc(text), cls: 'note', id: 'note:' + text, priority, dur: read(text, 'note'), ttl: 10 });
   }
 
   private push(lane: Lane, item: Item): void {
@@ -75,8 +76,14 @@ export class Captions {
     lane.queue.push(item);
     // highest priority first; equal priorities keep their order
     lane.queue.sort((a, b) => b.priority - a.priority);
-    // a more urgent line cuts the one on screen short
-    if (lane.cur && item.priority > lane.cur.item.priority) lane.cur.left = Math.min(lane.cur.left, 0.25);
+    // a more urgent line cuts the one on screen short (and that one comes back after it, for what it had left);
+    // a Last Word is never cut: it is the one thing in the game that is only ever said once
+    const cur = lane.cur;
+    if (cur && item.priority > cur.item.priority && cur.item.cls !== 'word' && cur.left > 0.3) {
+      lane.queue.push({ ...cur.item, dur: Math.max(1.4, cur.left + 0.6), priority: cur.item.priority, ttl: 12 });
+      lane.queue.sort((a, b) => b.priority - a.priority);
+      cur.left = 0.25;
+    }
   }
 
   get speaking(): boolean {
@@ -86,12 +93,15 @@ export class Captions {
   clear(): void {
     for (const l of [this.story, this.whisper, this.sound]) {
       l.queue = [];
-      if (l.cur) l.cur.left = 0;
+      if (l.cur) l.cur.left = Math.min(l.cur.left, 0.4);
     }
   }
 
   update(dt: number): void {
     for (const l of [this.story, this.whisper, this.sound]) {
+      // lines that waited too long are no longer worth saying (a sound long gone, a moment passed)
+      for (const q of l.queue) q.ttl -= dt;
+      l.queue = l.queue.filter((q) => q.ttl > 0);
       if (l.cur) {
         l.cur.left -= dt;
         if (l.cur.left <= 0) {

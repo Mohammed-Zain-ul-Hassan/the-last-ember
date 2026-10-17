@@ -17,14 +17,14 @@ interface Beat {
   priority?: number;
 }
 
-export type Speak = (line: Line, priority: number) => void;
+export type Speak = (line: Line, priority: number, lane?: 'story' | 'whisper' | 'sound') => void;
 
 export class Narrative {
   private beats: Beat[] = (BEATS as { beats: Beat[] }).beats;
   private fired = new Set<number>();
   private count = new Map<number, number>();
   private last = new Map<number, number>();
-  private pending: { at: number; line: Line; priority: number }[] = [];
+  private pending: { at: number; line: Line; priority: number; lane?: 'story' | 'whisper' | 'sound' }[] = [];
   private t = 0;
   private speak: Speak;
 
@@ -70,12 +70,22 @@ export class Narrative {
     if (line) this.pending.push({ at: this.t + delay, line, priority });
   }
 
+  /** A line made in play (the Library's late echo), on the game's clock (it waits while the game is paused). */
+  sayLine(line: Line, priority: number, delay: number, lane?: 'story' | 'whisper' | 'sound'): void {
+    this.pending.push({ at: this.t + delay, line, priority, lane });
+  }
+
+  /** A new district: what was still waiting to be said there is dropped. */
+  clear(): void {
+    this.pending = [];
+  }
+
   update(dt: number): void {
     this.t += dt;
     this.pending.sort((a, b) => a.at - b.at);
     while (this.pending.length && this.pending[0].at <= this.t) {
       const p = this.pending.shift()!;
-      this.speak(p.line, p.priority);
+      this.speak(p.line, p.priority, p.lane);
     }
   }
 }

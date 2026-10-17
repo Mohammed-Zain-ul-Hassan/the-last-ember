@@ -8,8 +8,8 @@ import { save } from './save';
 
 // Guidance in the game's own language. No arrows: the flame shows the way. A quiet line says what to do next; an
 // ember leaves the flame and drifts along the way to it (around corners, through doors), waits there, and comes back;
-// a warmth ring fills as the flame nears a shadow's true angle. Guided: the ember keeps leading. Gentle: it leads when
-// asked (H). Off: only the objective line is gone too.
+// a warmth ring fills as the flame nears a shadow's true angle. The line is always there. Guided: the ember keeps
+// leading. Gentle: it leads when asked (H). Off: no ember.
 
 export class Guide {
   private ember: THREE.Sprite;
@@ -84,7 +84,7 @@ export class Guide {
     const ob = active ? this.objective(c) : null;
     this.current = ob?.o ?? null;
     this.index = ob?.i ?? -1;
-    const text = ob && save.hints !== 'off' ? (typeof ob.o.text === 'function' ? ob.o.text(c) : ob.o.text) : '';
+    const text = ob ? (typeof ob.o.text === 'function' ? ob.o.text(c) : ob.o.text) : '';
     hud.objective(text);
     const key = `${c.d.id}:${this.index}`;
     if (key !== this.objKey) {

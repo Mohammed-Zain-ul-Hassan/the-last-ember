@@ -30,6 +30,10 @@ const figAt = (c: City, id: string): [number, number] | null => {
   const p = c.placeOf(i);
   return [p.x, p.z];
 };
+const replaying = (c: City, id: string): boolean => {
+  const i = c.d.figures.findIndex((x) => x.id === id);
+  return i >= 0 && c.s.figs[i].state === 'replay';
+};
 const brazier = (c: City, id: string): [number, number] | null => {
   const b = c.d.braziers.find((x) => x.id === id);
   return b ? [b.x, b.z] : null;
@@ -40,10 +44,18 @@ export const OBJECTIVES: Record<string, Objective[]> = {
     { text: 'Rest by the brazier. It keeps your Ash, and your place.', done: 'rest:ward', at: (c) => brazier(c, 'ward') },
     { text: 'Follow the passage. Look for a shadow on the wall, reaching for something.', done: 'found:lever', at: (c) => standAt(c, 'lever'), via: [[8, 0], [12, 0], [19, -0.5]] },
     { text: 'Wake his shadow: E (1 Ash). Watch what he does.', done: 'woke:lever', at: (c) => figAt(c, 'lever') },
-    { text: 'Hold E while he moves to step into his last ten seconds. Do what he did: the lever behind the pillar.', done: 'lever', at: [27.9, 3.0] },
+    {
+      text: (c) => (replaying(c, 'lever') ? 'Hold E now to step into his last ten seconds. Do what he did: the lever behind the pillar.' : 'Wake him again (E) from his true angle, and while he moves, hold E to step in.'),
+      done: 'lever',
+      at: (c) => (c.s.ghost ? [27.9, 3.0] : replaying(c, 'lever') ? figAt(c, 'lever') : standAt(c, 'lever')),
+    },
     { text: 'The portcullis is up. Rest at the brazier in the court beyond.', done: 'rest:court', at: (c) => brazier(c, 'court'), via: [[31, 0], [35.5, 0]] },
     { text: 'Two guards held the gate shut. Find the angle each was lit from, and wake them both.', done: (c) => c.flag('woke:second') && c.flag('woke:watch'), at: (c) => (c.flag('woke:second') ? standAt(c, 'watch') : standAt(c, 'second')) },
-    { text: 'Step into the second replay (hold E) and lift the bar together.', done: 'bar', at: [56.6, 0] },
+    {
+      text: (c) => (replaying(c, 'second') || replaying(c, 'watch') ? 'Hold E now: step into his replay and lift the bar.' : 'Wake one of them again (E), and while he moves, hold E to step in and lift the bar.'),
+      done: 'bar',
+      at: (c) => (c.s.ghost ? [56.6, 0] : replaying(c, 'second') ? figAt(c, 'second') : replaying(c, 'watch') ? figAt(c, 'watch') : standAt(c, 'watch')),
+    },
     { text: 'Through the gate, into the city.', done: 'never', at: [62, 0] },
   ],
   market: [
@@ -122,6 +134,11 @@ export const OBJECTIVES: Record<string, Objective[]> = {
         return [HEART.x + 4.6, HEART.z + 2.3];
       },
     },
-    { text: 'The ring is open. Go to the centre, where the flame was first lit.', done: 'heart', at: [HEART.x - 1.1, HEART.z] },
+    {
+      text: 'The stones part on the far side. Run round the Heart to its centre, where the flame was first lit. Keep the light on what follows you.',
+      done: 'heart',
+      at: [HEART.x, HEART.z + 1.1],
+      via: [[HEART.x - 10.5, HEART.z - 2], [HEART.x - 9, HEART.z + 7], [HEART.x - 3, HEART.z + 9.5], [HEART.x, HEART.z + 5]],
+    },
   ],
 };

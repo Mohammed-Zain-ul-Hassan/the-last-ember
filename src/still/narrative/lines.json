@@ -576,5 +576,25 @@
   "cue.collapse": {
     "voice": "cue",
     "text": "[the street giving way]"
+  },
+  "cue.ring": {
+    "voice": "cue",
+    "text": "[stone grinding, sinking]"
+  },
+  "cue.lateStepAgain": {
+    "voice": "cue",
+    "text": "[a footstep, half a beat late]"
+  },
+  "hint.riddle.3.market": {
+    "voice": "flame",
+    "text": "A low flame. Dusk stretches any shadow past noon."
+  },
+  "hint.riddle.3.temple": {
+    "voice": "flame",
+    "text": "Idle, fleeing, praying, looking up."
+  },
+  "hint.riddle.3.library": {
+    "voice": "flame",
+    "text": "Hold me directly above each page."
   }
 }

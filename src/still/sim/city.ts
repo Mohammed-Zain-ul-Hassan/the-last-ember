@@ -515,7 +515,13 @@ export class City {
       const nearPit = this.d.pits.some((p) => this.pitOpen(p) && inRect(p, b.x, b.z, far + 1));
       br.on = !!tip && nearPit && far > 1.2 && !this.pitAt(tip[0], tip[1]);
     }
-    if (br.on !== wasOn && this.pitAt(b.x, b.z)) this.events.push({ type: 'bridge', on: br.on });
+    const over = !!this.pitAt(b.x, b.z);
+    if (br.on !== wasOn && over) this.events.push({ type: 'bridge', on: br.on });
+    // the first time a shadow really holds him over a gap (however it was formed): that is the beggar's lesson learned
+    if (over && br.on && this.supported(b.x, b.z) && !this.flag('bridged')) {
+      this.setFlag('bridged');
+      this.events.push({ type: 'bridge', on: true });
+    }
   }
 
   private stepFigures(dt: number): void {
@@ -906,6 +912,9 @@ export class City {
     const s = this.s;
     this.d.gusts.forEach((g, i) => {
       if (g.after && !this.flag(g.after)) return;
+      // the first gust comes a full period after its trigger, with its warning (never the instant it starts)
+      const from = g.after ? s.flags[g.after] : 0;
+      if (s.gusts[i] < from + 1.4) s.gusts[i] = from + g.period;
       const next = s.gusts[i];
       const before = next - s.t;
       if (before <= 1.3 && before + dt > 1.3) this.events.push({ type: 'gustWarn', i });

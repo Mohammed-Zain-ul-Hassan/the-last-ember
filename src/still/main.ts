@@ -54,6 +54,8 @@ let bot: Bot | null = null;
 // ------------------------------------------------------------------ the stage
 const stage = new Stage(document.getElementById('app')!);
 stage.ambientK = 0.38; // the flame is the light here
+// only the flame casts shadows in the Still City (the moon's and the dawn sun's maps are not drawn or sampled)
+stage.flameOnlyShadows();
 stage.setSky({ top: '#05040a', horizon: '#120e1c', glow: '#3a3e66', glowY: 0.9, fog: '#07060c', stars: 0.55, disc: 0.03, fogDensity: 0.03 }, 1);
 stage.setTerrain('high');
 // closer than the combat camera: this is a game of looking, and of where the flame is held
@@ -88,12 +90,12 @@ const hud = new StillHud();
 hud.show(false);
 // everything the player hears is captioned; the narrative engine speaks the lines beats.json ties to events
 const captions = new Captions();
-const narrative = new Narrative((l, pr) => {
-  captions.say(l, pr);
-  // the Library: it repeats the narrator's last line, slightly late, in its own voice (the doc's voice table)
+const narrative: Narrative = new Narrative((l, pr, lane) => {
+  captions.say(l, pr, lane);
+  // the Library: it repeats the narrator's line, slightly late (over it, not after it), in its own voice
   const w = city?.s.wrong;
   if (l.voice === 'narrator' && DISTRICTS[di]?.id === 'library' && w?.on && !w.gone && w.dist < 16)
-    setTimeout(() => captions.say({ id: l.id + '.echo', voice: 'wrong', text: l.text }, pr), 1300);
+    narrative.sayLine({ id: l.id + '.echo', voice: 'wrong', text: l.text }, pr, 0.9, 'whisper');
 });
 const menu = new StillMenu({
   resume: () => setPaused(false),
@@ -144,6 +146,7 @@ let bodyHidden = false;
 const ending = new Ending({
   hud,
   speak: (l, pr) => captions.say(l, pr),
+  emit: (type) => bus.emit({ type }),
   rig,
   scene: stage.world,
   centre: new THREE.Vector3(HEART.x, 0, HEART.z),
@@ -212,6 +215,8 @@ function load(i: number, ash?: number): void {
   bot = BOT ? new Bot(script, d.start.yaw) : null;
   hints.reset();
   humFor.clear();
+  captions.clear();
+  narrative.clear();
   const dv = new DistrictView(d);
   const fv = new FigureViews(d);
   dview = dv;
@@ -326,6 +331,7 @@ function enterDistrict(first: boolean): void {
   bus.emit({ type: 'enter' });
   hud.card(['I', 'II', 'III', 'IV', 'V'][d.index] ?? '', d.name.toUpperCase(), d.sub, 6);
   audio.cue('drip');
+  bus.emit({ type: 'drip' });
 }
 
 function nextDistrict(): void {
@@ -453,9 +459,10 @@ function handle(e: CityEvent): void {
       audio.cue('found');
       hints.progress();
       if (f.word !== undefined) {
+        const known = save.words[f.word];
         save.words[f.word] = true;
         persist();
-        narrative.say(`word.${f.word + 1}`, 2);
+        if (!known) narrative.say(`word.${f.word + 1}`, 2);
       }
       bus.emit({ type: 'shadowLit', fig: f.id, word: f.word });
       if (f.clip) noteOnce('tut.wake', 'His shadow is at its true angle. E wakes it, for 1 Ash.', 1.5);
@@ -601,7 +608,7 @@ function handle(e: CityEvent): void {
       if (e.hit) rig.shake(0.25);
       break;
     case 'debrisWarn':
-      audio.cue('drip');
+      audio.cue('collapse', 0.25);
       bus.emit({ type: 'debrisWarn' });
       dropStone(e.x, e.z);
       break;
@@ -714,7 +721,10 @@ function frame(now: number): void {
       }
     }
   }
-  if (mode === 'play') hints.update(dt);
+  if (mode === 'play' && !cine) {
+    hints.update(dt);
+    trackAttempts(dt);
+  }
   const alpha = mode === 'play' ? acc / DT : 1;
   const s = city.s;
   const b = s.body;
@@ -799,8 +809,10 @@ function frame(now: number): void {
 
   // HUD
   hud.update(dt);
-  captions.update(dt);
-  narrative.update(dt);
+  if (mode !== 'pause') {
+    captions.update(dt);
+    narrative.update(dt);
+  }
   guide.update(dt, t, city, flameAt, hud, glow, mode === 'play' && !cine);
   if (mode === 'play' || mode === 'pause') drawHud();
   audioBeds();
@@ -859,7 +871,7 @@ function drawHud(): void {
     hud.timer(1 - s.figs[r].t / len, s.ghost ? 'STEPPED IN' : 'HIS LAST TEN SECONDS');
   } else hud.timer(null);
   const w = s.wrong;
-  const close = w.on && !w.gone && w.dist < 6 && !w.seen && DISTRICTS[di].wrong?.mode !== 'still';
+  const close = w.on && !w.gone && w.dist < 6 && DISTRICTS[di].wrong?.mode !== 'still';
   const near = city.nearestAlign();
   hud.mood(close ? 0.8 : breezeT > 0 ? Math.min(1, breezeT) * 0.5 : 0, near ? near.align * near.align * 0.8 : 0);
   // the warmth ring: how near the flame is to the true angle of the shadow in front of him
@@ -885,6 +897,27 @@ function drawHud(): void {
   }
 }
 
+let nearCold = false;
+let nearWarm = false;
+// a failed attempt at a true angle: the flame held near it a while, then given up (the hints count these)
+let tryFig = -1;
+let tryT = 0;
+let tryPeak = 0;
+function trackAttempts(dt: number): void {
+  const near = city.nearestAlign();
+  if (near && near.align > 0.5 && !city.s.figs[near.fig].locked) {
+    if (tryFig !== near.fig) {
+      tryFig = near.fig;
+      tryT = 0;
+      tryPeak = 0;
+    }
+    tryT += dt;
+    tryPeak = Math.max(tryPeak, near.align);
+  } else {
+    if (tryFig >= 0 && tryT > 1.5 && !city.s.figs[tryFig]?.locked && (!near || near.fig !== tryFig || near.align < 0.3)) hints.failed();
+    if (!near || near.align < 0.3) tryFig = -1;
+  }
+}
 function audioBeds(): void {
   if (!audio.audioOn()) return;
   const s = city.s;
@@ -900,6 +933,12 @@ function audioBeds(): void {
     if (bz.false) cold = Math.max(cold, k);
     else br = Math.max(br, k);
   });
+  if (mode === 'play') {
+    if (cold > 0.55 && !nearCold) bus.emit({ type: 'nearFalse' });
+    if (br > 0.55 && !nearWarm) bus.emit({ type: 'nearWarm' });
+    nearCold = cold > 0.55;
+    nearWarm = br > 0.55;
+  }
   audio.setBeds({
     music: mode === 'title' ? 0.6 : silent ? 0 : mode === 'ending' ? 0.5 : 1,
     rumble: d.rumble * (mode === 'ending' ? rumbleK : 1),

@@ -18,6 +18,8 @@ export type Choice = 'keep' | 'letGo' | 'door';
 export interface EndingCtx {
   hud: StillHud;
   speak: (line: Line, priority: number) => void;
+  /** Tell the rest of the game (sound captions) what is happening. */
+  emit: (type: string) => void;
   rig: CameraRig;
   scene: THREE.Object3D;
   centre: THREE.Vector3;
@@ -121,6 +123,7 @@ export class Ending {
     c.placeWrong(c.centre.x + Math.cos(yaw) * 0.2 - Math.sin(yaw) * 0.9, c.centre.z + Math.sin(yaw) * 0.2 + Math.cos(yaw) * 0.9, yaw + 0.6, 'reach');
     c.hud.prompt(null);
     c.speak(WRONG.door, 3);
+    c.emit('ending');
     const shot: Shot = { yaw: -yaw + Math.PI / 2 + 0.9, height: 2.0, dist: 6.5, lookY: 1.5, fov: 40 };
     c.rig.target.copy(c.centre);
     c.rig.go(shot, 3);
@@ -207,6 +210,8 @@ export class Ending {
       // he lets it fall; it dies; in the dark, footsteps; they are alive, and then the water
       c.overrideFlame(this.flamePos.clone().setY(Math.max(0.1, this.flamePos.y - t * 0.6)), Math.max(0, 1 - t / 2.5));
       if (t > 4 && t < 14 && Math.random() < dt * (2 + t)) audio.cue('step', 0.5 + Math.random() * 0.4);
+      if (t > 4 && t - dt <= 4) c.emit('endingSteps');
+      if (t > 13 && t - dt <= 13) c.emit('endingWater');
       c.wakeAll(Math.min(1, Math.max(0, (t - 6) / 3)));
       if (t > 13) {
         c.shake(0.15 + (t - 13) * 0.08);
@@ -239,6 +244,7 @@ export class Ending {
         c.hideBody(true);
         c.overrideFlame(null, 0);
       }
+      if (t > 22 && t - dt <= 22) c.emit('endingWater');
       if (t > 22) {
         c.shake(0.1);
         if (Math.random() < dt * 2) audio.cue('collapse', 0.5);

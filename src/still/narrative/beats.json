@@ -24,10 +24,10 @@
     { "on": "flag", "if": { "id": "collapse" }, "say": ["cue.collapse", "market.collapse"], "priority": 3 },
     { "on": "flag", "if": { "id": "rest:end" }, "say": ["market.brazier"], "priority": 2 },
     { "on": "wrongShift", "say": ["cue.lateStep"], "priority": 0 },
+    { "on": "wrongStep", "say": ["cue.lateStepAgain"], "once": false, "cooldown": 25, "priority": 0 },
 
     { "on": "replayEnd", "if": { "district": "temple" }, "say": ["temple.priest"], "priority": 2 },
     { "on": "flag", "if": { "id": "vault" }, "say": ["temple.vault"], "delay": 1.5, "priority": 2 },
-    { "on": "line", "if": { "id": "temple.nearFalse" }, "say": ["cue.coldHum", "temple.nearFalse"], "priority": 2 },
     { "on": "falseBrazier", "say": ["temple.fellFalse"], "priority": 2 },
     { "on": "caught", "if": { "district": "temple" }, "say": ["wrong.notYet"], "once": false, "priority": 3 },
 
@@ -43,7 +43,6 @@
     { "on": "flag", "if": { "id": "p5" }, "say": ["heart.fifth"], "priority": 2 },
     { "on": "flag", "if": { "id": "plates" }, "say": ["cue.rumbleNear", "heart.rumble"], "delay": 1.5, "priority": 3 },
     { "on": "line", "if": { "id": "wrong.knows" }, "say": ["wrong.knows"], "priority": 3 },
-    { "on": "ending", "say": ["wrong.door"], "priority": 3 },
 
     { "on": "death", "variants": ["death.1", "death.2", "death.3"], "after": { "count": 6, "say": "death.4" }, "once": false, "priority": 3 },
     { "on": "flameLow", "say": ["flame.low"], "once": false, "cooldown": 20, "priority": 1 },
@@ -56,7 +55,10 @@
     { "on": "wake", "say": ["cue.bell"], "once": false, "cooldown": 8, "priority": 0 },
     { "on": "mech", "if": { "kind": "portcullis" }, "say": ["cue.chains"], "once": false, "priority": 0 },
     { "on": "mech", "if": { "kind": "gate" }, "say": ["cue.gate"], "once": false, "priority": 0 },
-    { "on": "brazier", "if": { "first": true }, "say": ["cue.crackle"], "once": false, "cooldown": 10, "priority": 0 },
+    { "on": "mech", "if": { "kind": "ring" }, "say": ["cue.ring"], "once": false, "priority": 0 },
+    { "on": "nearFalse", "say": ["cue.coldHum"], "once": false, "cooldown": 25, "priority": 0 },
+    { "on": "nearFalse", "say": ["temple.nearFalse"], "priority": 2 },
+    { "on": "nearWarm", "say": ["cue.crackle"], "once": false, "cooldown": 30, "priority": 0 },
     { "on": "gustWarn", "say": ["cue.wind"], "once": false, "cooldown": 8, "priority": 0 },
     { "on": "debrisWarn", "say": ["cue.stone"], "once": false, "cooldown": 6, "priority": 0 },
     { "on": "aligning", "say": ["cue.hum"], "once": false, "cooldown": 30, "priority": 0 },
