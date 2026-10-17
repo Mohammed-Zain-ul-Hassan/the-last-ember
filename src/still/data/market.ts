@@ -25,9 +25,9 @@ const WEIGH = { lean: 0.08, head: 0.2, aF: 1.25, eF: 0.55, aB: 1.15, eB: 0.6 };
 
 // where each merchant stands, their pan, and where the fire was when they froze (their balance, and their true angle)
 export const MERCHANTS = [
-  { id: 'fish', word: 5, x: 10, z: -4, light: [9.0, 2.9, -4.0] as [number, number, number], pan: { x0: 11.0, x1: 12.2, z0: -4.4, z1: -3.6 } },
-  { id: 'scales', word: 9, x: 18, z: 4, light: [17.2, 2.68, 4.0] as [number, number, number], pan: { x0: 19.0, x1: 20.2, z0: 3.6, z1: 4.4 } },
-  { id: 'coins', word: 10, x: 25, z: -4, light: [23.8, 2.62, -4.0] as [number, number, number], pan: { x0: 27.0, x1: 28.2, z0: -4.4, z1: -3.6 } },
+  { id: 'fish', word: 5, x: 10, z: -4, light: [9.3, 2.62, -4.0] as [number, number, number], pan: { x0: 11.0, x1: 12.2, z0: -4.4, z1: -3.6 } },
+  { id: 'scales', word: 9, x: 18, z: 4, light: [17.35, 2.6, 4.0] as [number, number, number], pan: { x0: 19.0, x1: 20.2, z0: 3.6, z1: 4.4 } },
+  { id: 'coins', word: 10, x: 25, z: -4, light: [24.0, 2.55, -4.0] as [number, number, number], pan: { x0: 27.0, x1: 28.2, z0: -4.4, z1: -3.6 } },
 ];
 
 /** The beggar's last ten seconds: up off the step, to the edge, the lamp behind him, and across on his own shadow. */
@@ -52,7 +52,7 @@ const beggarClip: Clip = {
   walk: [[1.4, 2.8], [3.6, 9]],
 };
 
-const BALANCE = [0.81, 0.84, 0.75];
+const BALANCE = [0.81, 0.75, 0.59];
 
 const figures: FigureDef[] = [
   ...MERCHANTS.map(

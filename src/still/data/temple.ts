@@ -43,7 +43,7 @@ const PRIESTS: FigureDef[] = [
   },
   {
     id: 'flee', kind: 'elder', x: C.x + 4.2, z: C.z, yaw: 0, frozen: FLEE, word: 13, puzzle: 'priests',
-    light: [C.x + 2.1, 2.85, C.z + 0.5], ink: FLOOR, clip: clip({ lean: 0, head: 0.2 }, FLEE, { lean: 0.2, head: -0.4, aF: 1.4, aB: 1.2 }),
+    light: [C.x + 2.1, 2.62, C.z + 0.5], ink: FLOOR, clip: clip({ lean: 0, head: 0.2 }, FLEE, { lean: 0.2, head: -0.4, aF: 1.4, aB: 1.2 }),
   },
   {
     id: 'pray', kind: 'elder', x: C.x, z: C.z - 4.2, yaw: Math.PI / 2, frozen: PRAY, word: 14, puzzle: 'priests',
@@ -51,7 +51,7 @@ const PRIESTS: FigureDef[] = [
   },
   {
     id: 'up', kind: 'elder', x: C.x - 4.2, z: C.z, yaw: 0, frozen: UP, word: 15, puzzle: 'priests',
-    light: [C.x - 2.0, 3.0, C.z - 0.4], ink: FLOOR, clip: clip({ head: 0.2 }, UP, { ...UP, aF: 2.4, eF: 0.2, head: -0.9 }),
+    light: [C.x - 1.6, 2.65, C.z - 0.4], ink: FLOOR, clip: clip({ head: 0.2 }, UP, { ...UP, aF: 2.4, eF: 0.2, head: -0.9 }),
   },
 ];
 

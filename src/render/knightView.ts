@@ -360,6 +360,12 @@ export class KnightView {
     return [...this.parts, this.cape];
   }
 
+  /** Where his off hand is (the palm the carried flame sits on), in world space. */
+  handPos(out: THREE.Vector3): THREE.Vector3 {
+    this.torch.updateWorldMatrix(true, false);
+    return out.set(0, 0.05, 0).applyMatrix4(this.torch.matrixWorld);
+  }
+
   get eyePos(): THREE.Vector3 {
     return this.eyes.getWorldPosition(this.eyeWorld);
   }
@@ -693,15 +699,23 @@ export class KnightView {
     this.trail.rotation.x = c.armTilt;
     this.sword.visible = !this.carry;
     if (this.carry) {
-      // aim the off arm at the flame, in his profile plane: 0 hangs, + swings forward (the chest's lean comes off)
+      // reach for the flame with the off arm: two bones in his profile plane (upper 0.44, fore 0.42), the elbow
+      // bending down and back; the flame then sits on the palm (see handPos), never floating apart from it
       this.offShoulder.rotation.z = 0;
+      this.offElbow.rotation.z = 0;
       this.root.updateWorldMatrix(true, true);
-      const sh = this.offShoulder.getWorldPosition(this.tmp);
-      this.root.worldToLocal(sh);
+      const sh = this.root.worldToLocal(this.offShoulder.getWorldPosition(this.tmp));
       const fl = this.root.worldToLocal(this.eyeWorld.copy(this.carry));
-      const a = Math.atan2(fl.x - sh.x, -(fl.y - sh.y));
-      this.offShoulder.rotation.z = a + c.lean + Math.sin(t * 2.1) * 0.03;
-      this.offElbow.rotation.z = 0.3;
+      const fx = fl.x - sh.x;
+      const fy = fl.y - 0.12 - sh.y; // the palm sits a hand's breadth under the flame
+      const A = 0.44;
+      const B = 0.46;
+      const d = Math.max(0.3, Math.min(A + B - 0.001, Math.hypot(fx, fy)));
+      const aim = Math.atan2(fx, -fy);
+      const alpha = Math.acos(Math.max(-1, Math.min(1, (A * A + d * d - B * B) / (2 * A * d))));
+      const inner = Math.acos(Math.max(-1, Math.min(1, (A * A + B * B - d * d) / (2 * A * B))));
+      this.offShoulder.rotation.z = aim - alpha + c.lean;
+      this.offElbow.rotation.z = Math.PI - inner;
     } else if (this.torchOn) {
       this.offShoulder.rotation.z = 1.05 + Math.sin(t * 2.1) * 0.04 - c.lean * 0.5;
       this.offElbow.rotation.z = 0.95;

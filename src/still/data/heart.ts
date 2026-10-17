@@ -30,16 +30,16 @@ export const HEART_PAGE: Page = { id: 'p4', x: p4x + 0.2, z: p4z - 0.9, y: 1.05,
 
 const figures: FigureDef[] = [
   // plate one: the true angle
-  { id: 'soldier', kind: 'guard', x: p1x + 1.6, z: p1z + 1.1, yaw: Math.PI, frozen: { lean: 0.1, aF: 1.5, eF: 0.2, aB: -0.3, lF: 0.4, kF: -0.3, lB: -0.3, kB: -0.3, head: -0.1 }, holds: 'spear', word: 27, lockFlag: 'p1', puzzle: 'plates', light: [p1x + 3.6, 2.75, p1z - 1.4], ink: FLOOR },
+  { id: 'soldier', kind: 'guard', x: p1x + 1.6, z: p1z + 1.1, yaw: Math.PI, frozen: { lean: 0.1, aF: 1.5, eF: 0.2, aB: -0.3, lF: 0.4, kF: -0.3, lB: -0.3, kB: -0.3, head: -0.1 }, holds: 'spear', word: 27, lockFlag: 'p1', puzzle: 'plates', light: [p1x + 3.6, 2.6, p1z - 1.4], ink: FLOOR },
   // plate three: the right order
-  { id: 'old', kind: 'elder', x: p3x - 1.6, z: p3z - 1.9, yaw: Math.PI / 4, frozen: { lean: 0.2, head: 0.2, aF: 0.6, eF: 0.5 }, holds: 'staff', word: 28, puzzle: 'plates', light: [p3x - 0.4, 2.75, p3z - 0.2], ink: FLOOR },
-  { id: 'dancer', kind: 'woman', x: p3x + 1.9, z: p3z - 1.9, yaw: (3 * Math.PI) / 4, frozen: { lean: -0.1, head: -0.3, aF: 2.6, eF: 0.4, aB: 1.8, eB: 0.6, lF: 0.6, kF: -0.4, lB: -0.4, kB: -0.6 }, word: 29, puzzle: 'plates', light: [p3x + 0.6, 3.2, p3z - 0.6], ink: FLOOR },
-  { id: 'twin', kind: 'child', h: 1.2, x: p3x - 1.9, z: p3z + 1.5, yaw: -Math.PI / 4, frozen: { lean: 0.1, head: -0.2, aF: 1.4, eF: 0.1 }, word: 30, puzzle: 'plates', light: [p3x - 0.2, 1.9, p3z + 0.4], ink: FLOOR },
+  { id: 'old', kind: 'elder', x: p3x - 1.6, z: p3z - 1.9, yaw: Math.PI / 4, frozen: { lean: 0.2, head: 0.2, aF: 0.6, eF: 0.5 }, holds: 'staff', word: 28, puzzle: 'plates', light: [p3x - 1.6 - 2.1, 2.45, p3z - 1.9 + 0.4], ink: FLOOR },
+  { id: 'dancer', kind: 'woman', x: p3x + 1.9, z: p3z - 1.9, yaw: (3 * Math.PI) / 4, frozen: { lean: -0.1, head: -0.3, aF: 2.6, eF: 0.4, aB: 1.8, eB: 0.6, lF: 0.6, kF: -0.4, lB: -0.4, kB: -0.6 }, word: 29, puzzle: 'plates', light: [p3x + 1.9 + 2.0, 2.55, p3z - 1.9 + 0.3], ink: FLOOR },
+  { id: 'twin', kind: 'child', h: 1.2, x: p3x - 1.9, z: p3z + 1.5, yaw: -Math.PI / 4, frozen: { lean: 0.1, head: -0.2, aF: 1.4, eF: 0.1 }, word: 30, puzzle: 'plates', light: [p3x - 1.9 + 0.3, 2.2, p3z + 1.5 + 2.0], ink: FLOOR },
   // the rest of the Heart's people, in its corners
-  { id: 'mother', kind: 'woman', x: 17.5, z: -10.2, yaw: Math.PI / 4, frozen: { lean: 0.15, aF: 0.4, eF: 1.2, aB: 1.2, eB: 0.2, head: 0.25 }, word: 26, tol: 17, light: [19.2, 2.75, -8.0], ink: FLOOR },
+  { id: 'mother', kind: 'woman', x: 17.5, z: -10.2, yaw: Math.PI / 4, frozen: { lean: 0.15, aF: 0.4, eF: 1.2, aB: 1.2, eB: 0.2, head: 0.25 }, word: 26, tol: 17, light: [19.2, 2.6, -8.0], ink: FLOOR },
   { id: 'carpenter', kind: 'man', x: HEART.x + 1.2, z: 16.4, yaw: -Math.PI / 2, frozen: { lean: 0.2, aF: 1.0, eF: 1.2, aB: 0.2, head: 0.3 }, word: 31, tol: 17, light: [HEART.x + 1.0, 2.0, 13.8], ink: plane([0, 0, 17.6], [0, 0, -1]) },
-  { id: 'wife', kind: 'woman', x: 44.5, z: 8.0, yaw: Math.PI, frozen: { lean: 0.05, aF: 1.1, eF: 1.0, aB: 1.0, eB: 1.0, head: 0.1 }, word: 32, tol: 17, light: [42.2, 2.75, 6.4], ink: FLOOR },
-  { id: 'friend', kind: 'man', x: 41.5, z: -11.0, yaw: (3 * Math.PI) / 4, frozen: { lean: 0.35, aF: 1.5, eF: 0.1, head: -0.3 }, word: 33, tol: 17, light: [39.8, 2.7, -9.0], ink: FLOOR },
+  { id: 'wife', kind: 'woman', x: 44.5, z: 8.0, yaw: Math.PI, frozen: { lean: 0.05, aF: 1.1, eF: 1.0, aB: 1.0, eB: 1.0, head: 0.1 }, word: 32, tol: 17, light: [42.2, 2.6, 6.4], ink: FLOOR },
+  { id: 'friend', kind: 'man', x: 41.5, z: -11.0, yaw: (3 * Math.PI) / 4, frozen: { lean: 0.35, aF: 1.5, eF: 0.1, head: -0.3 }, word: 33, tol: 17, light: [39.8, 2.6, -9.0], ink: FLOOR },
 ];
 
 // the round court's wall, in segments, with the stair the city's last hands built hidden behind its north side

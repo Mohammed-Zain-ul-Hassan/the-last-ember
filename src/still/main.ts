@@ -626,6 +626,8 @@ function frame(now: number): void {
   knight.carry = mode === 'ending' && flameAt.distanceTo(tmp.set(bx, by + 2, bz)) > 1.6 ? null : flameAt;
   knight.update(knightAd, dt, t, smoke, glow, stage.camera);
   knight.root.visible = !bodyHidden && (s.status !== 'dead' || s.statusT < 0.4);
+  // the fire is drawn on his palm, where his arm actually reached (the sim's point is within a few centimetres)
+  if (knight.carry && knight.root.visible) knight.handPos(flameAt).y += 0.1;
 
   // the flame and its light
   const vig = mode === 'ending' ? flameOverrideVigor : Math.max(0, s.flame.vigor);

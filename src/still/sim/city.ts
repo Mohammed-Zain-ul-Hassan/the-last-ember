@@ -422,7 +422,7 @@ export class City {
     let d = (want - b.yaw) % (Math.PI * 2);
     if (d > Math.PI) d -= Math.PI * 2;
     if (d < -Math.PI) d += Math.PI * 2;
-    b.yaw += d * Math.min(1, dt * (sp > 0.6 ? 12 : 3));
+    b.yaw += d * Math.min(1, dt * (sp > 0.6 ? 12 : 9));
     // height: the floor (or the pit), solid tops, a step down is walked
     const was = b.onGround;
     const prevY = b.y;
@@ -448,7 +448,8 @@ export class City {
     // in a replay he stands where he was, holding it still; the light stays with him
     if (!s.ghost) {
       f.back = inp.back;
-      const [tx, ty, tz] = flameTarget(b.x, b.y, b.z, inp.yaw, inp.pitch, inp.trim, inp.back);
+      // it is in his hand: it goes where his arm can take it, round with him as he turns
+      const [tx, ty, tz] = flameTarget(b.x, b.y, b.z, b.yaw, inp.pitch, inp.trim, inp.back);
       const k = 1 - Math.exp(-FLAME.ease * dt);
       f.x += (tx - f.x) * k;
       f.y += (ty - f.y) * k;
