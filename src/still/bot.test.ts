@@ -9,6 +9,8 @@ import { GATE_SCRIPT } from './scripts/gateWard';
 import { MARKET_SCRIPT } from './scripts/market';
 import { TEMPLE_SCRIPT } from './scripts/temple';
 import { LIBRARY_SCRIPT } from './scripts/library';
+import { HEART_D } from './data/heart';
+import { HEART_SCRIPT } from './scripts/heart';
 import { WORDS_BY_DISTRICT } from '../data/stillCity';
 import type { District } from './sim/types';
 
@@ -43,6 +45,15 @@ describe('every district, played start to finish by its script', () => {
       const [a, b] = WORDS_BY_DISTRICT[d.index];
       expect(city.s.words.slice(a, b).every(Boolean)).toBe(true);
     });
+
+  it('The Heart: all five plates, the ring opens, he reaches the centre with every Last Word heard', () => {
+    const { city, bot } = play(HEART_D, HEART_SCRIPT);
+    expect(bot.log).toEqual([]);
+    expect(city.flag('plates')).toBe(true);
+    expect(city.flag('heart')).toBe(true);
+    expect(city.s.deaths).toBe(0);
+    expect(city.s.words.slice(26, 35).every(Boolean)).toBe(true);
+  });
 
   it('the maze will not let a low flame out', () => {
     const low = LIBRARY_SCRIPT.map((g) => ('go' in g && g.pitch === -0.3 ? { ...g, pitch: 0.5 } : g));

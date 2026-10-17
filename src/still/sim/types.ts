@@ -64,7 +64,7 @@ export interface FigureDef {
   line?: string; // narrator line id when first found (e.g. gate.firstLit)
 }
 
-export type MechKind = 'portcullis' | 'gate' | 'shutter' | 'door' | 'lever' | 'bar' | 'shadowdoor';
+export type MechKind = 'portcullis' | 'gate' | 'shutter' | 'door' | 'lever' | 'bar' | 'shadowdoor' | 'ring';
 /** Something that opens when a flag is set; while shut, its solids block the way. */
 export interface MechDef {
   id: string;
@@ -96,7 +96,8 @@ export interface Torch {
 }
 
 export interface Riddle {
-  id: string; // key into RIDDLES
+  id: string; // key into RIDDLES (or a plain inscription, with text)
+  text?: string;
   x: number;
   y: number;
   z: number;
