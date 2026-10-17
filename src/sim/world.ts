@@ -4,7 +4,7 @@
 import { CFG, type MoveSpec } from '../config';
 import { CHAPTERS, type Chapter } from '../data/chapters';
 import { LEVELS, type Level } from '../data/levels';
-import { angleDiff, clampToArea, footR, inArea, overlaps, pushOut, STEP, type Solid } from './geom';
+import { angleDiff, clampToArea, firstHit, footR, inArea, overlaps, pushOut, STEP, type Solid } from './geom';
 import { inShadow, lightAt, type LightSrc } from './light';
 import { Rng } from './rng';
 
@@ -88,6 +88,12 @@ export interface Shade {
   big: boolean;
   kind: ShadeKind;
   enraged: boolean;
+  vy: number; // rising or falling speed while thrown
+  air: boolean; // thrown, or knocked out of the sky: gravity and no footing until it lands
+  stun: number; // how long this stagger lasts
+  tell: number; // how long this wind-up lasts (the telegraph's length)
+  side: number; // which way it is going round a wall: -1 / 1, 0 = straight at its target
+  sideT: number; // how much longer it keeps to that side
 }
 
 export type ShadeKind = 'shade' | 'crawler' | 'lantern';
@@ -136,6 +142,10 @@ export type GameEvent =
   | ({ type: 'bolt' } & P)
   | ({ type: 'boltCut' } & P)
   | ({ type: 'boltHit' } & P)
+  | ({ type: 'boltSplash' } & P)
+  | ({ type: 'wallSlam'; nx: number; nz: number; id: number; dmg: number; kill: boolean } & P)
+  | ({ type: 'shadeLand'; hard: boolean; big: boolean } & P)
+  | ({ type: 'bump' } & P)
   | { type: 'pounce'; x: number; z: number; id: number }
   | ({ type: 'marshalCry' } & P)
   | { type: 'wave'; x: number; z: number }
@@ -193,6 +203,9 @@ export class World {
   spawning = true; // false for scripted scenes (dawn choice)
   endless = false; // true: the hour never ends on its own
   events: GameEvent[] = [];
+  /** This hour's lantern-eaters: CFG.lantern with the chapter's overrides. */
+  readonly lanternCfg: Record<keyof typeof CFG.lantern, number>;
+  private solidR: number[]; // each solid's footprint radius, for cheap broad-phase tests
   private nextId = 1;
 
   constructor(chapterIndex = 0, seed = 1, opts: WorldOpts = {}) {
@@ -201,6 +214,8 @@ export class World {
     this.rng = new Rng(seed + this.chapterIndex * 7919);
     this.level = LEVELS[this.chapter.level] ?? LEVELS.grounds;
     this.solids = this.level.solids;
+    this.solidR = this.solids.map(footR);
+    this.lanternCfg = { ...CFG.lantern, ...this.chapter.lantern };
     [this.minX, this.maxX] = this.level.bounds;
     this.hearthX = this.level.hearthX ?? 0;
     this.hearthZ = this.level.hearthZ ?? 0;
@@ -295,6 +310,7 @@ export class World {
     this.stepSpawner(dt);
     for (const s of this.shades) this.stepShade(s, dt);
     this.separateShades();
+    this.collideShades();
     this.stepBolts(dt);
     this.stepWaves(dt);
     this.shades = this.shades.filter((s) => s.state !== 'dead' || s.deadT < 1.2);
@@ -631,8 +647,8 @@ export class World {
       this.events.push({ type: 'hit', x: s.x, y: s.y + 1, z: s.z, dmg: 2, heavy: true, dx: fx, dz: fz, id: s.id, move: 'heavy' });
       if (s.hp <= 0) this.killShade(s, true);
       else {
-        s.state = 'stagger';
-        s.stateT = 0;
+        this.stagger(s, CFG.shade.staggerTime);
+        this.throwShade(s, s.big ? 3 : 9);
       }
     }
   }
@@ -780,10 +796,8 @@ export class World {
         this.killShade(s, false);
         this.hitstop = Math.max(this.hitstop, heavy ? CFG.hitstop.heavy : CFG.hitstop.kill);
       } else {
-        if (!s.big || heavy) {
-          s.state = 'stagger';
-          s.stateT = 0;
-        }
+        if (!s.big || heavy) this.stagger(s, CFG.shade.staggerTime);
+        this.throwShade(s, sp.knock);
         this.hitstop = Math.max(this.hitstop, heavy ? CFG.hitstop.heavy : CFG.hitstop.light);
       }
     }
@@ -812,8 +826,8 @@ export class World {
         if (s.state === 'dead' || s.big || sd > 4.5) continue;
         s.vx = ((s.x - k.x) / (sd || 1)) * 12;
         s.vz = ((s.z - k.z) / (sd || 1)) * 12;
-        s.state = 'stagger';
-        s.stateT = 0;
+        this.stagger(s, CFG.shade.staggerTime);
+        this.throwShade(s, 12);
       }
       this.setKState('hurt');
       return;
@@ -965,12 +979,14 @@ export class World {
 
   spawnShade(x: number, z: number, big = false, kind: ShadeKind = 'shade'): Shade {
     const c = this.chapter;
-    const hp = big ? c.shadeHp * 7 : kind === 'crawler' ? Math.max(1, Math.ceil(c.shadeHp * CFG.crawler.hpMul)) : kind === 'lantern' ? CFG.lantern.hp : c.shadeHp;
-    const speed = big ? c.shadeSpeed * 0.6 : kind === 'crawler' ? CFG.crawler.speed : kind === 'lantern' ? CFG.lantern.speed : c.shadeSpeed;
+    const L = this.lanternCfg;
+    const hp = big ? c.shadeHp * 7 : kind === 'crawler' ? Math.max(1, Math.ceil(c.shadeHp * CFG.crawler.hpMul)) : kind === 'lantern' ? L.hp : c.shadeHp;
+    const speed = big ? c.shadeSpeed * 0.6 : kind === 'crawler' ? CFG.crawler.speed : kind === 'lantern' ? L.speed : c.shadeSpeed;
     const s: Shade = {
       id: this.nextId++, x, y: this.floorAt(x, z, 0.3, 0), z, vx: 0, vz: 0, hp, maxHp: hp,
       speed: speed * (big ? 1 : this.rng.range(0.85, 1.15)), yaw: Math.atan2(this.light.z - z, this.light.x - x),
       state: 'rise', stateT: 0, cd: this.rng.range(0, 0.5), target: 'hearth', light: 0, deadT: 0, big, kind, enraged: false,
+      vy: 0, air: false, stun: CFG.shade.staggerTime, tell: 0, side: 0, sideT: 0,
     };
     this.shades.push(s);
     this.events.push({ type: 'spawn', x, z });
@@ -1004,6 +1020,8 @@ export class World {
         a.z -= (dz / d) * push;
         b.x += (dx / d) * push;
         b.z += (dz / d) * push;
+        this.bump(a, b, dx / d, dz / d);
+        this.bump(b, a, -dx / d, -dz / d);
       }
       if (a.kind === 'lantern' || k.state === 'dead') continue;
       const dx = a.x - k.x;
@@ -1033,10 +1051,12 @@ export class World {
 
     s.x += s.vx * dt;
     s.z += s.vz * dt;
-    const damp = Math.max(0, 1 - 6 * dt);
+    // a thrown body flies on (air drag only) and comes down under gravity; on its feet it stops quickly
+    const damp = Math.max(0, 1 - (s.air ? CFG.body.airDrag : 6) * dt);
     s.vx *= damp;
     s.vz *= damp;
     [s.x, s.z] = clampToArea(this.level.area, s.x, s.z, 0.5);
+    if (s.air) this.fly(s, dt);
 
     if (s.state === 'rise') {
       if (s.stateT >= S.riseTime) {
@@ -1046,13 +1066,14 @@ export class World {
       return;
     }
     if (s.state === 'stagger') {
-      if (s.stateT >= S.staggerTime) {
+      if (!s.air && s.stateT >= s.stun) {
         s.state = 'walk';
         s.stateT = 0;
       }
-      this.settleShade(s, dt, false);
+      if (!s.air) this.settleShade(s, dt, false);
       return;
     }
+    if (s.air) return;
 
     if (s.kind === 'lantern') return this.stepLantern(s, dt);
     if (s.big) this.marshalPhase(s);
@@ -1073,15 +1094,24 @@ export class World {
     const dirZ = (tz - s.z) / (dist || 1);
 
     if (s.state === 'walk') {
-      s.yaw = Math.atan2(dirZ, dirX);
-      if (dist > range) {
+      // a crawler only pounces along a clear path: with a wall between them it climbs over first
+      const blockedPounce = crawler && s.target === 'knight' && dist <= range && dist > 0.9 && !this.clearPounce(s);
+      if (dist > range || blockedPounce) {
+        // round walls and pillars, not through them (look no further than the target: he may stand against a wall)
+        const ahead = blockedPounce ? 0.4 : Math.min(CFG.body.look, Math.max(0.25, dist - range + 0.2));
+        const [mx, mz] = this.steer(s, dirX, dirZ, dt, ahead);
+        s.yaw = Math.atan2(mz, mx);
         const v = s.speed * (1 - S.lightSlow * s.light) * dt;
-        s.x += dirX * v;
-        s.z += dirZ * v;
-      } else if (s.cd <= 0) {
-        s.state = 'windup';
-        s.stateT = 0;
-        this.events.push({ type: 'shadeWindup', x: s.x, z: s.z, id: s.id });
+        s.x += mx * v;
+        s.z += mz * v;
+      } else {
+        s.yaw = Math.atan2(dirZ, dirX);
+        if (s.cd <= 0) {
+          s.state = 'windup';
+          s.stateT = 0;
+          s.tell = windup;
+          this.events.push({ type: 'shadeWindup', x: s.x, z: s.z, id: s.id });
+        }
       }
     } else if (s.state === 'windup') {
       // a wind-up tracks him slowly: dodging sideways late still works
@@ -1116,6 +1146,12 @@ export class World {
     }
   }
 
+  /** Nothing between a crawler and his legs that it would leap into (a wall it could climb still blocks a pounce). */
+  private clearPounce(s: Shade): boolean {
+    const k = this.knight;
+    return firstHit(this.solids, s.x, s.y + 0.5, s.z, k.x, k.y + 0.5, k.z) > 1;
+  }
+
   /** A shade's blow lands if he is in reach and in front of it (a cone, so stepping around it dodges). */
   private strikeLands(s: Shade, range: number, height: number): boolean {
     const k = this.knight;
@@ -1127,36 +1163,57 @@ export class World {
   }
 
   /**
-   * Shadows drift: they float up over ruins and after him onto ledges, and sink back to the ground. They rise over
-   * anything about their own height and pass under raised walks.
+   * Shadows drift: they float up over ruins and after him onto ledges, and sink back to the ground. They climb
+   * anything up to CFG.body.ledge above their feet (walls they are pressed against) and pass under raised walks.
    */
   private settleShade(s: Shade, dt: number, followKnight: boolean): void {
-    const ground = this.floorAt(s.x, s.z, 0.3, s.y + 1.4);
+    // a footprint a little wider than its body: pressed against a low wall, it drifts up and over it
+    const ground = this.floorAt(s.x, s.z, this.bodyR(s) + 0.1, s.y + CFG.body.ledge - STEP);
     const ty = followKnight ? Math.max(this.knight.y, ground) : ground;
     s.y += Math.sign(ty - s.y) * Math.min(Math.abs(ty - s.y), CFG.shade.floatSpeed * dt);
   }
 
-  /** Lantern-eater: hover out of reach, keep its distance, spit bolts that dim the torch. */
+  /**
+   * Lantern-eater: hover (out of reach in the later hours), keep its distance, spit bolts that dim the torch. It
+   * only fires with a clear shot: behind a wall or a pillar he is safe, and it comes round to find him.
+   */
   private stepLantern(s: Shade, dt: number): void {
-    const L = CFG.lantern;
+    const L = this.lanternCfg;
     const k = this.knight;
     s.target = 'knight';
     const dx = k.x - s.x;
     const dz = k.z - s.z;
     const d = Math.hypot(dx, dz) || 1;
     s.yaw = Math.atan2(dz, dx);
-    const want = d < L.near ? -1 : d > L.far ? 1 : 0; // back off, close in, or hold
-    // and circle him slowly, so it is never simply in front of the blade
-    const orbit = Math.sin(this.time * 0.7 + s.id) > 0 ? 0.6 : -0.6;
-    s.x += ((dx / d) * want - (dz / d) * orbit) * s.speed * dt;
-    s.z += ((dz / d) * want + (dx / d) * orbit) * s.speed * dt;
+    const clear = this.clearShot(s);
+    const want = !clear ? 1 : d < L.near ? -1 : d > L.far ? 1 : 0; // back off, close in, or hold
+    // and circle him slowly, so it is never simply in front of the blade (faster while it hunts for a shot)
+    const orbit = (Math.sin(this.time * 0.7 + s.id) > 0 ? 0.6 : -0.6) * (clear ? 1 : 1.6);
+    const mx = (dx / d) * want - (dz / d) * orbit;
+    const mz = (dz / d) * want + (dx / d) * orbit;
+    const m = Math.hypot(mx, mz);
+    if (m > 1e-6) {
+      const [ux, uz] = this.steer(s, mx / m, mz / m, dt, CFG.body.look);
+      s.x += ux * m * s.speed * dt;
+      s.z += uz * m * s.speed * dt;
+    }
     const ty = k.y + L.hover + Math.sin(this.time * 2 + s.id) * 0.25;
     s.y += Math.sign(ty - s.y) * Math.min(Math.abs(ty - s.y), CFG.shade.floatSpeed * dt);
-    if (s.state === 'walk' && s.cd <= 0 && d < L.far + 3 && k.state !== 'dead') {
+    if (s.state === 'walk' && s.cd <= 0 && d < L.far + 3 && k.state !== 'dead' && clear) {
       s.state = 'windup';
       s.stateT = 0;
+      s.tell = L.windup;
       this.events.push({ type: 'shadeWindup', x: s.x, z: s.z, id: s.id });
     } else if (s.state === 'windup' && s.stateT >= L.windup) {
+      if (!clear) {
+        // he ducked behind cover: it holds the bolt a moment, then gives up and looks for a shot
+        if (s.stateT >= L.windup + 0.6) {
+          s.state = 'walk';
+          s.stateT = 0;
+          s.cd = 0.5;
+        }
+        return;
+      }
       const ox = s.x;
       const oy = s.y + 1.2;
       const oz = s.z;
@@ -1172,15 +1229,33 @@ export class World {
     }
   }
 
+  /** Can a lantern-eater see his chest from its cage, with no wall or pillar between? */
+  private clearShot(s: Shade): boolean {
+    const k = this.knight;
+    return firstHit(this.solids, s.x, s.y + 1.2, s.z, k.x, k.y + 1.1, k.z) > 1;
+  }
+
   private stepBolts(dt: number): void {
     const k = this.knight;
     for (const b of this.bolts) {
       if (b.life <= 0) continue;
       b.life -= dt;
+      const ox = b.x;
+      const oy = b.y;
+      const oz = b.z;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.z += b.vz * dt;
-      if (b.y < 0) b.life = 0;
+      // walls, pillars and the ground stop it: it bursts where it strikes
+      const t = Math.min(firstHit(this.solids, ox, oy, oz, b.x, b.y, b.z), b.y < 0 ? oy / (oy - b.y) : Infinity);
+      if (t <= 1) {
+        b.x = ox + (b.x - ox) * t;
+        b.y = oy + (b.y - oy) * t;
+        b.z = oz + (b.z - oz) * t;
+        b.life = 0;
+        this.events.push({ type: 'boltSplash', x: b.x, y: b.y, z: b.z });
+        continue;
+      }
       if (Math.hypot(b.x - k.x, b.z - k.z) < 0.5 && b.y > k.y && b.y < k.y + CFG.knight.h && k.iframes <= 0 && k.state !== 'dead') {
         b.life = 0;
         this.events.push({ type: 'boltHit', x: b.x, y: b.y, z: b.z });
@@ -1189,6 +1264,200 @@ export class World {
       }
     }
     this.bolts = this.bolts.filter((b) => b.life > 0);
+  }
+
+  // ---------------------------------------------------------------- bodies in the world
+
+  private stagger(s: Shade, t: number): void {
+    s.state = 'stagger';
+    s.stateT = 0;
+    s.stun = t;
+  }
+
+  /**
+   * A blow lifts what it hits. A lantern-eater is knocked out of the sky (and lies stunned where it falls: finish it
+   * on the ground); a strong blow launches a shade in an arc; a body already in the air is kept up (a juggle).
+   */
+  private throwShade(s: Shade, knock: number): void {
+    const B = CFG.body;
+    if (s.big || s.state === 'dead') return;
+    if (s.kind === 'lantern') {
+      if (s.air) s.vy = Math.min(s.vy, -1.5);
+      else if (s.y > this.floorAt(s.x, s.z, 0.3, s.y) + 0.05) {
+        s.air = true;
+        s.vy = -1.5;
+      } else s.stun = B.lanternFall;
+      return;
+    }
+    if (s.air) s.vy = Math.max(s.vy, B.juggle);
+    else if (knock >= B.launchKnock) {
+      s.air = true;
+      s.vy = B.launch + knock * B.launchPerKnock;
+    }
+  }
+
+  /** A thrown body: gravity until it comes down on the ground or on top of something. */
+  private fly(s: Shade, dt: number): void {
+    const B = CFG.body;
+    const h = this.shadeH(s);
+    const prevY = s.y;
+    s.vy -= B.gravity * dt;
+    s.y += s.vy * dt;
+    // the underside of anything overhead (a raised walk) stops it rising
+    if (s.vy > 0) {
+      for (const o of this.solids) {
+        if (o.y0 >= prevY + h - 0.05 && s.y + h > o.y0 && overlaps(o, s.x, s.z, 0.3)) {
+          s.y = o.y0 - h;
+          s.vy = 0;
+        }
+      }
+    }
+    const floor = this.floorAt(s.x, s.z, 0.3, prevY);
+    if (s.y > floor) return;
+    const impact = -s.vy;
+    s.y = floor;
+    s.vy = 0;
+    s.air = false;
+    if (s.state === 'stagger') {
+      // a struck lantern lies where it fell; a shade gets up a moment after it lands
+      s.stun = s.kind === 'lantern' ? B.lanternFall : Math.max(B.getUp, s.stun - s.stateT);
+      s.stateT = 0;
+    }
+    this.events.push({ type: 'shadeLand', x: s.x, y: s.y, z: s.z, hard: impact > 6, big: s.big });
+  }
+
+  /** A body thrown into another knocks it off its feet: a cleave into a crowd bowls them over. n points from p to q. */
+  private bump(p: Shade, q: Shade, nx: number, nz: number): void {
+    const B = CFG.body;
+    const v = Math.hypot(p.vx, p.vz);
+    if (p.state !== 'stagger' || v < B.bumpSpeed || p.vx * nx + p.vz * nz < v * 0.3) return;
+    if (q.big || q.kind === 'lantern' || q.state === 'stagger' || q.state === 'rise' || q.state === 'dead') return;
+    q.vx += nx * v * B.bumpShare;
+    q.vz += nz * v * B.bumpShare;
+    p.vx *= 1 - B.bumpShare * 0.6;
+    p.vz *= 1 - B.bumpShare * 0.6;
+    q.yaw = Math.atan2(-nz, -nx);
+    this.stagger(q, CFG.shade.staggerTime);
+    q.air = true;
+    q.vy = Math.max(q.vy, B.juggle);
+    this.events.push({ type: 'bump', x: (p.x + q.x) / 2, y: q.y + 1, z: (p.z + q.z) / 2 });
+  }
+
+  bodyR(s: Shade): number {
+    return s.big ? 0.75 : s.kind === 'crawler' ? 0.36 : s.kind === 'lantern' ? 0.34 : CFG.shade.r;
+  }
+
+  /**
+   * Does this solid stand in a body's way? It passes over anything below `climb` and under anything above its head.
+   * Raised floors (walks, galleries, the hut roof) never stop it: a shadow drifts up through floorboards after him,
+   * but never through a wall. (A floor beside a wall also leaves no gap a body fits through.)
+   */
+  private blocks(s: Shade, o: Solid): boolean {
+    const climb = s.big ? CFG.body.climb.shade * 1.65 : CFG.body.climb[s.kind];
+    return o.y0 < 1 && o.y1 > s.y + climb && o.y0 < s.y + this.shadeH(s);
+  }
+
+  /** A low wall it can drift up over rather than walk round (never the hearth itself). */
+  private canClimb(s: Shade, o: Solid): boolean {
+    return s.kind !== 'lantern' && !o.noShadow && o.y1 - s.y <= CFG.body.ledge;
+  }
+
+  /** Is there a wall it cannot climb within `ahead` metres along (dx, dz)? */
+  private blockedAhead(s: Shade, dx: number, dz: number, ahead: number): boolean {
+    const r = this.bodyR(s) * 0.9;
+    for (let j = 1; j <= 2; j++) {
+      const px = s.x + dx * ahead * j * 0.5;
+      const pz = s.z + dz * ahead * j * 0.5;
+      for (let i = 0; i < this.solids.length; i++) {
+        const o = this.solids[i];
+        const R = this.solidR[i] + r;
+        if ((o.x - px) ** 2 + (o.z - pz) ** 2 > R * R) continue;
+        if (this.blocks(s, o) && !this.canClimb(s, o) && overlaps(o, px, pz, r)) return true;
+      }
+    }
+    return false;
+  }
+
+  private static readonly TURNS = [0.55, 1.0, 1.45, 1.9, 2.4];
+
+  /**
+   * Look ahead for a wall it cannot climb and turn to the nearest clear way round. It keeps to the side it chose, so
+   * it walks round a pillar instead of dithering in front of it; a crowd splits both ways.
+   */
+  private steer(s: Shade, dx: number, dz: number, dt: number, ahead: number): [number, number] {
+    s.sideT = Math.max(0, s.sideT - dt);
+    if (s.sideT <= 0) s.side = 0;
+    if (!this.blockedAhead(s, dx, dz, ahead)) return [dx, dz];
+    const n = World.TURNS.length;
+    const first = s.side || (s.id % 2 ? 1 : -1);
+    for (let i = 0; i < n * 2; i++) {
+      // with a side chosen, every turn that way before the other way; otherwise the nearest clear turn either way
+      const sd = s.side ? (i < n ? first : -first) : i % 2 ? -first : first;
+      const a = World.TURNS[s.side ? i % n : i >> 1] * sd;
+      const c = Math.cos(a);
+      const sn = Math.sin(a);
+      const rx = dx * c - dz * sn;
+      const rz = dx * sn + dz * c;
+      if (this.blockedAhead(s, rx, rz, ahead)) continue;
+      s.side = sd;
+      s.sideT = 0.9;
+      return [rx, rz];
+    }
+    return [dx, dz];
+  }
+
+  /** Bodies against the world: nothing passes through a wall. A body thrown into one slams. */
+  private collideShades(): void {
+    for (const s of this.shades) if (s.state !== 'dead') this.collideShade(s);
+  }
+
+  private collideShade(s: Shade): void {
+    const r = this.bodyR(s);
+    let slammed = false;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < this.solids.length; i++) {
+        const o = this.solids[i];
+        const R = this.solidR[i] + r;
+        if ((o.x - s.x) ** 2 + (o.z - s.z) ** 2 > R * R || !this.blocks(s, o)) continue;
+        const p = pushOut(o, s.x, s.z, r);
+        if (!p) continue;
+        const nx = p[0] - s.x;
+        const nz = p[1] - s.z;
+        s.x = p[0];
+        s.z = p[1];
+        const nl = Math.hypot(nx, nz);
+        if (nl < 1e-6) continue;
+        const ux = nx / nl;
+        const uz = nz / nl;
+        const vn = s.vx * ux + s.vz * uz;
+        if (vn >= 0) continue;
+        const thrown = s.state === 'stagger' || (s.kind === 'crawler' && s.state === 'strike' && s.target === 'knight');
+        if (!slammed && thrown && -vn > CFG.body.slamSpeed) {
+          slammed = true;
+          this.wallSlam(s, ux, uz, vn, r);
+          if (s.state === 'dead') return;
+        } else {
+          // and loses the speed going into the wall: it slides along it
+          s.vx -= ux * vn;
+          s.vz -= uz * vn;
+        }
+      }
+    }
+  }
+
+  /** Thrown into a wall: it slams, bounces back off it, takes a point and stays down longer. */
+  private wallSlam(s: Shade, ux: number, uz: number, vn: number, r: number): void {
+    const B = CFG.body;
+    const pounce = s.state === 'strike';
+    s.vx -= (1 + B.slamBounce) * vn * ux;
+    s.vz -= (1 + B.slamBounce) * vn * uz;
+    s.hp -= B.slamDmg;
+    const y = s.y + this.shadeH(s) * 0.5;
+    this.events.push({ type: 'wallSlam', x: s.x - ux * r, y, z: s.z - uz * r, nx: ux, nz: uz, id: s.id, dmg: B.slamDmg, kill: s.hp <= 0 });
+    this.events.push({ type: 'move', name: 'Wall Slam', x: s.x, y: y + 1.8, z: s.z, count: 1 });
+    this.hitstop = Math.max(this.hitstop, 4);
+    if (s.hp <= 0) return this.killShade(s, false);
+    this.stagger(s, pounce ? B.pounceStun : B.slamStagger);
   }
 
   /** Below half health the Marshal cries out, calls two crawlers and quickens. */

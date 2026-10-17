@@ -38,6 +38,8 @@ export interface Chapter {
   shadeHp: number;
   shadeSpeed: number;
   sky: SkyKey;
+  /** Overrides for this hour's lantern-eaters (see CFG.lantern): the hour they first appear is gentler. */
+  lantern?: { hp?: number; hover?: number; near?: number; far?: number; speed?: number; cd?: number; windup?: number; boltSpeed?: number };
 }
 
 export const WALLS: Wall[] = [
@@ -107,6 +109,9 @@ export const CHAPTERS: Chapter[] = [
     shadeHp: 4,
     shadeSpeed: 2.2,
     sky: { top: '#07060f', horizon: '#1a1530', glow: '#c8d2ff', glowY: 0.75, fog: '#110f1e', stars: 1, disc: 0.04 },
+    // their first hour: they hover at head height (a blow from the ground reaches them), come closer, break in two
+    // hits, and take longer to aim. Later hours keep them above jump height.
+    lantern: { hp: 2, hover: 1.35, near: 3.4, far: 6, speed: 2.1, cd: 3.6, windup: 0.95, boltSpeed: 7 },
   },
   {
     id: '1am',

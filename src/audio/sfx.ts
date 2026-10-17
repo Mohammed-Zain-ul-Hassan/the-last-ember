@@ -122,7 +122,7 @@ function tone(t: number, type: OscillatorType, f0: number, f1: number, dur: numb
 export type SfxName =
   | 'swing' | 'swingHeavy' | 'hit' | 'hitHeavy' | 'kill' | 'burn' | 'dash' | 'jump' | 'land' | 'hurt' | 'hearthHurt'
   | 'spawn' | 'bell' | 'lose' | 'ui' | 'fireburst' | 'ignite' | 'bigSpawn' | 'dawn' | 'gutter' | 'dissolve'
-  | 'bolt' | 'cut' | 'cry' | 'pounce' | 'airJump' | 'chargeFull' | 'shard' | 'thunder';
+  | 'bolt' | 'cut' | 'cry' | 'pounce' | 'airJump' | 'chargeFull' | 'shard' | 'thunder' | 'splash' | 'slam' | 'thud';
 
 const lastPlayed = new Map<SfxName, number>();
 
@@ -253,6 +253,20 @@ export function sfx(name: SfxName, combo = 0): void {
       noise(t, 0.3, 'highpass', 6000, 3000, 0.7, 0.35, 0.002);
       tone(t + 0.05, 'sine', 55, 110, 1.2, 0.35, 0.25);
       noise(t + 0.05, 1.0, 'lowpass', 300, 1400, 1, 0.3, 0.3);
+      break;
+    case 'splash': // a shadow bolt bursting on stone
+      noise(t, 0.22, 'bandpass', vary(1600), 380, 1.4, 0.32, 0.004);
+      tone(t, 'sine', vary(260), 90, 0.16, 0.16);
+      break;
+    case 'slam': // a body thrown into a wall: a deep crack, then grit
+      tone(t, 'sine', vary(95), 32, 0.4, 1.0);
+      tone(t, 'square', vary(180), 60, 0.06, 0.12);
+      noise(t, 0.3, 'lowpass', 2200, 160, 0.8, 0.7);
+      noise(t + 0.03, 0.18, 'highpass', 3200, 1800, 0.7, 0.18);
+      break;
+    case 'thud': // a thrown body coming down
+      tone(t, 'sine', vary(80), 40, 0.18, 0.45);
+      noise(t, 0.12, 'lowpass', 700, 150, 0.7, 0.3);
       break;
     case 'dissolve':
       for (let i = 0; i < 6; i++) tone(t + i * 0.35, 'sine', 587 * Math.pow(1.122, i), 587 * Math.pow(1.122, i), 2.5, 0.06, 0.05, musicBus);

@@ -583,7 +583,7 @@ function stepSim(source: Input | (() => Input), dt: number): void {
       if (e.type === 'hit') {
         shadeViews.hit(e.id);
         hud.hit();
-      }
+      } else if (e.type === 'wallSlam') shadeViews.hit(e.id);
     }
     if (world.status !== 'playing') break;
   }
