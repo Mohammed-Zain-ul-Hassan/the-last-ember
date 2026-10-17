@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BlendFunction, Effect, EffectAttribute } from 'postprocessing';
 import { DEPTH } from './depth';
+import { HERO } from '../config';
 
 // The knight's aura: one living shadow-fire around his whole silhouette instead of a drawn outline.
 //
@@ -106,7 +107,7 @@ const FRAG = /* glsl */ `
   uniform sampler2D tAura; uniform sampler2D tMask;
   uniform vec3 uBodyIn; uniform vec3 uBodyOut; uniform vec3 uSwordIn; uniform vec3 uSwordOut; uniform vec3 uSmoke;
   uniform vec3 uGlow; uniform float uFade; uniform float uKnightZ; uniform vec2 uCenter; uniform float uScale; uniform float uAspect; uniform float uClock;
-  uniform float uPull; uniform vec2 uLightDir; uniform float uLightAmt; uniform vec3 uLitRim; uniform float uRimPx;
+  uniform float uPull; uniform vec2 uLightDir; uniform float uLightAmt; uniform vec3 uLitRim; uniform float uRimPx; uniform vec3 uEdge;
   ${NOISE}
   float au_fbm(vec3 p) { return au_noise(p) * 0.55 + au_noise(p * 2.1 + 7.3) * 0.3 + au_noise(p * 4.3 + 1.7) * 0.15; }
   void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor) {
@@ -136,24 +137,45 @@ const FRAG = /* glsl */ `
     // his body stays a pure black shadow: the aura only burns outside the silhouette
     float outside = 1.0 - smoothstep(0.2, 0.7, inside);
     float body = a.r;
-    // the outline: a crisp line hugging the silhouette, a few real pixels wide whatever the zoom (full-res mask)
+    // the edge: no drawn line. Violet rises out of the black of him toward his silhouette, peaks where shadow meets
+    // air, and dissolves outward into the halo. Rings of the full-res mask at growing radii measure how near the edge
+    // a pixel is from either side, so the falloff is smooth and stays the same width on screen at any zoom.
     vec2 px = texelSize * uRimPx;
-    float d = 0.0;
-    for (int i = 0; i < 8; i++) {
-      float ang = float(i) * 0.7853982;
-      d += texture2D(tMask, uv + vec2(cos(ang), sin(ang)) * px).r;
+    // deep inside him, or out past his spread, the answer is known: sample the rings only near the edge
+    float c1 = m.r;
+    float c2 = m.r;
+    float c3 = m.r;
+    if (a.a > 0.004 && !(m.r > 0.99 && around > 7.95)) {
+      c1 = 0.0;
+      c2 = 0.0;
+      c3 = 0.0;
+      for (int i = 0; i < 8; i++) {
+        float ang = float(i) * 0.7853982 + 0.39;
+        vec2 o = vec2(cos(ang), sin(ang)) * px;
+        c1 += texture2D(tMask, uv + o).r;
+        c2 += texture2D(tMask, uv + o * uEdge.x * 0.45).r;
+        c3 += texture2D(tMask, uv + o * uEdge.x).r;
+      }
+      c1 *= 0.125;
+      c2 *= 0.125;
+      c3 *= 0.125;
     }
-    float line = smoothstep(0.03, 0.42, d * 0.125) * outside;
+    // outside: how much of him lies within reach (1 at his edge, nothing a few widths out)
+    float gOut = clamp((c1 * 0.5 + c2 * 0.3 + c3 * 0.2) * 2.0, 0.0, 1.0) * outside;
+    // inside: how much open air lies within reach. A small hole in the cloth is all body around: no glow there.
+    float gIn = clamp(((1.0 - c1) * 0.5 + (1.0 - c2) * 0.3 + (1.0 - c3) * 0.2) * 2.0, 0.0, 1.0) * m.r * (1.0 - outside) * (1.0 - smoothstep(0.8, 0.95, c3));
+    float line = pow(gOut, 1.25);
+    float inner = gIn * gIn;
     // which way the silhouette faces here, and whether that side faces the fire: that edge burns warm
     vec2 gp = px * 2.0;
     vec2 grad = vec2(texture2D(tMask, uv + vec2(gp.x, 0.0)).r - texture2D(tMask, uv - vec2(gp.x, 0.0)).r,
                      texture2D(tMask, uv + vec2(0.0, gp.y)).r - texture2D(tMask, uv - vec2(0.0, gp.y)).r);
     float toFire = max(0.0, dot(-grad / max(length(grad), 1e-4), uLightDir)) * uLightAmt;
-    vec3 rimCol = mix(uBodyIn, uLitRim, smoothstep(0.0, 0.75, toFire)) * (1.0 + 0.5 * toFire);
+    vec3 rimCol = mix(uBodyIn, uLitRim, smoothstep(0.0, 0.75, toFire)) * (1.0 + 0.15 * toFire);
     // a soft halo just outside the line, and dimmer tongues of shadow-fire climbing off him
     float halo = smoothstep(0.55, 1.0, a.a) * outside;
     float tongues = smoothstep(0.22, 0.95, body * (0.25 + 0.95 * n + 0.3 * n2)) * outside;
-    vec3 glow = (uBodyOut * tongues + rimCol * (line * (0.8 + 0.35 * n2) + halo * halo * 0.3)) * uGlow.x;
+    vec3 glow = (uBodyOut * tongues + rimCol * (line * uEdge.y * (0.75 + 0.3 * n2) + halo * halo * 0.3) + mix(uBodyOut * 1.6, rimCol, gIn) * inner * uEdge.z) * uGlow.x;
     float sw = a.g;
     float sheath = smoothstep(0.04, 0.8, sw * (0.75 + 0.45 * n2));
     vec3 swCol = mix(uSwordOut, uSwordIn, smoothstep(0.6, 1.0, sw));
@@ -200,6 +222,7 @@ export class AuraEffect extends Effect {
         ['uSmoke', u(new THREE.Color())], ['uGlow', u(new THREE.Vector3())], ['uFade', u(0)], ['uKnightZ', u(-10)],
         ['uCenter', u(new THREE.Vector2(0.5, 0.5))], ['uScale', u(0.2)], ['uAspect', u(16 / 9)], ['uClock', u(0)],
         ['uPull', u(0)], ['uLightDir', u(new THREE.Vector2(1, 0))], ['uLightAmt', u(0)], ['uLitRim', u(new THREE.Color())], ['uRimPx', u(1.5)],
+        ['uEdge', u(new THREE.Vector3(HERO.aura.edge.width, HERO.aura.edge.outer, HERO.aura.edge.inner))],
       ]),
     });
     this.camera = camera;

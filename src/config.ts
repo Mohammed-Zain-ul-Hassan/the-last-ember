@@ -125,6 +125,9 @@ export const HERO = {
     dashLife: 0.55, // trails hang in the air behind a dash
     swingLife: 0.1, // the blade's sheath leaves a short crescent of afterglow behind a swing
     lowHp: 0.3, // below this fraction of health the aura gutters
+    // his edge: violet rises out of his shadow toward the silhouette and dissolves outward, no hard line.
+    // width: how far the fade reaches each way, in outline widths (~0.6% of his height on screen)
+    edge: { width: 6, outer: 0.6, inner: 0.65 },
   },
   swordLight: 5, // light the blade casts on the ground (and his edges) around him
   // he is depth-tested this many metres nearer the camera: rubble, grass and posts he brushes never cut into him,
