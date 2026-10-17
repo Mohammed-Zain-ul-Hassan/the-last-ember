@@ -788,7 +788,7 @@ if (REC) {
     (window as unknown as { __recStop: () => Promise<string> | undefined }).__recStop = () => recording?.stop();
     setTimeout(begin, 5000);
   };
-  stage.renderer.domElement.addEventListener('pointerdown', () => void go(), { once: true });
+  document.addEventListener('pointerdown', () => void go(), { once: true });
 } else if (params.has('skip') || BOT) begin();
 requestAnimationFrame(frame);
 
