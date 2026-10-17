@@ -48,7 +48,14 @@ export function initInput(canvas: HTMLElement): void {
     downY = e.clientY;
     downT = performance.now();
     dragging = false;
-    canvas.setPointerCapture?.(e.pointerId);
+    // (not while locked: the lock already holds it, and capturing then throws)
+    if (document.pointerLockElement !== canvas) {
+      try {
+        canvas.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* nothing to capture */
+      }
+    }
     for (const l of listeners) l('Mouse' + e.button);
   });
   canvas.addEventListener('pointermove', (e) => {

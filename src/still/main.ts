@@ -36,7 +36,7 @@ import { Captions } from './ui/captions';
 import { Narrative } from './narrative/narrative';
 import { bus } from './narrative/bus';
 import { startRecording, type Recording } from './record';
-import { initCursor, wantCursorHidden } from '../ui/cursor';
+import { initCursor, requestLock, wantCursorHidden } from '../ui/cursor';
 
 // The Still City. You carry the only fire left in a city that froze mid-breath four thousand years ago. Your flame
 // wakes the dead for ten seconds at a time, and something that moves only when unseen follows you.
@@ -99,7 +99,10 @@ const narrative: Narrative = new Narrative((l, pr, lane) => {
     narrative.sayLine({ id: l.id + '.echo', voice: 'wrong', text: l.text }, pr, 0.9, 'whisper');
 });
 const menu = new StillMenu({
-  resume: () => setPaused(false),
+  resume: () => {
+    setPaused(false);
+    requestLock();
+  },
   lastBrazier: () => {
     setPaused(false);
     city.s.status = 'dead';
@@ -270,6 +273,7 @@ const TITLE_SHOT: Shot = { yaw: -0.9, height: 1.6, dist: 6.2, lookY: 1.8, fov: 4
 function begin(): void {
   if (mode !== 'title') return;
   audio.initAudio();
+  if (!BOT) requestLock(); // inside the click or key that began it: the one moment a lock is granted without asking
   title.classList.add('off');
   mode = 'play';
   hud.show(true);
@@ -350,10 +354,14 @@ function nextDistrict(): void {
 
 // ------------------------------------------------------------------ input
 initInput(stage.renderer.domElement);
-// the cursor hides (and the pointer locks) while the game is played; Esc releases it and pauses
-initCursor(stage.renderer.domElement, () => {
-  if (mode === 'play') setPaused(true);
-});
+// the cursor hides (and the pointer locks) while the game is played; Esc releases it and pauses; a click takes it back
+initCursor(
+  stage.renderer.domElement,
+  () => {
+    if (mode === 'play') setPaused(true);
+  },
+  'Click to take the flame',
+);
 // a click anywhere starts it (the title lies over the canvas)
 document.addEventListener('pointerdown', (e) => {
   if ((e.target as HTMLElement).closest('#sc-menu, #sc-choice, #sc-credits')) return;

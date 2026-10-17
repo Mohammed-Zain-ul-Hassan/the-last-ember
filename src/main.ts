@@ -28,7 +28,7 @@ const glowTex = glowTexture();
 import { botInput } from './sim/bot';
 import { NO_INPUT, World, type Input, type WorldOpts } from './sim/world';
 import { Hud } from './ui/hud';
-import { initCursor, wantCursorHidden } from './ui/cursor';
+import { initCursor, requestLock, wantCursorHidden } from './ui/cursor';
 import { WorldUi } from './ui/worldUi';
 
 const params = new URLSearchParams(location.search);
@@ -447,6 +447,11 @@ initInput(stage.renderer.domElement);
 initCursor(stage.renderer.domElement, () => {
   if (mode !== 'title' && mode !== 'paused' && mode !== 'credits') pause();
 });
+// every way into play from a menu is a click or a key: take the lock in that same gesture
+const lockFor = <A extends unknown[]>(fn: (...a: A) => void) => (...a: A): void => {
+  fn(...a);
+  if (!DEMO) requestLock();
+};
 onKey((code) => {
   initAudio();
   // take the mouse for looking whenever the player acts in the game (a click or a key is the gesture it needs)
@@ -520,16 +525,16 @@ const menu = new Menu({
     CHAPTERS.map((c, i) => ({ roman: c.roman, clock: c.clock, title: c.title, place: LEVELS[c.level].name, best: bestFor(c.id)?.grade, locked: i > furthest() })),
   canContinue: () => (furthest() > 0 ? `Level ${furthest() + 1}  ·  ${CHAPTERS[furthest()].title}` : null),
   context: () => levelTitle(chapterIndex),
-  begin: () => goPrologue(),
-  continue: () => goLevel(furthest()),
-  level: (i) => goLevel(i),
-  resume: () => {
+  begin: lockFor(() => goPrologue()),
+  continue: lockFor(() => goLevel(furthest())),
+  level: lockFor((i: number) => goLevel(i)),
+  resume: lockFor(() => {
     menu.close();
     clearInput();
     if (pausedFrom === 'play') hud.show(true);
     setMode(pausedFrom);
-  },
-  restart: () => goLevel(chapterIndex),
+  }),
+  restart: lockFor(() => goLevel(chapterIndex)),
   quit: () => goTitle(),
   changed: () => {
     applySettings();
