@@ -166,7 +166,7 @@ export interface WorldOpts {
   startY?: number; // e.g. standing on the gatehouse at dawn
   startZ?: number;
   checkpointsLit?: number;
-  /** Easy / Medium / Hard (src/config.ts DIFFICULTY); Medium when not given. */
+  /** Easy / Medium / Hard (src/config.ts DIFFICULTY); Hard (the hour as tuned) when not given. */
   diff?: HearthDifficulty;
 }
 
@@ -215,7 +215,7 @@ export class World {
 
   constructor(chapterIndex = 0, seed = 1, opts: WorldOpts = {}) {
     this.chapterIndex = Math.max(0, Math.min(CHAPTERS.length - 1, chapterIndex));
-    this.diff = opts.diff ?? DIFFICULTY.medium.hearth;
+    this.diff = opts.diff ?? DIFFICULTY.hard.hearth;
     // the hour, as hard as the difficulty makes it
     const c = CHAPTERS[this.chapterIndex];
     const d = this.diff;

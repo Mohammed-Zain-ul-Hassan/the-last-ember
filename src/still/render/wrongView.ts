@@ -63,6 +63,7 @@ export class WrongView {
       this.face = new KnightView();
       this.face.root.remove(this.face.torchLight);
       this.face.setTorch(false);
+      this.face.armed = false; // no sword in the city, and its light must never join the scene either
       this.face.root.userData.dynamic = true;
     }
     return this.face;

@@ -188,6 +188,7 @@ onDifficulty((d) => (world.diff = DIFFICULTY[d].hearth)); // blows land at the n
 let world = newWorld(chapterIndex, seed);
 let godMode = false;
 let pausedFrom: Mode = 'play';
+let pausedAt: [number, number] = [0, -1];
 let ending: 'light' | 'shadow' | null = null;
 let sunEdge = 30;
 let choiceHold = 0;
@@ -521,6 +522,7 @@ function pause(): void {
   if (mode === 'paused') return;
   wantCursorHidden(false);
   pausedFrom = mode;
+  pausedAt = [modeT, beat];
   hud.hideCard();
   hud.show(false);
   setMode('paused');
@@ -542,6 +544,8 @@ const menu = new Menu({
     clearInput();
     if (pausedFrom === 'play') hud.show(true);
     setMode(pausedFrom);
+    // a scene paused part-way goes on from where it was (it would otherwise replay from the start)
+    if (pausedFrom !== 'play') [modeT, beat] = pausedAt;
   }),
   restart: lockFor(() => goLevel(chapterIndex)),
   quit: () => goTitle(),
@@ -632,6 +636,11 @@ function goLevel(i: number): void {
 
 /** Back to the title: the knight kneels at the hearth again. */
 function goTitle(): void {
+  // in The Last Ember the title is the shared one (Act I's page): this page's own title is for /classic alone
+  if (FROM) {
+    location.href = `./${DEBUG ? '?debug=1' : ''}`;
+    return;
+  }
   menu.close();
   endMemory();
   ending = null;
@@ -1001,8 +1010,9 @@ else menu.open('title');
 if (FROM) {
   // arrived without a click on this page: sound starts with the first touch (the click that takes the lock)
   const wake = () => initAudio();
-  addEventListener('pointerdown', wake, { once: true });
-  addEventListener('keydown', wake, { once: true });
+  // (capture: the click that takes the pointer lock is stopped before it reaches the game)
+  addEventListener('pointerdown', wake, { once: true, capture: true });
+  addEventListener('keydown', wake, { once: true, capture: true });
 }
 
 let manualClock = false;

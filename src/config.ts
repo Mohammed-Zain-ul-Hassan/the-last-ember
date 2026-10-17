@@ -152,7 +152,8 @@ export type ComboStep = (typeof CFG.combo)[number];
 
 // Difficulty: one setting for the whole game, stored by src/difficulty.ts. Easy gives the player some leverage, Medium
 // is the game as designed (every multiplier 1), Hard is strict. Each act reads its own section: `still` for Act I (the
-// Still City), `hearth` for Act II (the hearth defence). Multipliers are against the act's own base tunables.
+// Still City), `hearth` for Act II (the hearth defence). Multipliers are against the act's own base tunables. Act II's
+// base is Ahnaf's tuning, and that is its Hard (his call): Medium and Easy are gentler versions of it.
 export interface StillDifficulty {
   alignTol: number; // x the true-angle tolerance (degrees; base 12, or the figure's own)
   alignHold: number; // seconds the angle must be held to lock (base 0.4)
@@ -178,14 +179,14 @@ export interface HearthDifficulty {
 export const DIFFICULTY: Record<'easy' | 'medium' | 'hard', { still: StillDifficulty; hearth: HearthDifficulty }> = {
   easy: {
     still: { alignTol: 1.4, alignHold: 0.25, wrongSpeed: 0.8, wrongTouch: 0.25, caughtFatal: false, hazard: 0.65, stoneReach: 0.8, stoneWarn: 1.2, regen: 1.5, hintDelay: 0.55, trail: true, coach: true },
-    hearth: { knightDmg: 0.6, hearthDmg: 0.6, enemyHp: 0.75, enemySpeed: 0.88, spawnGap: 1.25, extraShades: -2 },
+    hearth: { knightDmg: 0.5, hearthDmg: 0.5, enemyHp: 0.7, enemySpeed: 0.85, spawnGap: 1.35, extraShades: -2 },
   },
   medium: {
     still: { alignTol: 1, alignHold: 0.4, wrongSpeed: 1, wrongTouch: 0.35, caughtFatal: true, hazard: 1, stoneReach: 1, stoneWarn: 0.9, regen: 1, hintDelay: 1, trail: true, coach: true },
-    hearth: { knightDmg: 1, hearthDmg: 1, enemyHp: 1, enemySpeed: 1, spawnGap: 1, extraShades: 0 }, // Ahnaf's tuning
+    hearth: { knightDmg: 0.75, hearthDmg: 0.75, enemyHp: 0.85, enemySpeed: 0.92, spawnGap: 1.15, extraShades: -1 },
   },
   hard: {
     still: { alignTol: 0.65, alignHold: 0.6, wrongSpeed: 1.2, wrongTouch: 0.45, caughtFatal: true, hazard: 1.3, stoneReach: 1.1, stoneWarn: 0.7, regen: 0.6, hintDelay: 3, trail: false, coach: false },
-    hearth: { knightDmg: 1.35, hearthDmg: 1.4, enemyHp: 1.25, enemySpeed: 1.12, spawnGap: 0.8, extraShades: 2 },
+    hearth: { knightDmg: 1, hearthDmg: 1, enemyHp: 1, enemySpeed: 1, spawnGap: 1, extraShades: 0 }, // Ahnaf's tuning, as it is
   },
 };

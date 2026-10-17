@@ -162,21 +162,25 @@ describe('shades drift', () => {
 });
 
 describe('difficulty (shared with Act I)', () => {
-  it('Medium is the hour as tuned; Easy is gentler and Hard harsher, hour by hour', () => {
+  it('Hard is the hour as tuned; Medium and Easy are gentler, hour by hour', () => {
     for (let i = 0; i < CHAPTERS.length; i++) {
       const [e, m, h] = (['easy', 'medium', 'hard'] as const).map((d) => new World(i, 1, { diff: DIFFICULTY[d].hearth }).chapter);
-      expect(m.shadeHp).toBe(CHAPTERS[i].shadeHp);
-      expect(m.maxShades).toBe(CHAPTERS[i].maxShades);
+      expect(h.shadeHp).toBe(CHAPTERS[i].shadeHp);
+      expect(h.maxShades).toBe(CHAPTERS[i].maxShades);
+      expect(h.spawnEvery).toEqual(CHAPTERS[i].spawnEvery);
+      expect(m.shadeHp).toBeLessThanOrEqual(h.shadeHp);
       expect(e.shadeHp).toBeLessThanOrEqual(m.shadeHp);
-      expect(h.shadeHp).toBeGreaterThanOrEqual(m.shadeHp);
+      expect(m.maxShades).toBeLessThanOrEqual(h.maxShades);
       expect(e.maxShades).toBeLessThanOrEqual(m.maxShades);
-      expect(h.maxShades).toBeGreaterThan(m.maxShades);
+      expect(m.spawnEvery[0]).toBeGreaterThan(h.spawnEvery[0]);
       expect(e.spawnEvery[0]).toBeGreaterThan(m.spawnEvery[0]);
-      expect(h.spawnEvery[0]).toBeLessThan(m.spawnEvery[0]);
     }
+    const [e, m, h] = (['easy', 'medium', 'hard'] as const).map((d) => DIFFICULTY[d].hearth);
+    expect(e.knightDmg).toBeLessThan(m.knightDmg);
+    expect(m.knightDmg).toBeLessThan(h.knightDmg);
   });
 
-  for (const d of ['easy', 'hard'] as const)
+  for (const d of ['easy', 'medium'] as const)
     for (const level of ['lowerCity', 'cathedral', 'cityWall'])
       it(`the bot walks ${level} on ${d}`, () => {
         const w = quiet(new World(chapter(level), 4, { diff: DIFFICULTY[d].hearth }));

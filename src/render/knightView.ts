@@ -281,8 +281,16 @@ export class KnightView {
   gait: ((p: Pose, k: Knight, t: number, dt: number) => { stiff: number; zeta: number } | null) | null = null;
   /** The Still City: the off hand raised toward a flame held here (world space), or null. */
   carry: THREE.Vector3 | null = null;
-  /** False where the stage has no use for the sword (the Still City): it is never shown, flame in hand or not. */
-  armed = true;
+  private isArmed = true;
+  /** False where the stage has no use for the sword (the Still City): it is never shown, flame in hand or not. Takes
+   * effect at once, so the sword's light never counts in a shader warm-up it will not be part of. */
+  get armed(): boolean {
+    return this.isArmed;
+  }
+  set armed(v: boolean) {
+    this.isArmed = v;
+    this.sword.group.visible = this.sword.light.visible = v && !this.carry;
+  }
   /** What the stage's aura wraps and how it burns; updated every frame. */
   readonly aura: AuraSource;
   private eyeWorld = new THREE.Vector3();
@@ -1173,7 +1181,7 @@ export class KnightView {
     this.sword.group.rotation.z = c.swordRel;
     this.sword.group.rotation.y = c.swordRoll;
     this.trail.rotation.x = c.armTilt;
-    const armed = this.armed && !this.carry;
+    const armed = this.isArmed && !this.carry;
     this.sword.group.visible = armed;
     this.sword.light.visible = armed;
     if (this.carry) {

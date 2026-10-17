@@ -238,7 +238,11 @@ export class Ending {
       const wk = Math.min(1, Math.max(0, (t - 12) / 8));
       const tx = st.x + Math.cos(away) * 7;
       const tz = st.z + Math.sin(away) * 7;
-      c.moveBody(st.x + (tx - st.x) * wk, st.z + (tz - st.z) * wk, away, wk > 0 && wk < 1);
+      const bx = st.x + (tx - st.x) * wk;
+      const bz = st.z + (tz - st.z) * wk;
+      c.moveBody(bx, bz, away, wk > 0 && wk < 1);
+      // the flame goes with him, in his hand (the sim does not step in the ending: it is moved here)
+      c.overrideFlame(this.flamePos.clone().add(new THREE.Vector3(bx - st.x, 0, bz - st.z)), 1);
       if (t > 11) c.rig.go({ yaw: -away + Math.PI / 2 + 0.5, height: 4.5, dist: 12, lookY: 1.2, fov: 42 }, 8);
       if (t > 19) c.veil(true);
       if (t > 22) this.finish();
