@@ -6,7 +6,6 @@ let musicBus: GainNode;
 let noiseBuf: AudioBuffer;
 let muted = false;
 let volume = 1;
-let fireGain: GainNode | null = null;
 let drumGain: GainNode | null = null;
 let reverb: ConvolverNode;
 let melodyGain: GainNode | null = null;
@@ -261,27 +260,25 @@ export function sfx(name: SfxName, combo = 0): void {
   }
 }
 
-/** Continuous beds: fire crackle (follows hearth strength) and a drone with drums that rise with danger. */
+/**
+ * Beds: no constant fire noise (a looping crackle under the whole game wore on players; playtesters asked for it
+ * gone). Instead the hearth gives a sparse, quiet crackle now and then, only when he is near it and nothing is fighting
+ * (randomised one-shots, as campfires are usually done). The torch is silent. Plus a drone with drums that rise with
+ * danger, and the rain.
+ */
 function startBeds(): void {
   if (!ctx) return;
-  // fire: filtered noise + random pops
-  const src = ctx.createBufferSource();
-  src.buffer = noiseBuf;
-  src.loop = true;
-  const bp = ctx.createBiquadFilter();
-  bp.type = 'lowpass';
-  bp.frequency.value = 700;
-  fireGain = ctx.createGain();
-  fireGain.gain.value = 0;
-  src.connect(bp).connect(fireGain).connect(sfxBus);
-  src.start();
-  const pop = () => {
+  const crackle = () => {
     if (!ctx) return;
-    const level = fireGain ? fireGain.gain.value : 0;
-    if (level > 0.01) noise(ctx.currentTime, 0.03, 'highpass', 3000, 2000, 1, level * 2.2, 0.001);
-    setTimeout(pop, 40 + Math.random() * 220);
+    if (fireNear > 0.05 && dangerNow < 0.2) {
+      const t = ctx.currentTime;
+      const n = 1 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++)
+        noise(t + i * (0.04 + Math.random() * 0.09), 0.025, 'highpass', vary(2600, 0.3), 1800, 1, fireNear * vary(0.12, 0.4), 0.001);
+    }
+    setTimeout(crackle, 1500 + Math.random() * 2500);
   };
-  pop();
+  crackle();
 
   // rain: a soft hiss over a low wash, and now and then a drip off stone
   const rsrc = ctx.createBufferSource();
@@ -398,10 +395,8 @@ export function setRain(level: number): void {
 /** level 0..1 for each bed; smoothed. */
 export function setBeds(fire: number, danger: number): void {
   if (!ctx) return;
-  if (Math.abs(fire - bedFire) >= 0.01) {
-    bedFire = fire;
-    fireGain?.gain.setTargetAtTime(0.05 + 0.13 * fire, ctx.currentTime, 0.3);
-  }
+  fireNear = fire;
+  dangerNow = danger;
   const d = Math.min(1, danger);
   if (Math.abs(d - bedDanger) >= 0.01) {
     bedDanger = d;
@@ -409,5 +404,6 @@ export function setBeds(fire: number, danger: number): void {
   }
 }
 let bedRain = -1;
-let bedFire = -1;
+let fireNear = 0; // 0..1 the hearth's crackle: its strength, faded with his distance from it
+let dangerNow = 0;
 let bedDanger = -1;

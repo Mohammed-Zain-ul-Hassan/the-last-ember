@@ -9,7 +9,7 @@ import { CHAPTERS, DAWN_SKY, MIDNIGHT_SKY } from './data/chapters';
 import { LEVELS } from './data/levels';
 import { MEMORY_TIME, Memories } from './render/memory';
 import { playEvents, type FxTargets } from './fx';
-import { clearInput, initInput, isHeld, isLocked, keyTurn, onKey, onLockChange, readInput, requestLock, takeLook } from './input';
+import { clearInput, initInput, isHeld, onKey, readInput, sinceLook, takeLook } from './input';
 import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, ROAD_CARD_SHOT, TITLE_SHOT } from './render/cameraRig';
 import { angleDiff } from './sim/geom';
 import { Hearth } from './render/hearth';
@@ -248,8 +248,8 @@ function regionHere(): { x0: number; kind: string; name?: string; sub?: string }
 }
 function placeCheck(dt: number): void {
   if (revealT > 0) {
-    // a turn key hands the camera straight back: a reveal never holds the view against the player
-    revealT = keyTurn() !== 0 ? 0 : revealT - dt;
+    // looking around hands the camera straight back: a reveal never holds the view against the player
+    revealT = sinceLook() < 0.1 ? 0 : revealT - dt;
     if (revealT <= 0) rig.follow(0.7, revealYaw);
     return;
   }
@@ -286,7 +286,7 @@ function beginPlay(): void {
   rig.follow(0.8, world.level.startYaw);
   clearInput(); // the key that skipped the card must not also jump or swing on the first frame
   setMode('play');
-  if (!DEMO && !isLocked()) hud.toast('A / D turn  ·  W / S move  ·  J / K strike  ·  or click to look with the mouse');
+  if (!DEMO) hud.toast('W A S D move  ·  drag the mouse to look  ·  J / K or click to strike');
 }
 
 function restartAll(): void {
@@ -345,9 +345,6 @@ initInput(stage.renderer.domElement);
 onKey((code) => {
   initAudio();
   // take the mouse for looking whenever the player acts in the game (a click or a key is the gesture it needs)
-  // the mouse is taken only by a click on the game: keyboard players keep their cursor and a bumped mouse never
-  // swings the view
-  if (!DEMO && (mode === 'play' || mode === 'intro' || mode === 'choice') && code.startsWith('Mouse')) requestLock();
   if (code === 'KeyM') return setMuted(!isMuted());
   // Esc opens the menu from anywhere in the game (the title has its own menu; credits go back to it)
   if ((code === 'Escape' || code === 'KeyP') && mode !== 'title' && mode !== 'paused' && mode !== 'credits') return pause();
@@ -387,10 +384,6 @@ onKey((code) => {
 });
 window.addEventListener('blur', () => {
   if (mode === 'play' && !DEMO) pause();
-});
-// Esc releases the mouse without a keydown reaching the page: treat that as pause
-onLockChange((locked) => {
-  if (!locked && (mode === 'play' || mode === 'choice') && !DEMO) pause();
 });
 
 function applySettings(): void {
@@ -762,10 +755,8 @@ applySettings();
 if (!DEMO) menu.open('title');
 
 let manualClock = false;
-let keyTurnV = 0; // rad/s the turn keys are swinging the camera (eased)
 let closeT = 0; // seconds the close-quarters lean still holds
 let restartHold = 0; // seconds R has been held
-let keyHoldT = 0; // seconds a turn key has been held
 let boltT = 9; // seconds to the next lightning // trailer capture drives the game with exact steps (tick) instead of rAF
 function frame(now: number): void {
   if (!manualClock) update(now);
@@ -831,8 +822,7 @@ function update(now: number): void {
       startChapter(chapterIndex, true);
       return;
     }
-    // he keeps turning with the camera until a key swing has fully settled, so he ends up square with the view
-    stepSim(DEMO ? () => botInput(world) : () => ({ ...readInput(rig.yaw), turning: keyTurnV !== 0 }), dt);
+    stepSim(DEMO ? () => botInput(world) : () => readInput(rig.yaw), dt);
     placeCheck(rawDt);
     if (world.status === 'cleared') {
       knightX = world.knight.x;
@@ -876,12 +866,6 @@ function update(now: number): void {
 
   // ---- render-side updates (drawn from the blend of the last two sim ticks; see interpolate)
   interpolate();
-  // under the turn keys he is drawn square with the camera (the sim reads the camera's heading at 60 Hz and the view
-  // eases toward it: together that drew him visibly swinging behind the view on every turn)
-  {
-    const kk = world.knight;
-    if (truePoses.length && mode === 'play' && keyTurnV !== 0 && (kk.state === 'idle' || kk.state === 'run')) kk.yaw = rig.yaw + keyTurnV * rawDt;
-  }
   if (mode === 'intro' || mode === 'play' || mode === 'outro' || mode === 'lost' || mode === 'title') {
     const sky = mode === 'outro' && CHAPTERS[chapterIndex + 1] && chapterIndex + 1 !== midnightIndex ? CHAPTERS[chapterIndex + 1].sky : world.chapter.sky;
     stage.setSky(sky, Math.min(1, rawDt * (mode === 'outro' ? 0.9 : 0.6)));
@@ -928,26 +912,14 @@ function update(now: number): void {
   if (mode === 'title') rig.target.set(world.hearthX - 0.9, 0, world.hearthZ);
   else if (mode === 'midnight') rig.target.set(world.hearthX - 1.1, 0, world.hearthZ);
   else rig.target.set(k.x, k.y, k.z);
-  // mouse look (and A / D or the arrows) while the follow camera is up
+  // the camera moves only by the mouse (drag, or a two-finger swipe)
   const [lookX, lookY] = takeLook();
   if (rig.following && (mode === 'play' || mode === 'choice')) {
     rig.look(lookX, lookY, settings.sens, settings.invertY);
-    const turn = keyTurn();
-    // the key swing spins up and settles over a few frames: crisp to the touch, never a jolt of the whole view
-    // and speeds up the longer the key is held: fine aim on a tap, a quick about-face on a hold
-    keyHoldT = turn !== 0 ? keyHoldT + rawDt : 0;
-    const ramp = Math.min(1, Math.max(0, (keyHoldT - 0.25) / 0.35));
-    const rate = CFG.knight.keyTurn + (CFG.knight.keyTurnMax - CFG.knight.keyTurn) * ramp * ramp * (3 - 2 * ramp);
-    keyTurnV += (turn * rate - keyTurnV) * Math.min(1, rawDt * CFG.knight.keyTurnEase);
-    if (turn === 0 && Math.abs(keyTurnV) < 0.01) keyTurnV = 0;
-    rig.yaw += keyTurnV * rawDt;
-    // the demo bot's camera drifts back behind him while he runs (never a player's: a camera that wandered after his
-    // facing would change where W takes him)
+    // only the demo bot's camera follows him on its own; a player's moves only when they move the mouse (playtesters:
+    // a camera that swung by itself, or with the movement keys, was not theirs)
     const speed = Math.hypot(k.vx, k.vz);
-    if (DEMO && speed > 1 && k.state !== 'dash') {
-      const rate = 2.2 * Math.min(1, speed / CFG.knight.speed);
-      rig.yaw += angleDiff(rig.yaw, k.yaw) * Math.min(1, rawDt * rate);
-    }
+    if (DEMO && speed > 1 && k.state !== 'dash') rig.yaw += angleDiff(rig.yaw, k.yaw) * Math.min(1, rawDt * 2.2 * Math.min(1, speed / CFG.knight.speed));
   }
   // lean in a touch while shades are at close quarters, and hold it a second after: a zoom that followed every
   // swing pumped the whole view in and out
@@ -989,7 +961,9 @@ function update(now: number): void {
   worldUi.update(world, rawDt, mode === 'play' && memories.active < 0);
   worldUi.hearthMarker(world, mode === 'play');
   const danger = mode === 'play' ? Math.min(1, world.shades.filter((s) => s.state !== 'dead' && Math.abs(s.x - world.knight.x) < 6).length / 3) : 0;
-  setBeds(hearth.lit ? hearth.strength : knight.torchOn ? 0.5 : 0, danger);
+  // the hearth's crackle fades out over ~12 m from it; the carried torch makes no sound of its own
+  const nearHearth = Math.max(0, 1 - Math.hypot(world.knight.x - world.hearthX, world.knight.z - world.hearthZ) / 12);
+  setBeds(hearth.lit && !world.torch ? hearth.strength * nearHearth : 0, danger);
   stage.render();
   restorePoses();
 

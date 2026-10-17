@@ -11,9 +11,6 @@ export const CFG = {
     turnRate: 16, // rad/s he turns toward where he runs
     dashBuffer: 0.14, // s: a dash pressed this early still comes out
     backpedal: 0.7, // S / down: he steps back facing forward, at this fraction of his run speed
-    keyTurn: 3.0, // rad/s the camera (and he) swings while A / D or the arrows are held...
-    keyTurnMax: 4.4, // ...rising to this after about half a second held (a quick about-face)
-    keyTurnEase: 14, // how fast that swing spins up and settles (1/s): crisp, never a jolt
     aimRange: 4.6, // soft aim: swings turn toward a shade this close...
     aimCone: 1.25, // ...within this many radians of where he (or the camera) faces
     maxHp: 100, // health per life

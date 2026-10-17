@@ -34,14 +34,13 @@ const QUALITY: Quality[] = ['auto', 'high', 'medium', 'low'];
 const QUALITY_NAME: Record<Quality, string> = { auto: 'Auto', high: 'High', medium: 'Medium', low: 'Low' };
 
 const CONTROLS: [string, string][] = [
-  ['W  /  S', 'forward  ·  back (he steps back still facing the fight)  ·  or the up / down arrows'],
-  ['A  /  D', 'turn the camera, and him with it  ·  or the left / right arrows'],
-  ['Mouse', 'optional: look  ·  click the game to capture the mouse'],
+  ['W  A  S  D', 'move  ·  relative to the camera  ·  or the arrows'],
+  ['Mouse drag', 'look around  ·  any button  ·  a two-finger swipe turns too'],
   ['Space', 'jump  ·  again in the air to double jump'],
-  ['Left click  /  J', 'strike  ·  in the air: aerial  ·  running: lunge  ·  turns toward the nearest shade'],
-  ['Right click  /  K', 'heavy cleave  ·  hold to charge, release to rend  ·  in the air: plunge'],
-  ['L  /  Shift', 'shadow-step  ·  with A / D held: sidestep  ·  backing off: backstep  ·  strike out of it to pierce'],
-  ['Esc', 'pause and settings  ·  releases the mouse'],
+  ['Click  /  J', 'strike  ·  in the air: aerial  ·  running: lunge  ·  turns toward the nearest shade'],
+  ['Right click  /  K', 'heavy cleave  ·  hold K to charge, release to rend  ·  in the air: plunge'],
+  ['L  /  Shift', 'shadow-step the way you move  ·  strike out of it to pierce'],
+  ['Esc', 'pause and settings'],
   ['R (hold)', 'restart the level'],
   ['M', 'mute'],
 ];
