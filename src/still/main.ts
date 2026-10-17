@@ -790,6 +790,7 @@ function frame(now: number): void {
   // the city
   SCENERY.uFlame.value.copy(flameAt);
   SCENERY.uLight.value = vig;
+  SCENERY.uTime.value = t;
   dview?.update(dt, t, stage.camera, city, tmp.set(bx, 1.5, bz));
   figs?.update(dt, t, city);
   wrongView.update(dt, t, city, smoke, glow, stage.camera, flameAt);
@@ -988,6 +989,7 @@ function audioBeds(): void {
     brazier: br,
     cold,
     wind: breezeT > 0 ? 0.4 : 0,
+    rain: d.rain ? 1 : 0,
   });
 }
 

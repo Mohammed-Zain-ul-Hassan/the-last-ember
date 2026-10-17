@@ -20,6 +20,7 @@ let breathGain: GainNode;
 let brazierGain: GainNode;
 let coldGain: GainNode;
 let windGain: GainNode;
+let rainGain: GainNode;
 let muted = false;
 let recordTap: AudioNode | null = null;
 
@@ -184,6 +185,16 @@ function beds(): void {
     o.start();
   }
   coldGain.connect(bus);
+  // rain on stone: a soft hiss, a little lower under it
+  rainGain = c.createGain();
+  rainGain.gain.value = 0;
+  const rf = c.createBiquadFilter();
+  rf.type = 'highpass';
+  rf.frequency.value = 900;
+  const rl2 = c.createBiquadFilter();
+  rl2.type = 'lowpass';
+  rl2.frequency.value = 7000;
+  loopNoise(noiseBuf).connect(rf).connect(rl2).connect(rainGain).connect(bus);
   // wind (gusts)
   windGain = c.createGain();
   windGain.gain.value = 0;
@@ -214,6 +225,7 @@ export interface Beds {
   brazier: number;
   cold: number;
   wind: number;
+  rain: number;
 }
 
 let lastMusic = -1;
@@ -236,6 +248,7 @@ export function setBeds(b: Beds): void {
   set(brazierGain, b.brazier * 0.5, 0.3);
   set(coldGain, b.cold * 0.025, 0.4);
   set(windGain, b.wind * 0.35, 0.15);
+  set(rainGain, b.rain * 0.045, 1.2);
 }
 
 // ------------------------------------------------------------------ one-shots

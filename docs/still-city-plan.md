@@ -62,7 +62,7 @@ each is easy to reverse.
 - **Environment storytelling:** frozen ink shadows; carved reliefs in every district (the crowd at the gate, the
   market, the water rising, the priests, the fire held up, the wave, the door); brazier colours (warm gold, cold blue,
   plainly blue once the sundial shows it); the Rumble louder each district and the floor trembling at the Heart; colder,
-  closer light and fog by district; rain frozen mid-fall that glints in the flame; birds stopped mid-wingbeat.
+  closer light and fog by district; rain falling that glints in the flame (Moeez: the rain falls; it is not stopped); birds stopped mid-wingbeat.
 - **Event-driven narrative:** `narrative/bus.ts` (central bus), `narrative/lines.json` (every line, the 36 Last Words,
   the riddles, sound-cue captions), `narrative/beats.json` (event to lines: once, variants, delays, cooldowns,
   priorities). Every doc trigger is wired, including the death variants and the Library's late echo.

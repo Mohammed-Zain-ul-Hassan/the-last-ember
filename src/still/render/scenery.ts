@@ -3,11 +3,11 @@ import { Rng } from '../../sim/rng';
 import type { District } from '../sim/types';
 
 // What tells the story without a word: carved reliefs on the walls (who came through the gate, the market, the water
-// rising, the priests, a fire held up, the wave, the door), rain stopped in the air that glints where the flame
-// touches it, birds stopped mid-wingbeat, and the dark of the frozen city beyond the walls.
+// rising, the priests, a fire held up, the wave, the door), rain falling that glints where the flame touches it,
+// birds stopped mid-wingbeat, and the dark of the frozen city beyond the walls.
 
-/** The flame's position for the frozen rain's glint (main sets it every frame). */
-export const SCENERY = { uFlame: { value: new THREE.Vector3() }, uLight: { value: 1 } };
+/** The flame's position for the rain's glint, and the clock that moves it (main sets both every frame). */
+export const SCENERY = { uFlame: { value: new THREE.Vector3() }, uLight: { value: 1 }, uTime: { value: 0 } };
 
 // ------------------------------------------------------------------ carvings
 type Scene = 'crowd' | 'market' | 'water' | 'priests' | 'fire' | 'wave' | 'door';
@@ -208,13 +208,24 @@ export function carving(scene: Scene, seed: number): THREE.Mesh {
   return m;
 }
 
-// ------------------------------------------------------------------ the rain that stopped
+// ------------------------------------------------------------------ the rain
+// Each streak falls on the GPU: its top wraps through the column of air (0.4 .. 8 m) at its own speed, and its tail
+// trails behind it (aTail 0 at the head, 1 at the tail), so a streak never stretches across a wrap.
+const RAIN_TOP = 8;
+const RAIN_BOTTOM = 0.4;
 const RAIN_VERT = /* glsl */ `
   uniform vec3 uFlame;
+  uniform float uTime;
+  attribute float aTail;
+  attribute float aSpeed;
   varying float vGlint;
   varying float vFar;
   void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
+    float h = ${(RAIN_TOP - RAIN_BOTTOM).toFixed(2)};
+    float y = ${RAIN_BOTTOM.toFixed(2)} + mod(position.y - ${RAIN_BOTTOM.toFixed(2)} - uTime * aSpeed, h);
+    // a slight slant: the tail a little upwind of the head
+    vec3 p = vec3(position.x - aTail * 0.04, y + aTail * 0.24, position.z);
+    vec4 wp = modelMatrix * vec4(p, 1.0);
     float d = distance(wp.xyz, uFlame);
     vGlint = smoothstep(5.0, 0.4, d);
     vec4 mv = viewMatrix * wp;
@@ -231,20 +242,28 @@ const RAIN_FRAG = /* glsl */ `
     gl_FragColor = vec4((cold + warm) * vFar, 1.0);
   }`;
 
-export function frozenRain(d: District, count = 3600): THREE.LineSegments {
+export function fallingRain(d: District, count = 3600): THREE.LineSegments {
   const rng = new Rng(d.index * 71 + 9);
   const a = d.area.kind === 'band' ? d.area : { x0: d.area.cx - d.area.r, x1: d.area.cx + d.area.r, z0: d.area.cz - d.area.r, z1: d.area.cz + d.area.r };
   const covered = d.decor.filter((dc) => dc.kind === 'vault' || dc.kind === 'roof') as { x0: number; x1: number; z0: number; z1: number }[];
   const pos: number[] = [];
+  const tail: number[] = [];
+  const spd: number[] = [];
   for (let i = 0; i < count; i++) {
     const x = rng.range(a.x0 - 2, a.x1 + 2);
     const z = rng.range(a.z0 - 2, a.z1 + 2);
     if (covered.some((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1)) continue;
-    const y = rng.range(0.4, 8);
-    pos.push(x, y, z, x + 0.015, y - rng.range(0.14, 0.26), z + 0.01);
+    const y = rng.range(RAIN_BOTTOM, RAIN_TOP);
+    const speed = rng.range(8.5, 11);
+    // the head and the tail of one streak share their place and speed; the tail sits above the head
+    pos.push(x, y, z, x, y, z);
+    tail.push(0, 1);
+    spd.push(speed, speed);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('aTail', new THREE.Float32BufferAttribute(tail, 1));
+  g.setAttribute('aSpeed', new THREE.Float32BufferAttribute(spd, 1));
   const mat = new THREE.ShaderMaterial({ vertexShader: RAIN_VERT, fragmentShader: RAIN_FRAG, uniforms: SCENERY, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
   const lines = new THREE.LineSegments(g, mat);
   lines.frustumCulled = false;

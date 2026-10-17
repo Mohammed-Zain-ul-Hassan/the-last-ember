@@ -9,7 +9,7 @@ import { mergeStatic } from '../../render/merge';
 import { column, stoneBox } from '../../render/shapes';
 import { glowTexture, tatterTexture } from '../../render/textures';
 import { RIDDLES } from '../../data/stillCity';
-import { carving, frozenBirds, frozenRain, skyline } from './scenery';
+import { carving, fallingRain, frozenBirds, skyline } from './scenery';
 import type { City } from '../sim/city';
 import type { Decor, District, MechDef } from '../sim/types';
 
@@ -168,9 +168,9 @@ export class DistrictView {
       if (pl.casters.some((c) => typeof c === 'object' && 'fig' in c)) this.balance(i);
     });
     d.pages.forEach((pg, i) => this.page(i, pg.x, pg.y, pg.z, pg.lie, pg.truth));
-    // the open-air districts: rain stopped in the air, birds stopped mid-wingbeat, the frozen city beyond the walls
+    // the open-air districts: rain falling, birds stopped mid-wingbeat, the frozen city beyond the walls
     if (d.rain) {
-      this.group.add(frozenRain(d), frozenBirds(d));
+      this.group.add(fallingRain(d), frozenBirds(d));
       const sky = skyline(d);
       sky.userData.dynamic = true;
       this.group.add(sky);
