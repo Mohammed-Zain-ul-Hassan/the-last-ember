@@ -15,6 +15,7 @@ import { flameState } from './sim/flame';
 import { BRAZIER_POOL, DistrictView, TORCH_LIGHTS } from './render/districtView';
 import { FigureViews } from './render/figureView';
 import { SCENERY } from './render/scenery';
+import { StillRain } from './render/rain';
 import { WrongView } from './render/wrongView';
 import { StillHud } from './ui/hud';
 import { StillMenu } from './ui/menu';
@@ -77,6 +78,8 @@ knight.torchLight.distance = 18;
 knight.torchLight.decay = 1.35;
 stage.world.add(knight.root);
 stage.outline.selection.set(knight.outlineTargets);
+const rain = new StillRain();
+stage.scene.add(rain.group);
 const wrongView = new WrongView();
 stage.world.add(wrongView.root);
 
@@ -212,6 +215,10 @@ function load(i: number, ash?: number): void {
   figs?.group.removeFromParent();
   const d = DISTRICTS[i];
   city = new City(d, save.words, ash);
+  // rain in the open districts: streaks, splashes, the far veil, and wet stone with ripples in the puddles
+  rain.on = !!d.rain;
+  rain.setShelters(d.decor.filter((dc) => dc.kind === 'vault' || dc.kind === 'roof').map((dc) => dc as { x0: number; z0: number; x1: number; z1: number; y: number }));
+  stage.rain = d.rain ? 1 : 0;
   stage.setSky(SKIES[d.index], 1);
   stage.ambientK = AMBIENT[d.index];
   wrongView.mirror = d.wrong?.mode === 'face' || d.wrong?.mode === 'final';
@@ -791,6 +798,7 @@ function frame(now: number): void {
   SCENERY.uFlame.value.copy(flameAt);
   SCENERY.uLight.value = vig;
   SCENERY.uTime.value = t;
+  rain.update(t, stage.camera.position, flameAt, city.radius * vig);
   dview?.update(dt, t, stage.camera, city, tmp.set(bx, 1.5, bz));
   figs?.update(dt, t, city);
   wrongView.update(dt, t, city, smoke, glow, stage.camera, flameAt);
