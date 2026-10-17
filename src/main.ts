@@ -423,7 +423,28 @@ function beginPlay(): void {
   rig.follow(0.8, world.level.startYaw);
   clearInput(); // the key that skipped the card must not also jump or swing on the first frame
   setMode('play');
-  if (!DEMO) hud.toast('W A S D move  ·  move the mouse to look  ·  J / K or click to strike');
+  if (!DEMO && teach < 0) teach = 0; // the controls, once a session (see TEACH)
+}
+
+// The controls, taught one at a time when play first begins, each held until it is done (or a while has passed):
+// one short instruction per line, never three at once.
+const TEACH = ['W A S D to move', 'Move the mouse to look', 'Click or J to strike'];
+let teach = -1;
+let teachT = 0;
+let looked = 0;
+addEventListener('pointermove', (e) => {
+  if (teach === 1) looked += Math.abs(e.movementX) + Math.abs(e.movementY);
+});
+function teachStep(dt: number): void {
+  if (teach < 0 || teach >= TEACH.length) return;
+  teachT += dt;
+  const k = world.knight;
+  const done = teach === 0 ? Math.hypot(k.vx, k.vz) > 1.5 : teach === 1 ? looked > 120 : k.state === 'attack' || k.state === 'heavy' || k.state === 'charge';
+  if ((done && teachT > 1.0) || teachT > 9) {
+    teach++;
+    teachT = 0;
+  }
+  if (teach < TEACH.length) hud.keep(TEACH[teach]);
 }
 
 function restartAll(): void {
@@ -1111,6 +1132,7 @@ function update(now: number): void {
   if (mode === 'prologue') prologue();
 
   if (mode === 'play') {
+    teachStep(rawDt);
     // restart is a held R (it sits beside the turn keys; a stray tap must not throw the level away)
     restartHold = isHeld('KeyR') ? restartHold + rawDt : 0;
     if (restartHold > 0.6) {
