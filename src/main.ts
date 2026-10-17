@@ -118,22 +118,31 @@ let settings!: SettingsPanel;
 let mainMenu!: MainMenu;
 let pauseMenu!: PauseMenu;
 
-mainMenu = new MainMenu({
-  onPlay: () => {
-    gameStarted = true;
-    hideAllMenuPanels();
-    hideMenuShell();
-    gameHud.show();
-    gameHud.hideVictory();
-    gameHud.hideWifeHp();
-    gameHud.hideBossHp();
+function startSession(mode: 'story' | 'demo'): void {
+  gameStarted = true;
+  hideAllMenuPanels();
+  hideMenuShell();
+  gameHud.show();
+  gameHud.hideVictory();
+  gameHud.hideWifeHp();
+  gameHud.hideBossHp();
+  player.teleport(arena.spawns.player, PLAYER.spawnYaw, 0);
+  if (mode === 'demo') {
+    gameHud.setObjective('Demo — test combat & movement');
+    waves.beginDemo();
+  } else {
     gameHud.setObjective('Ascend');
     waves.begin();
-    sound.unlock();
-    music.start();
-    music.setIntensity(0);
-    requestLock(renderer.domElement);
-  },
+  }
+  sound.unlock();
+  music.start();
+  music.setIntensity(0);
+  requestLock(renderer.domElement);
+}
+
+mainMenu = new MainMenu({
+  onPlay: () => startSession('story'),
+  onDemo: () => startSession('demo'),
   onSettings: () => {
     mainMenu.hide();
     settings.show('main');
@@ -154,6 +163,11 @@ pauseMenu = new PauseMenu({
   },
   onMainMenu: () => {
     gameStarted = false;
+    waves.reset();
+    music.setIntensity(0);
+    gameHud.hideVictory();
+    gameHud.hideWifeHp();
+    gameHud.hideBossHp();
     hideAllMenuPanels();
     mainMenu.show();
     showMenuShell();

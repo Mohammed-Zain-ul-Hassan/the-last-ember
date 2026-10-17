@@ -1,10 +1,11 @@
 export interface MainMenuOptions {
   onPlay: () => void;
+  onDemo: () => void;
   onSettings: () => void;
 }
 
 /**
- * Start menu: title, Play, Settings. Queries #main-menu and its buttons.
+ * Start menu: title, Play, Demo Level, Settings. Queries #main-menu and its buttons.
  */
 export class MainMenu {
   private readonly panel: HTMLElement;
@@ -14,6 +15,10 @@ export class MainMenu {
     document.getElementById('btn-play')!.addEventListener('click', (e) => {
       e.stopPropagation();
       opts.onPlay();
+    });
+    document.getElementById('btn-demo')!.addEventListener('click', (e) => {
+      e.stopPropagation();
+      opts.onDemo();
     });
     document.getElementById('btn-settings')!.addEventListener('click', (e) => {
       e.stopPropagation();

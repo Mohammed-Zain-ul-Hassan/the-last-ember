@@ -10,17 +10,18 @@ const FADE_IN = 2;
 const DUCK_ATTACK = 0.12;
 const DUCK_RELEASE = 0.4;
 /** Crossfade between ambient and combat beds. */
-const INTENSITY_FADE = 1.5;
+const INTENSITY_FADE = 0.85;
 /** Crossfade window before the end of each buffer play. */
 const CROSSFADE = 1.8;
+/** Intensity at/above this uses combat exclusively; below uses ambient only. */
+const COMBAT_THRESHOLD = 0.5;
 
 type BedId = 'ambient' | 'combat';
 
 /**
  * Dual looping beds from /music/ambient.mp3 and /music/combat.mp3.
- * Prefetches raw bytes, decodes on the SoundSynth context after unlock, and
- * crossfades overlaps so imperfect Freesound loops don't click. Intensity
- * crossfades ambient↔combat; soft-ducks under voice lines; settings scale the bus.
+ * Only one bed is audible at a time (hard switch with a short crossfade).
+ * Intensity ≥ 0.5 → combat; otherwise ambient. Soft-ducks under voice; settings scale the bus.
  */
 export class BackgroundMusic {
   private ambientRaw: ArrayBuffer | null = null;
@@ -40,6 +41,12 @@ export class BackgroundMusic {
   private musicVolume = 1;
   private ambientTimer: ReturnType<typeof setTimeout> | null = null;
   private combatTimer: ReturnType<typeof setTimeout> | null = null;
+  private ambientSources: AudioBufferSourceNode[] = [];
+  private combatSources: AudioBufferSourceNode[] = [];
+  private activeBed: BedId = 'ambient';
+  private stopQuietTimer: ReturnType<typeof setTimeout> | null = null;
+  private ambientFetchDone = false;
+  private combatFetchDone = false;
 
   constructor(private readonly sound: SoundSynth) {
     void this.fetchRaw(AMBIENT_URL, 'ambient');
@@ -67,12 +74,15 @@ export class BackgroundMusic {
   }
 
   /**
-   * Crossfade ambient↔combat beds (0 = full ambient, 1 = full combat).
-   * Safe to call before or after start().
+   * Switch ambient↔combat (0 = ambient only, 1 = combat only).
+   * Mid values snap at 0.5 — beds never sit mixed. No-ops when the
+   * exclusive mode is unchanged so WaveDirector can spam this each frame.
    */
   setIntensity(n: number): void {
     this.intensity = Math.min(1, Math.max(0, n));
-    this.applyIntensity(INTENSITY_FADE);
+    const want = this.desiredBed();
+    if (this.started && want === this.activeBed) return;
+    this.applyExclusive(INTENSITY_FADE);
   }
 
   /** Scale the music bus for settings (0..1). Independent of duck/intensity. */
@@ -86,19 +96,74 @@ export class BackgroundMusic {
     this.volumeBus.gain.linearRampToValueAtTime(Math.max(0.0001, this.musicVolume), t + 0.08);
   }
 
-  private applyIntensity(fadeSec: number): void {
+  private desiredBed(): BedId {
+    return this.intensity >= COMBAT_THRESHOLD ? 'combat' : 'ambient';
+  }
+
+  private applyExclusive(fadeSec: number): void {
     const audio = this.sound.audio;
     if (!audio || !this.ambientGain || !this.combatGain) return;
+
+    const want = this.desiredBed();
+    const switching = want !== this.activeBed;
+    if (switching) {
+      this.activeBed = want;
+      this.ensureBedPlaying(want);
+    }
+
     const t = audio.ctx.currentTime;
-    const amb = Math.max(0.0001, 1 - this.intensity);
-    const com = Math.max(0.0001, this.intensity);
+    const fade = Math.max(0.01, fadeSec);
+    const ambTarget = want === 'ambient' ? 1 : 0.0001;
+    const comTarget = want === 'combat' ? 1 : 0.0001;
     for (const [node, target] of [
-      [this.ambientGain, amb],
-      [this.combatGain, com],
+      [this.ambientGain, ambTarget],
+      [this.combatGain, comTarget],
     ] as const) {
       node.gain.cancelScheduledValues(t);
       node.gain.setValueAtTime(node.gain.value, t);
-      node.gain.linearRampToValueAtTime(target, t + Math.max(0.01, fadeSec));
+      node.gain.linearRampToValueAtTime(target, t + fade);
+    }
+
+    if (this.stopQuietTimer) clearTimeout(this.stopQuietTimer);
+    const quiet: BedId = want === 'ambient' ? 'combat' : 'ambient';
+    this.stopQuietTimer = setTimeout(() => {
+      this.stopQuietTimer = null;
+      if (this.activeBed === want) this.stopBed(quiet);
+    }, fade * 1000 + 40);
+  }
+
+  private ensureBedPlaying(bed: BedId): void {
+    const buf = bed === 'ambient' ? this.ambientBuffer : this.combatBuffer;
+    const timer = bed === 'ambient' ? this.ambientTimer : this.combatTimer;
+    const sources = bed === 'ambient' ? this.ambientSources : this.combatSources;
+    if (!buf || !this.started) return;
+    if (timer !== null || sources.length > 0) return;
+    this.scheduleLayer(bed, 0);
+  }
+
+  private stopBed(bed: BedId): void {
+    if (bed === 'ambient') {
+      if (this.ambientTimer) clearTimeout(this.ambientTimer);
+      this.ambientTimer = null;
+      for (const src of this.ambientSources) {
+        try {
+          src.stop();
+        } catch {
+          /* already stopped */
+        }
+      }
+      this.ambientSources.length = 0;
+    } else {
+      if (this.combatTimer) clearTimeout(this.combatTimer);
+      this.combatTimer = null;
+      for (const src of this.combatSources) {
+        try {
+          src.stop();
+        } catch {
+          /* already stopped */
+        }
+      }
+      this.combatSources.length = 0;
     }
   }
 
@@ -113,6 +178,11 @@ export class BackgroundMusic {
       console.warn(`[BackgroundMusic] failed to load ${bed} track:`, err);
       if (bed === 'ambient') this.ambientRaw = null;
       else this.combatRaw = null;
+    } finally {
+      if (bed === 'ambient') this.ambientFetchDone = true;
+      else this.combatFetchDone = true;
+      // Late decode if start() already raced ahead of this fetch.
+      if (this.started) void this.decodeMissing().then(() => this.ensureBedPlaying(this.activeBed));
     }
   }
 
@@ -142,15 +212,15 @@ export class BackgroundMusic {
 
       this.ambientGain = ctx.createGain();
       this.combatGain = ctx.createGain();
-      this.ambientGain.gain.value = Math.max(0.0001, 1 - this.intensity);
-      this.combatGain.gain.value = Math.max(0.0001, this.intensity);
+      this.activeBed = this.desiredBed();
+      this.ambientGain.gain.value = this.activeBed === 'ambient' ? 1 : 0.0001;
+      this.combatGain.gain.value = this.activeBed === 'combat' ? 1 : 0.0001;
       this.ambientGain.connect(this.duckBus);
       this.combatGain.connect(this.duckBus);
 
       this.started = true;
       this.starting = false;
-      if (this.ambientBuffer) this.scheduleLayer('ambient', 0);
-      if (this.combatBuffer) this.scheduleLayer('combat', 0);
+      this.ensureBedPlaying(this.activeBed);
 
       const t = ctx.currentTime;
       this.duckBus.gain.setValueAtTime(0.0001, t);
@@ -165,17 +235,20 @@ export class BackgroundMusic {
   }
 
   private async ensureDecoded(): Promise<void> {
-    // Wait briefly for unlock + prefetch if start() races either.
-    for (
-      let i = 0;
-      i < 40 && (!this.sound.audio || (!this.ambientRaw && !this.combatRaw));
-      i++
-    ) {
+    // Wait for AudioContext + both fetches (or timeout) so one bed can't win the race alone.
+    for (let i = 0; i < 80; i++) {
+      const audioReady = !!this.sound.audio;
+      const fetchesDone = this.ambientFetchDone && this.combatFetchDone;
+      const haveAny = !!(this.ambientRaw || this.combatRaw || this.ambientBuffer || this.combatBuffer);
+      if (audioReady && (fetchesDone || (haveAny && i > 20))) break;
       await new Promise((r) => setTimeout(r, 50));
     }
+    await this.decodeMissing();
+  }
+
+  private async decodeMissing(): Promise<void> {
     const ctx = this.sound.audio?.ctx;
     if (!ctx) return;
-
     if (!this.ambientBuffer && this.ambientRaw) {
       const copy = this.ambientRaw.slice(0);
       this.ambientRaw = null;
@@ -193,6 +266,8 @@ export class BackgroundMusic {
     const buf = bed === 'ambient' ? this.ambientBuffer : this.combatBuffer;
     const bedGain = bed === 'ambient' ? this.ambientGain : this.combatGain;
     if (!audio || !buf || !bedGain || !this.started) return;
+    // Don't keep scheduling a bed that is no longer active.
+    if (bed !== this.activeBed) return;
     const { ctx } = audio;
     const when = ctx.currentTime + Math.max(0, delay);
 
@@ -211,6 +286,13 @@ export class BackgroundMusic {
 
     src.start(when);
     src.stop(end + 0.05);
+
+    const bag = bed === 'ambient' ? this.ambientSources : this.combatSources;
+    bag.push(src);
+    src.onended = () => {
+      const i = bag.indexOf(src);
+      if (i >= 0) bag.splice(i, 1);
+    };
 
     const nextIn = Math.max(0, (buf.duration - fade) * 1000);
     if (bed === 'ambient') {
