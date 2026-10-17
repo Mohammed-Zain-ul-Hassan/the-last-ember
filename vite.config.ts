@@ -91,4 +91,6 @@ export default defineConfig({
   base: './',
   server: { port: 5173, strictPort: true, watch: { ignored: ['**/trailer/**'] } },
   plugins: [capture()],
+  // the Still City is the page; the combat game it grew from stays playable at classic.html
+  build: { rollupOptions: { input: { main: 'index.html', classic: 'classic.html' } } },
 });
