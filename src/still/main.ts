@@ -16,6 +16,7 @@ import { BRAZIER_POOL, DistrictView, TORCH_LIGHTS } from './render/districtView'
 import { FigureViews } from './render/figureView';
 import { SCENERY } from './render/scenery';
 import { StillRain } from './render/rain';
+import { dressKnight, stillGait } from './render/gait';
 import { WrongView } from './render/wrongView';
 import { StillHud } from './ui/hud';
 import { StillMenu } from './ui/menu';
@@ -78,6 +79,9 @@ knight.torchLight.distance = 18;
 knight.torchLight.decay = 1.35;
 stage.world.add(knight.root);
 stage.outline.selection.set(knight.outlineTargets);
+// his walk, his sprint and his stillness, and the armour he wears here (render/gait.ts)
+knight.gait = stillGait();
+const dressed = dressKnight(knight);
 const rain = new StillRain();
 stage.scene.add(rain.group);
 const wrongView = new WrongView();
@@ -763,6 +767,7 @@ function frame(now: number): void {
   // in the keep-the-flame ending the flame leaves his hand: his arm comes down once it is far from him
   knight.carry = mode === 'ending' && flameAt.distanceTo(tmp.set(bx, by + 2, bz)) > 1.6 ? null : flameAt;
   knight.update(knightAd, dt, t, smoke, glow, stage.camera);
+  dressed(dt, t, Math.hypot(b.vx, b.vz));
   knight.root.visible = !bodyHidden && (s.status !== 'dead' || s.statusT < 0.4);
   // the fire is drawn on his palm, where his arm actually reached (the sim's point is within a few centimetres)
   if (knight.carry && knight.root.visible) knight.handPos(flameAt).y += 0.1;

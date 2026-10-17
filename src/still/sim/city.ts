@@ -12,7 +12,7 @@ import { inRect, type District, type FigureDef, type MechDef, type Pit, type Pla
 export const DT = 1 / 60;
 // how the flame he carries sets his pace: held low he goes carefully (a low light, eyes on the ground), held up he
 // walks, drawn back (Shift: the flame sheltered behind him) he runs, which is how the chases are played
-export const BODY = { r: 0.32, h: 1.8, careful: 2.4, speed: 4.3, run: 5.4, ghostSpeed: 4.0, accel: 12, gravity: -24 };
+export const BODY = { r: 0.32, h: 1.8, careful: 2.2, speed: 3.5, run: 5.6, ghostSpeed: 3.8, accel: 12, gravity: -24 };
 export const ASH = { start: 5, max: 5, wake: 1, stepIn: 2, rewind: 1 };
 const ALIGN = { tol: 12, exit: 4, hold: 0.4, size: 30, feel: 35 };
 const REACH = 1.8; // how close he must be to a brazier, torch or lever to use it

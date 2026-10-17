@@ -102,6 +102,8 @@ const TRAIL_FRAG = /* glsl */ `
 const KEYS = ['lean', 'bob', 'twist', 'arm', 'armTilt', 'elbow', 'swordRel', 'head', 'th0', 'th1', 'kn0', 'kn1', 'offArm', 'offElbow', 'sy'] as const;
 type Key = (typeof KEYS)[number];
 type Pose = Record<Key, number>;
+/** The knight's joint pose (for a gait supplied from outside: see KnightView.gait). */
+export type KnightJointPose = Pose;
 const REST: Pose = {
   lean: 0.06, bob: 0, twist: 0, arm: 0.45, armTilt: 0.15, elbow: -0.5, swordRel: 1.3, head: -0.05,
   th0: 0.15, th1: -0.15, kn0: 0.1, kn1: 0.12, offArm: 0.2, offElbow: 0.5, sy: 1,
@@ -172,6 +174,15 @@ export class KnightView {
   private torchHalo: THREE.Sprite;
   private emberOrb: THREE.Sprite;
   torchOn = false;
+  /**
+   * A gait from outside for standing and moving (the Still City's careful walk, sprint and idle): fills the target pose
+   * and returns its spring, or null to use the built-in one.
+   */
+  gait: ((p: Pose, k: Knight, t: number, dt: number) => { stiff: number; zeta: number } | null) | null = null;
+  /** The chest group (things worn on the body hang from it). */
+  get torso(): THREE.Group {
+    return this.chest;
+  }
   /** The Still City: no sword; the off hand raised toward a flame held here (world space), or null. */
   carry: THREE.Vector3 | null = null;
   readonly trailColor = new THREE.Color(1.6, 1.3, 3.4);
@@ -377,6 +388,10 @@ export class KnightView {
     let zeta = 0.62;
     const speed = Math.hypot(k.vx, k.vz);
     const breathe = Math.sin(t * 1.9);
+    if (this.gait && (k.state === 'idle' || k.state === 'run')) {
+      const g = this.gait(p, k, t, dt);
+      if (g) return { p, ...g };
+    }
     switch (k.state) {
       case 'idle':
         p.lean = 0.06 + breathe * 0.025;
@@ -868,3 +883,6 @@ export class KnightView {
     this.cape.geometry.computeVertexNormals();
   }
 }
+
+/** The knight's own materials (a variant can dress him differently: the Still City's armour). */
+export const KNIGHT_MATERIALS = { BODY, DARK };
