@@ -36,6 +36,8 @@ import { WorldUi } from './ui/worldUi';
 const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
 const DEMO = params.get('demo') === '1';
+// the live demo (scripts/demo.mjs) can hand the knight to a person and take him back: see window.__demo below
+let demoOn = DEMO;
 let seed = Number(params.get('seed') ?? 1) || 1;
 // The Last Ember is one game in two acts: Act I, the Still City (index.html), hands on to this page, Act II.
 //   ?from=still      straight on from the Heart: the bridge, then sunset (no title)
@@ -574,6 +576,16 @@ function applySettings(): void {
   applyQuality();
 }
 
+function unpause(): void {
+  if (mode !== 'paused') return;
+  menu.close();
+  clearInput();
+  if (pausedFrom === 'play') hud.show(true);
+  setMode(pausedFrom);
+  // a scene paused part-way goes on from where it was (it would otherwise replay from the start)
+  if (pausedFrom !== 'play') [modeT, beat] = pausedAt;
+}
+
 function pause(): void {
   if (mode === 'paused') return;
   wantCursorHidden(false);
@@ -595,14 +607,7 @@ const menu = new Menu({
   begin: lockFor(() => goPrologue()),
   continue: lockFor(() => goLevel(furthest())),
   level: lockFor((i: number) => goLevel(i)),
-  resume: lockFor(() => {
-    menu.close();
-    clearInput();
-    if (pausedFrom === 'play') hud.show(true);
-    setMode(pausedFrom);
-    // a scene paused part-way goes on from where it was (it would otherwise replay from the start)
-    if (pausedFrom !== 'play') [modeT, beat] = pausedAt;
-  }),
+  resume: lockFor(() => unpause()),
   restart: lockFor(() => goLevel(chapterIndex)),
   quit: () => goTitle(),
   changed: () => {
@@ -973,7 +978,7 @@ function choice(dt: number): void {
   const target = dawnBase + 2.5;
   sunEdge += (target - sunEdge) * Math.min(1, dt * 0.9);
   hud.choice(modeT > 0.6);
-  stepSim(DEMO ? { ...NO_INPUT, mx: 1 } : () => ({ ...readInput(rig.yaw), attack: false, heavy: false }), dt);
+  stepSim(demoOn ? { ...NO_INPUT, mx: 1 } : () => ({ ...readInput(rig.yaw), attack: false, heavy: false }), dt);
   const k = world.knight;
   const inLight = k.x > sunEdge + 0.4; // on into the morning: he lets the fire go out
   const inShadow = k.x < dawnBase - 4.4; // back into the gatehouse's shadow, toward the fire: the night begins again
@@ -1059,9 +1064,10 @@ knight.pose = 'kneel';
 kneelAtHearth();
 fitParticles();
 applySettings();
-if (DEMO) {
+if (FROM === 'still') queueMicrotask(goPrologue); // (the demo too: the bridge, then it plays the hours)
+else if (DEMO) {
   /* the demo drives itself */
-} else if (FROM === 'still') queueMicrotask(goPrologue); // (once the whole module has run: state declared below)
+} // (once the whole module has run: state declared below)
 else if (FROM === 'chapters') queueMicrotask(() => goLevel(chapterIndex));
 else menu.open('title');
 if (FROM) {
@@ -1145,7 +1151,7 @@ function update(now: number): void {
       startChapter(chapterIndex, true);
       return;
     }
-    stepSim(DEMO ? () => botInput(world) : () => readInput(rig.yaw), dt);
+    stepSim(demoOn ? () => botInput(world) : () => readInput(rig.yaw), dt);
     placeCheck(rawDt);
     if (world.status === 'cleared') {
       knightX = world.knight.x;
@@ -1250,7 +1256,7 @@ function update(now: number): void {
     // only the demo bot's camera follows him on its own; a player's moves only when they move the mouse (playtesters:
     // a camera that swung by itself, or with the movement keys, was not theirs)
     const speed = Math.hypot(k.vx, k.vz);
-    if (DEMO && speed > 1 && k.state !== 'dash') rig.yaw += angleDiff(rig.yaw, k.yaw) * Math.min(1, rawDt * 2.2 * Math.min(1, speed / CFG.knight.speed));
+    if (demoOn && speed > 1 && k.state !== 'dash') rig.yaw += angleDiff(rig.yaw, k.yaw) * Math.min(1, rawDt * 2.2 * Math.min(1, speed / CFG.knight.speed));
   }
   // lean in a touch while shades are at close quarters, and hold it a second after: a zoom that followed every
   // swing pumped the whole view in and out
@@ -1412,6 +1418,61 @@ function ambient(dt: number): void {
 }
 
 requestAnimationFrame(frame);
+
+// ------------------------------------------------------------------ the live demo (scripts/demo.mjs, ?demo=1)
+// The script drives the demo and may stop at any moment: the page then pauses itself where it stands and hands the
+// knight to a person. The hearth's bot reads the fight as it is (it has no script to lose its place in), so resuming
+// simply gives it the knight back wherever he is.
+if (DEMO) {
+  let demoBeat = 0;
+  const save = () => {
+    try {
+      localStorage.setItem('lastember.demo', JSON.stringify({ act: 2, chapter: chapterIndex, at: Date.now() }));
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  const api = {
+    status: () => ({ act: 2, mode, hour: CHAPTERS[chapterIndex]?.clock, chapter: chapterIndex, demoOn, x: +world.knight.x.toFixed(1), z: +world.knight.z.toFixed(1), time: +world.time.toFixed(1), status: world.status }),
+    beat: () => {
+      demoBeat = Date.now();
+    },
+    save,
+    pause: (why = 'stopped') => {
+      if (!demoOn) return 'already paused';
+      save();
+      demoOn = false;
+      demoBeat = 0;
+      if (mode !== 'title' && mode !== 'paused' && mode !== 'credits') pause();
+      hud.toast(`the demo is paused (${why}): resume from the menu to play`);
+      return 'paused';
+    },
+    resume: () => {
+      demoOn = true;
+      unpause();
+      if (mode === 'title') goLevel(chapterIndex);
+      return `resumed at ${CHAPTERS[chapterIndex]?.clock}`;
+    },
+    skip: () => {
+      const next = Math.min(CHAPTERS.length - 1, chapterIndex + 1);
+      demoOn = true;
+      goLevel(next);
+      return `skipped to ${CHAPTERS[next].clock}`;
+    },
+    forget: () => {
+      try {
+        localStorage.removeItem('lastember.demo');
+      } catch {
+        /* nothing kept */
+      }
+    },
+  };
+  (window as unknown as { __demo: typeof api }).__demo = api;
+  setInterval(() => {
+    if (demoBeat && demoOn && Date.now() - demoBeat > 3000) api.pause('the script stopped');
+  }, 500);
+  setInterval(() => demoOn && mode === 'play' && save(), 4000);
+}
 
 // ------------------------------------------------------------------ debug hooks
 if (DEBUG) {

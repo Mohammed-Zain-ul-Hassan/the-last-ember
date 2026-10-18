@@ -74,6 +74,8 @@ async function stopRecording(): Promise<void> {
 }
 const SCRIPTS = [GATE_SCRIPT, MARKET_SCRIPT, TEMPLE_SCRIPT, LIBRARY_SCRIPT, HEART_SCRIPT];
 let bot: Bot | null = null;
+// the live demo (scripts/demo.mjs) can hand the knight to a person and take him back: see window.__demo below
+let botOn = true;
 
 // ------------------------------------------------------------------ the stage
 const stage = new Stage(document.getElementById('app')!);
@@ -215,6 +217,7 @@ const ending = new Ending({
           if (recording) await stopRecording();
           if (REC) return; // the recorder's driver takes it from here
           const q = new URLSearchParams({ from: 'still' });
+          if (BOT) q.set('demo', '1'); // the live demo plays on into Act II
           for (const k of ['debug', 'seed']) if (params.has(k)) q.set(k, params.get(k) ?? '');
           location.href = `classic.html?${q}`;
         })(),
@@ -486,7 +489,7 @@ function buildInput(): StillInput {
   let actHeld = isHeld('KeyE');
   let rewindHeld = isHeld('KeyR');
   let trim = getTrim();
-  if (bot) {
+  if (bot && botOn) {
     const o = bot.step(city, DT);
     mx = o.input.mx ?? 0;
     mz = o.input.mz ?? 0;
@@ -1080,6 +1083,106 @@ function audioBeds(): void {
     wind: breezeT > 0 ? 0.4 : 0,
     rain: d.rain ? 1 : 0,
   });
+}
+
+// ------------------------------------------------------------------ the live demo (scripts/demo.mjs, ?bot=1)
+// The script drives the bot and may stop at any moment (Ctrl+C, kill -9, a closed terminal): the page then pauses
+// itself where it stands and hands the knight to whoever is on stage. Resuming puts back the exact moment the bot was
+// at (district, every flag and figure, his position and the bot's step), whatever the person did in between, so the
+// bot never has to find its way back from somewhere its script does not expect.
+const DEMO_KEY = 'lastember.demo';
+interface DemoSnap { act: 1; di: number; s: unknown; bot: Record<string, unknown> | null; yaw: number; pitch: number; at: number }
+let demoBeat = 0; // the script's last heartbeat (ms); 0 = no script attached
+let demoSnap: DemoSnap | null = null;
+function demoSnapshot(): DemoSnap {
+  const b = bot ? { ...(bot as unknown as Record<string, unknown>) } : null;
+  if (b) {
+    delete b.script;
+    b.log = [];
+  }
+  return { act: 1, di, s: JSON.parse(JSON.stringify(city.s)), bot: b, yaw: rig.yaw, pitch: rig.pitch, at: Date.now() };
+}
+function demoSave(): void {
+  if (!botOn || mode !== 'play' || cine) return; // only a moment the bot is really playing is worth returning to
+  demoSnap = demoSnapshot();
+  try {
+    localStorage.setItem(DEMO_KEY, JSON.stringify(demoSnap));
+  } catch {
+    /* storage unavailable: the in-page copy still serves a resume in this window */
+  }
+}
+const demoApi = {
+  /** Where the bot is (for the script's status line and its stall check). */
+  status: () => ({ act: 1, mode, di, district: DISTRICTS[di].name, goal: bot?.index ?? -1, botOn, x: +city.s.body.x.toFixed(1), z: +city.s.body.z.toFixed(1), t: +city.s.t.toFixed(1), status: city.s.status, ending: ending.phase }),
+  beat: () => {
+    demoBeat = Date.now();
+  },
+  save: demoSave,
+  /** Stop the bot where it stands: save the moment, pause (a person can resume from the menu and play). */
+  pause: (why = 'stopped') => {
+    if (!botOn) return 'already paused';
+    demoSave();
+    botOn = false;
+    demoBeat = 0;
+    if (mode === 'play') setPaused(true);
+    captions.note(`The demo is paused (${why}). Resume from the menu to play.`, 3);
+    return 'paused';
+  },
+  /** Back to the saved moment (this window's, or the one kept in storage), and the bot plays on. */
+  resume: (snap?: DemoSnap | null) => {
+    let sn = snap ?? demoSnap;
+    if (!sn) {
+      try {
+        sn = JSON.parse(localStorage.getItem(DEMO_KEY) ?? 'null');
+      } catch {
+        sn = null;
+      }
+    }
+    if (mode === 'title') begin();
+    if (cine) endCine();
+    if (sn && sn.act === 1) {
+      if (sn.di !== di) {
+        load(sn.di);
+        enterDistrict(false);
+        if (cine) endCine();
+      }
+      city.s = structuredClone(sn.s) as typeof city.s;
+      if (bot && sn.bot) Object.assign(bot, sn.bot);
+      rig.yaw = sn.yaw;
+      rig.pitch = sn.pitch;
+      rig.target.set(city.s.body.x, 0, city.s.body.z);
+    }
+    botOn = true;
+    if (mode === 'pause') setPaused(false);
+    return sn ? `resumed at ${DISTRICTS[di].name}, step ${bot?.index ?? '?'}` : 'no saved moment: playing on from here';
+  },
+  /** A stuck bot: start this district again from its brazier (hard: go on to the next district). */
+  skip: (hard = false) => {
+    const next = hard ? Math.min(DISTRICTS.length - 1, di + 1) : di;
+    load(next, city.s.ash);
+    if (mode !== 'play' && mode !== 'pause') mode = 'play';
+    if (mode === 'pause') setPaused(false);
+    botOn = true;
+    enterDistrict(false);
+    return `skipped to ${DISTRICTS[next].name}`;
+  },
+  forget: () => {
+    demoSnap = null;
+    try {
+      localStorage.removeItem(DEMO_KEY);
+    } catch {
+      /* nothing kept */
+    }
+  },
+};
+if (BOT) {
+  (window as unknown as { __demo: typeof demoApi }).__demo = demoApi;
+  // the script's heartbeat stops (Ctrl+C, kill -9, the terminal closed): pause right here
+  setInterval(() => {
+    if (demoBeat && botOn && Date.now() - demoBeat > 3000) demoApi.pause('the script stopped');
+  }, 500);
+  // keep a recent moment to come back to, even if the window itself is closed
+  setInterval(demoSave, 4000);
 }
 
 // ------------------------------------------------------------------ boot

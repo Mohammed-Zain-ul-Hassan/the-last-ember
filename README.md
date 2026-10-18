@@ -22,6 +22,19 @@ from sunset to dawn, while the night comes for the second you stole.
   npm i && npm run dev
   ```
 
+## Live demo (the bot plays it)
+```bash
+python demo.py
+```
+This opens a Chrome window on the local dev server (http://localhost:5174, started with `python run.py` if it is not
+running; no internet needed), and the bot plays both acts. Stop it any time (Ctrl+C, or close the terminal): the game
+pauses where it stands and the window stays open, so anyone can resume from the menu and play. Run it again and the bot
+takes over from exactly where it was, whatever was done in between.
+- `python demo.py --restart` starts from the very beginning.
+- `python demo.py --live` plays the deployed site instead.
+
+If the bot stops making progress, it restarts its district (or skips ahead) by itself. Details: `scripts/demo.mjs`.
+
 ## Two acts, one night
 1. **Act I: The Still City.** A third-person puzzle adventure through five districts: the Gate Ward, the Market of
    Weights, the Temple of Hours, the Library of Whispers and the Heart.
