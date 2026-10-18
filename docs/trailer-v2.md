@@ -1,10 +1,22 @@
 # The Last Ember: trailer v2 (both acts). Prep only.
 
-**Status (2026-10-18, ~03:30):** planned, scored and wired. Nothing is recorded.
-- Recording waits until the group says **"we are done, record now"**.
-- Zain chooses which build to record: production, or the `merged-game` preview.
-- An animatic renders now. Every shot not yet captured plays as a labelled slate, under the real cards, lines and score:
-  `trailer/scripts/build_v2.sh preview` produces `trailer/out/v2_preview_540p.mp4` and `v2_contact_sheet.jpg`.
+**Status (2026-10-18, ~06:00): DRAFT recorded and rendered from `merged-game`, pending Zain's review.**
+- **File:** `trailer/out/the-last-ember-trailer-v2.mp4` (local, not in git).
+- **QC, measured on the file:**
+  - Length: 179.0 s, inside Zain's strict 2:40–3:10 window and under the handbook's 3:00.
+  - Picture: 1920x1080, 60 fps CFR, yuv420p, broadcast range. No black frames ≥ 0.25 s.
+  - Sound: AAC 48 kHz stereo. −14.8 LUFS integrated, LRA 8.7 LU, true peak −2.3 dBTP.
+  - Contact sheet: `trailer/out/v2_final_contact.jpg`.
+- **Takes** (`capture-v2.mjs`, real recordings of the tab with HUD, captions and game sound, plus moments logs):
+  - Act I: A1_main (7.3 min, every district to "Carry it out") and A1_library, both on Easy.
+  - Act II: 7 PM, 9 PM, 11 PM, 1 AM, 3 AM, 5 AM and A2_marshal on **Hard** (Ahnaf's tuning: on Easy the Marshal fell in 11 s); midnight and dawn.
+- **Problems fixed while recording:**
+  - The debug fps line was showing in the recordings.
+  - Act II's start click took the pointer lock, was refused, and the game paused: the first midnight and dawn takes were under the pause menu.
+  - The Library take clicked before the district was built.
+  - The Marshal is far down the road, so a separate take starts at the apse.
+  - Chrome's sharing bar shortens the page to 1920x1004: the build crops to 16:9 instead of stretching.
+- **Known issue for review:** around 1:58 (the 7 PM shot) the demo bot's camera clips through the hearth hut's roof for under a second.
 - Shape (Moeez): a stylised first minute, then two minutes of pure gameplay.
 
 ## Rules this cut is built to (docs/handbook.md, the jam-trailer skill, and Moeez's structure)

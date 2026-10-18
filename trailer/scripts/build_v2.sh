@@ -15,7 +15,11 @@ for c in $(python3 -c "import json;print(' '.join(sorted({s['src'] for s in json
   # tab recordings are VFR, and Chrome's sharing bar shortens the page (1920x1004): crop to 16:9 (never stretch),
   # then 1080p60 CFR H.264 + AAC 48 kHz (trims and Remotion need CFR)
   n=$(basename "$c" .mp4)
-  [ -e "work/$n.cfr.mp4" ] || caffeinate -is ffmpeg -v error -y -i "raw/$n.mp4" -vf "crop='min(iw,ih*16/9)':'min(ih,iw*9/16)',scale=1920:1080:flags=lanczos,fps=60,format=yuv420p" -c:v libx264 -preset medium -crf 14 -c:a aac -ar 48000 -b:a 256k "work/$n.cfr.mp4"
+  if [ ! -e "work/$n.cfr.mp4" ]; then
+    echo "normalising $n"
+    caffeinate -is ffmpeg -v error -y -i "raw/$n.mp4" -vf "crop='min(iw,ih*16/9)':'min(ih,iw*9/16)',scale=1920:1080:flags=lanczos,fps=60,format=yuv420p" -c:v libx264 -preset veryfast -crf 14 -c:a aac -ar 48000 -b:a 256k "work/$n.tmp.mp4"
+    mv "work/$n.tmp.mp4" "work/$n.cfr.mp4"  # (written under another name first: a killed run never leaves half a file)
+  fi
   [ -e "public/$c" ] || ln "work/$n.cfr.mp4" "public/$c"
 done
 [ -f music/score_v2.wav ] && [ music/score_v2.wav -nt shotlist.json ] || $PY scripts/score_v2.py

@@ -134,7 +134,10 @@ for i, th in enumerate(THEMES):
 # Moeez: the last two minutes are pure gameplay. Everything from GAMEPLAY_FROM on is raw play, one shot after
 # another, with no cards and no cutscenes; only small corner tags (a theme word, the play link) sit over it.
 GAMEPLAY_FROM = total - 120.0
-assert 175.0 <= total <= 179.5, f"about three minutes: {total:.2f} s"
+# Zain (2026-10-18): strictly between 2:40 and 3:10, anything over or under is disqualified; the handbook caps it
+# at 3:00. So 160 <= total <= 180, and this cut aims inside with a margin either side.
+assert 160.0 <= total <= 190.0, f"outside Zain's 2:40-3:10 window: {total:.2f} s"
+assert 165.0 <= total <= 179.5, f"keep a margin inside 2:40-3:00: {total:.2f} s"
 tail = [s for s in shots if s["start"] + s["dur"] > GAMEPLAY_FROM + 1e-3]
 assert abs(tail[0]["start"] - GAMEPLAY_FROM) < 1e-3, f"the gameplay block must begin on a cut: {tail[0]['id']} spans {GAMEPLAY_FROM:.2f}"
 for s in tail:
