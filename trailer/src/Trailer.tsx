@@ -10,7 +10,7 @@ const Gameplay: React.FC<{ shot: Shot }> = ({ shot }) => {
   const { fps } = useVideoConfig();
   return (
     <AbsoluteFill>
-      <OffthreadVideo src={staticFile(shot.src!)} trimBefore={Math.round((shot.in ?? 0) * fps)} playbackRate={shot.speed ?? 1} muted={!shot.vol} volume={shot.vol ?? 0} style={{ width: "100%", height: "100%", filter: shot.fx === "impact" ? "brightness(1.32) contrast(1.12) saturate(1.15)" : "brightness(1.14) contrast(1.05)" }} />
+      <OffthreadVideo src={staticFile(shot.src!)} trimBefore={Math.round((shot.in ?? 0) * fps)} playbackRate={shot.speed ?? 1} muted={!shot.vol} volume={(f) => (shot.vol ?? 0) * Math.min(1, (f + 1) / 3, (Math.round(shot.dur * fps) - f) / 3)} style={{ width: "100%", height: "100%", filter: shot.fx === "impact" ? "brightness(1.32) contrast(1.12) saturate(1.15)" : "brightness(1.14) contrast(1.05)" }} />
     </AbsoluteFill>
   );
 };
