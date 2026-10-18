@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill, OffthreadVideo, Sequence, staticFile, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, OffthreadVideo, Sequence, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { ActCard, CornerTag, Credits, EndCard, Impact, Letterbox, LowerThird, Scene, Slate, StoryLine, Tag, ThemeCard, TitleCard } from "./components/Cards";
 import { colorOf } from "./theme";
 import { C } from "./theme";
@@ -10,7 +10,33 @@ const Gameplay: React.FC<{ shot: Shot }> = ({ shot }) => {
   const { fps } = useVideoConfig();
   return (
     <AbsoluteFill>
-      <OffthreadVideo src={staticFile(shot.src!)} trimBefore={Math.round((shot.in ?? 0) * fps)} muted={!shot.vol} volume={shot.vol ?? 0} style={{ width: "100%", height: "100%", filter: shot.fx === "impact" ? "brightness(1.32) contrast(1.12) saturate(1.15)" : "brightness(1.14) contrast(1.05)" }} />
+      <OffthreadVideo src={staticFile(shot.src!)} trimBefore={Math.round((shot.in ?? 0) * fps)} playbackRate={shot.speed ?? 1} muted={!shot.vol} volume={shot.vol ?? 0} style={{ width: "100%", height: "100%", filter: shot.fx === "impact" ? "brightness(1.32) contrast(1.12) saturate(1.15)" : "brightness(1.14) contrast(1.05)" }} />
+    </AbsoluteFill>
+  );
+};
+
+/** The film finish over everything: grain (four plates, a new one every 2 frames) and a soft vignette. */
+const Finish: React.FC = () => {
+  const f = useCurrentFrame();
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none" }}>
+      <AbsoluteFill style={{ background: "radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.38) 100%)" }} />
+      <Img src={staticFile(`fx/grain${Math.floor(f / 2) % 4}.png`)} style={{ width: "100%", height: "100%", opacity: 0.075, mixBlendMode: "overlay" }} />
+    </AbsoluteFill>
+  );
+};
+
+/** A warm anamorphic light leak sweeping across the frame as a card arrives. */
+const LightLeak: React.FC = () => {
+  const f = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const t = f / fps;
+  const k = Math.max(0, Math.min(1, t / 0.18)) * Math.max(0, 1 - (t - 0.18) / 0.55);
+  const x = -40 + t * 260;
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none", mixBlendMode: "screen", opacity: k }}>
+      <AbsoluteFill style={{ background: `radial-gradient(ellipse 60% 18% at ${x}% 50%, rgba(255,170,90,0.85) 0%, rgba(255,110,40,0.35) 40%, rgba(0,0,0,0) 75%)` }} />
+      <AbsoluteFill style={{ background: `linear-gradient(90deg, rgba(0,0,0,0) ${x - 30}%, rgba(255,200,140,0.35) ${x}%, rgba(0,0,0,0) ${x + 30}%)` }} />
     </AbsoluteFill>
   );
 };
@@ -33,6 +59,14 @@ export const Trailer: React.FC<{ plan: Shotlist }> = ({ plan }) => {
           {s.kind === "end" && <EndCard title={plan.title} url={plan.url} themes={plan.themes} />}
         </Sequence>
       ))}
+      {plan.shots
+        .filter((s) => ["title", "card", "act", "credits"].includes(s.kind))
+        .map((s) => (
+          <Sequence key={`leak-${s.id}`} name={`leak-${s.id}`} from={f(s.start) - 6} durationInFrames={Math.round(0.8 * fps)}>
+            <LightLeak />
+          </Sequence>
+        ))}
+      <Finish />
       {plan.letterbox_until ? (
         <Sequence name="letterbox" from={0} durationInFrames={f(plan.letterbox_until)}>
           <Letterbox />

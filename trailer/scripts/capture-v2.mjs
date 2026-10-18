@@ -36,6 +36,8 @@ const TAKES = {
   A2_3am: { act: 'II', diff: 'hard', q: 'from=chapters&chapter=4&demo=1&seed=9', secs: 60, setup: 'G.godMode = true', note: '3 AM: the cathedral nave (escalation shots)' },
   // the Marshal waits at the apse, far down the road: start the knight near it (v1's drive.mjs did the same)
   A2_marshal: { act: 'II', diff: 'hard', q: 'from=chapters&chapter=4&demo=1&seed=9', secs: 55, setup: 'G.godMode = true; setTimeout(() => { G.world.knight.x = 62; }, 4000)', note: '3 AM: the apse, the Hollow Marshal rises, his cry, the waves, the kill (the 21 s climax take)' },
+  A2_marshal2: { act: 'II', diff: 'hard', q: 'from=chapters&chapter=4&demo=1&seed=21', secs: 40, setup: 'G.godMode = true; setTimeout(() => { G.world.knight.x = 62; }, 4000)', note: '3 AM: the Marshal again, another seed (a cleaner camera on his fall)' },
+  A2_marshal3: { act: 'II', diff: 'hard', q: 'from=chapters&chapter=4&demo=1&seed=33', secs: 40, setup: 'G.godMode = true; setTimeout(() => { G.world.knight.x = 62; }, 4000)', note: '3 AM: the Marshal, a third seed' },
   A2_5am: { act: 'II', diff: 'hard', q: 'from=chapters&chapter=5&demo=1&seed=55', secs: 40, setup: 'G.godMode = true', note: '5 AM: the wall walk, lantern-eaters, the climb to the Dawn Gate' },
   A2_dawn: { act: 'II', q: 'from=chapters&chapter=5&seed=10', secs: 45, setup: 'G.dawn()', note: 'Dawn: the reveal ("It was you"), the choice, into the light' },
 };

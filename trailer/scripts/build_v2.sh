@@ -25,6 +25,14 @@ for c in $(python3 -c "import json;print(' '.join(sorted({s['src'] for s in json
   [ -e "public/$c" ] || ln "work/$n.cfr.mp4" "public/$c"
 done
 [ -f music/score_v2.wav ] && [ music/score_v2.wav -nt shotlist.json ] || $PY scripts/score_v2.py
+# the film grain plates (regenerable, not in git)
+[ -f public/fx/grain3.png ] || $PY -c "
+import numpy as np, os
+from PIL import Image, ImageFilter
+os.makedirs('public/fx', exist_ok=True)
+rng = np.random.default_rng(3)
+for i in range(4):
+    Image.fromarray(rng.normal(128, 38, (540, 960)).clip(0, 255).astype(np.uint8), 'L').filter(ImageFilter.GaussianBlur(0.6)).save(f'public/fx/grain{i}.png')"
 
 if [ "$MODE" = preview ]; then SCALE="--scale=0.5 --crf=22"; OUT=work/v2_preview_video.mp4; else SCALE="--crf=15 --x264-preset=slow --pixel-format=yuv420p"; OUT=work/v2_final_video.mp4; fi
 caffeinate -is npx remotion render src/index.ts Trailer "$OUT" --codec=h264 $SCALE --concurrency=8

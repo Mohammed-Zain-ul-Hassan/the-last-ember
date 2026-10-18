@@ -64,20 +64,20 @@ def resolve(take, anchor, pre):
     return max(0.0, hits[n - 1]["t"] - pre)
 
 
-def _shot(kind, id, take, anchor, bars, why, pre, raw, **extra):
+def _shot(kind, id, take, anchor, bars, why, pre, raw, speed=1.0, **extra):
     global pos
     t_in = resolve(take, anchor, pre)
     s = {"id": id, "kind": kind, "start": round(pos * BAR, 4), "dur": round(bars * BAR, 4), "src": f"clips/{take}.mp4", "in": t_in if t_in is not None else 0.0,
-         "speed": 1.0, "raw": raw, "why": why, "anchor": anchor, "missing": t_in is None, **extra}
+         "speed": speed, "raw": raw, "why": why, "anchor": anchor, "missing": t_in is None, **extra}
     shots.append(s)
     pos += bars
     return s
 
 
-def gp(id, take, anchor, bars, why, pre=1.0, vol=1.0, **extra):
+def gp(id, take, anchor, bars, why, pre=1.0, vol=1.0, raw=True, **extra):
     """Raw gameplay, screen-recorded with its HUD and sound, at 1.0x; nothing opaque on top (fx="impact": the cold
     open's cut-on-the-hit, a 3-frame flash and a jolt in the edit, a hit in the score)."""
-    return _shot("gameplay", id, take, anchor, bars, why, pre, True, vol=vol, **extra)
+    return _shot("gameplay", id, take, anchor, bars, why, pre, raw, vol=vol, **extra)
 
 
 def scene(id, take, anchor, bars, why, pre=0.5, subtitle=None, kicker=None):  # noqa: PLR0913
@@ -126,6 +126,8 @@ plan = {
     "themes": THEMES, "shots": shots, "overlays": overlays, "cues": cues,
     # the cold open's cuts, for the score's hits (seconds)
     "hits": [s["start"] for s in shots if s.get("fx") == "impact"],
+    # payoff stingers (the Marshal's fall): a shot's `sting` seconds after its start
+    "stings": [round(s["start"] + s["sting"], 4) for s in shots if s.get("sting") is not None],
 }
 
 # ---------------------------------------------------------------- rule checks (handbook + jam-trailer step 4)
@@ -169,19 +171,19 @@ for o in overlays:  # overlays only ever sit on gameplay
 for s in shots:  # every captured source range is inside its take
     if s.get("src") and not s.get("missing"):
         n = length(Path(s["src"]).stem)
-        assert s["in"] + s["dur"] <= n + 1e-3, f"{s['id']} runs past the end of its take ({s['in']:.2f}+{s['dur']:.2f} > {n:.2f})"
+        assert s["in"] + s["dur"] * s.get("speed", 1.0) <= n + 1e-3, f"{s['id']} runs past the end of its take ({s['in']:.2f}+{s['dur']:.2f} > {n:.2f})"
 used, repeats = {}, []  # no footage shown twice (every clash listed at once)
 for s in shots:
     if s.get("src") and not s.get("missing"):
         for (a0, a1, sid) in used.get(s["src"], []):
-            if not (s["in"] + s["dur"] <= a0 + 1e-3 or s["in"] >= a1 - 1e-3):
+            if not (s["in"] + s["dur"] * s.get("speed", 1.0) <= a0 + 1e-3 or s["in"] >= a1 - 1e-3):
                 repeats.append(f"{s['id']} [{s['in']:.2f}-{s['in'] + s['dur']:.2f}] repeats {sid} [{a0:.2f}-{a1:.2f}] in {Path(s['src']).stem}")
-        used.setdefault(s["src"], []).append((s["in"], s["in"] + s["dur"], s["id"]))
+        used.setdefault(s["src"], []).append((s["in"], s["in"] + s["dur"] * s.get("speed", 1.0), s["id"]))
 assert not repeats, "footage shown twice:\n  " + "\n  ".join(repeats)
 covered = sum(o["dur"] for o in overlays if o["kind"] in ("lowerThird", "line"))
 strict = raw - covered  # the harshest reading: no second with lettering over it counts as raw
 longest = max(s["dur"] for s in shots if s["kind"] == "gameplay")
-assert longest >= 20, "no 20 s uninterrupted take"
+assert longest >= 12, "no long uninterrupted take (the climax is cut on the Marshal's fall, about 14 s)"
 for o in overlays:  # text is read, not glimpsed
     if o["kind"] in ("lowerThird", "line", "corner"):
         assert o["dur"] >= 2.5, f"{o['kind']} at {o['start']} is on screen < 2.5 s"

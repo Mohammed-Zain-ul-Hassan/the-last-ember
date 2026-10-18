@@ -313,7 +313,7 @@ export const LowerThird: React.FC<{ index: number; theme: Theme }> = ({ index, t
   return (
     <AbsoluteFill style={{ opacity: out }}>
       <div style={{ position: "absolute", left: 0, bottom: 0, width: 1250, height: 330, background: `linear-gradient(90deg, ${C.ink}cc 0%, ${C.ink}77 55%, transparent 100%)`, maskImage: "linear-gradient(0deg, black 55%, transparent 100%)", opacity: a }} />
-      <div style={{ position: "absolute", left: 80, bottom: 76, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ position: "absolute", left: 80, bottom: 156, display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16, opacity: a }}>
           <div style={{ width: interpolate(a, [0, 1], [0, 70]), height: 2, background: col, boxShadow: `0 0 12px ${col}` }} />
           <div style={{ fontFamily: DISPLAY, fontSize: 30, letterSpacing: "0.45em", color: col }}>{`THEME ${ROMAN[index]}`}</div>

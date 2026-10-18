@@ -392,28 +392,28 @@ def S_title(b0, b1):
 
 def S_still(b0, b1):
     """The frozen city: a drone, the clock, the theme a note at a time, a pulse under it."""
-    drone(38, bt(b0), (b1 - b0) * BAR, 0.4)
-    pad_p(b0, b1, 0.28, 0.2)
-    ticks(b0, b1, 0.24, every=1)
-    sparse_piano(b0, b1, 0.5)
+    drone(38, bt(b0), (b1 - b0) * BAR, 0.6)
+    pad_p(b0, b1, 0.42, 0.2)
+    ticks(b0, b1, 0.36, every=1)
+    sparse_piano(b0, b1, 0.75)
     b = b0
     while b < b1 - 1e-6:
-        pluck_bass(ROOTS[id(DM)] + 12, bt(b), 0.4)
+        pluck_bass(ROOTS[id(DM)] + 12, bt(b), 0.6)
         b += 0.5
 
 
 def S_puzzle(b0, b1):
     """Finding the true angle: the drone, a slow pulse, a bell when it wakes (on the next downbeat). Kept present (not
     a lull): a low taiko on every bar under it."""
-    drone(38, bt(b0), (b1 - b0) * BAR, 0.4)
-    pad_p(b0, b1, 0.32, 0.25)
+    drone(38, bt(b0), (b1 - b0) * BAR, 0.6)
+    pad_p(b0, b1, 0.48, 0.25)
     b = b0
     while b < b1 - 1e-6:
-        pluck_bass(ROOTS[id(DM)] + 12, bt(b), 0.45)
-        pluck_bass(ROOTS[id(DM)] + 13, bt(b, 2), 0.32)  # the Phrygian semitone
-        taiko(bt(b), 0.32, 0.8)
+        pluck_bass(ROOTS[id(DM)] + 12, bt(b), 0.68)
+        pluck_bass(ROOTS[id(DM)] + 13, bt(b, 2), 0.48)  # the Phrygian semitone
+        taiko(bt(b), 0.48, 0.8)
         b += 1
-    ticks(b0, b1, 0.2, every=1)
+    ticks(b0, b1, 0.30, every=1)
     section_choir(b0 + (b1 - b0) / 2, b1, 0.12, vowel=(300, 870, 2240))
 
 
@@ -586,6 +586,16 @@ def S_credits(b0, b1):
 SECTIONS = {k[2:]: v for k, v in globals().items() if k.startswith("S_")}
 for c in plan["cues"]:
     SECTIONS[c["name"]](c["b0"], c["b1"])
+# payoff stingers (the Marshal's fall): a reversed swell into a boom, a braam, a bright crash, and the choir on top
+for t_s in plan.get("stings", []):
+    reverse_swell(t_s, 1.2, 0.6)
+    boom(t_s, 1.0)
+    braam(t_s, 1.0, root=38)
+    n = int(2.5 * SR)
+    tt = np.arange(n) / SR
+    crash = hp(rng.standard_normal(n).astype(np.float32), 4000) * np.exp(-tt * 2.2) * 0.6
+    put("fx", crash.astype(np.float32), t_s, 0.7)
+    choir([74, 77, 81], t_s, 2.5, 0.5)
 
 # ---------------------------------------------------------------- mix
 GAIN = {"pad": 0.55, "ost": 0.5, "piano": 0.55, "choir": 0.5, "drums": 0.75, "brass": 0.42, "fx": 0.8, "drone": 0.5, "tick": 0.45}

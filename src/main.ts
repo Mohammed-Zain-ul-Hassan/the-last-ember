@@ -11,7 +11,7 @@ import { LEVELS } from './data/levels';
 import { Memories } from './render/memory';
 import { playEvents, type FxTargets } from './fx';
 import { clearInput, initInput, isHeld, onKey, readInput, sinceLook, takeLook } from './input';
-import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, ROAD_CARD_SHOT, TITLE_SHOT } from './render/cameraRig';
+import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, ROAD_CARD_SHOT, TITLE_SHOT, FOLLOW } from './render/cameraRig';
 import { angleDiff } from './sim/geom';
 import { Hearth } from './render/hearth';
 import { KnightView, setKnightFade } from './render/knightView';
@@ -44,6 +44,10 @@ const FROM = params.get('from');
 // ?rec=1&name=x: record this tab as seen and heard (the trailer's screen recording; the first click starts it), with a
 // <name>-moments.json of every event and mode change on the recording's clock. window.__recStop() ends it.
 const REC = params.get('rec') === '1';
+// A recording is filmed through a director's camera: pulled back and up, looking down on the fight over the walls that
+// made the gameplay camera jam into him (and into roofs) in tight places; a touch wider.
+const DIRECTOR = REC && params.get('cam') === 'director'; // opt-in: ?rec=1&cam=director
+if (DIRECTOR) Object.assign(FOLLOW, { dist: 11.5, torchDist: 10.5, height: 2.8, fov: 56, pitch: 0.62, lookAhead: 2.2 });
 let recording: Recording | null = null;
 let recT0 = 0;
 const moments: Record<string, unknown>[] = [];
@@ -1253,6 +1257,12 @@ function update(now: number): void {
   const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.hypot(s.x - k.x, s.z - k.z) < 3.5);
   closeT = close ? 1 : Math.max(0, closeT - rawDt);
   rig.zoomTarget = closeT > 0 ? 0.93 : 1;
+  if (DIRECTOR) {
+    // the director's camera (recordings only, play is untouched): no combat lean-in, the pitch held high, a gentler shake
+    rig.zoomTarget = 1;
+    rig.pitch = 0.62;
+    rig.shakeScale = 0.5;
+  }
   rig.grounded = k.onGround || mode !== 'play';
   rig.update(rawDt, t, world.solids);
   fitParticles(); // particle sizes follow the lens as it changes (they were fitted to the title's 36 deg once)
