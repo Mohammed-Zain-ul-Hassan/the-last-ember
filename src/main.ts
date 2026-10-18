@@ -506,12 +506,13 @@ function furthest(): number {
 initInput(stage.renderer.domElement);
 // the cursor hides (and the pointer locks) while the game is played; Esc releases it and pauses
 initCursor(stage.renderer.domElement, () => {
-  if (mode !== 'title' && mode !== 'paused' && mode !== 'credits') pause();
+  // (a recording never pauses itself: the click that starts it is not a player's)
+  if (!REC && mode !== 'title' && mode !== 'paused' && mode !== 'credits') pause();
 });
 // every way into play from a menu is a click or a key: take the lock in that same gesture
 const lockFor = <A extends unknown[]>(fn: (...a: A) => void) => (...a: A): void => {
   fn(...a);
-  if (!DEMO) requestLock();
+  if (!DEMO && !REC) requestLock();
 };
 onKey((code) => {
   initAudio();
@@ -1076,7 +1077,7 @@ function frame(now: number): void {
   if (!manualClock) update(now);
   requestAnimationFrame(frame);
   // no cursor while the game is being played (a menu, the title or the credits bring it back)
-  wantCursorHidden(!DEMO && mode !== 'title' && mode !== 'paused' && mode !== 'credits' && !menu.isOpen, mode === 'play');
+  wantCursorHidden(!DEMO && !REC && mode !== 'title' && mode !== 'paused' && mode !== 'credits' && !menu.isOpen, mode === 'play');
 }
 
 // adaptive quality: if real frames run slow for ~2 s, drop the internal resolution one step (never back up)
@@ -1300,7 +1301,7 @@ function update(now: number): void {
     frames++;
     fpsT += rawDt;
     if (fpsT >= 0.5) {
-      hud.fps(`${Math.round(frames / fpsT)} fps · ${glow.alive + smoke.alive} particles · ${mode}`);
+      if (!REC) hud.fps(`${Math.round(frames / fpsT)} fps · ${glow.alive + smoke.alive} particles · ${mode}`); // (never in a recording)
       frames = 0;
       fpsT = 0;
     }

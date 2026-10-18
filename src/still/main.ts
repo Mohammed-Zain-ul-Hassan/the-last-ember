@@ -786,7 +786,7 @@ let fpsT = 0;
 let fpsN = 0;
 const fpsEl = document.createElement('div');
 fpsEl.style.cssText = 'position:fixed;right:10px;bottom:8px;font:12px ui-monospace,monospace;color:#9f9;z-index:30';
-if (DEBUG) document.body.appendChild(fpsEl);
+if (DEBUG && !REC) document.body.appendChild(fpsEl); // (never in a recording)
 const tmp = new THREE.Vector3();
 
 function frame(now: number): void {
