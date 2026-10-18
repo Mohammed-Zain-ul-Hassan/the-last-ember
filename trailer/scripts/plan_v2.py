@@ -74,9 +74,10 @@ def _shot(kind, id, take, anchor, bars, why, pre, raw, **extra):
     return s
 
 
-def gp(id, take, anchor, bars, why, pre=1.0, vol=1.0):
-    """Raw gameplay, screen-recorded with its HUD and sound, at 1.0x; nothing opaque on top."""
-    return _shot("gameplay", id, take, anchor, bars, why, pre, True, vol=vol)
+def gp(id, take, anchor, bars, why, pre=1.0, vol=1.0, **extra):
+    """Raw gameplay, screen-recorded with its HUD and sound, at 1.0x; nothing opaque on top (fx="impact": the cold
+    open's cut-on-the-hit, a 3-frame flash and a jolt in the edit, a hit in the score)."""
+    return _shot("gameplay", id, take, anchor, bars, why, pre, True, vol=vol, **extra)
 
 
 def scene(id, take, anchor, bars, why, pre=0.5, subtitle=None, kicker=None):  # noqa: PLR0913
@@ -84,9 +85,14 @@ def scene(id, take, anchor, bars, why, pre=0.5, subtitle=None, kicker=None):  # 
     return _shot("scene", id, take, anchor, bars, why, pre, False, vol=0.9, **({"subtitle": subtitle} if subtitle else {}), **({"kicker": kicker} if kicker else {}))
 
 
-def card(id, kind, bars, why, **extra):
+def card(id, kind, bars, why, clip=None, src_in=None, **extra):
+    """A produced shot: a card, the black, the title (over `clip` from `src_in`, dimmed), the credits."""
     global pos
-    shots.append({"id": id, "kind": kind, "start": round(pos * BAR, 4), "dur": round(bars * BAR, 4), "raw": False, "why": why, **extra})
+    s = {"id": id, "kind": kind, "start": round(pos * BAR, 4), "dur": round(bars * BAR, 4), "raw": False, "why": why, **extra}
+    if clip:
+        s["src"], s["in"] = f"clips/{clip}.mp4", src_in
+        s["missing"] = length(clip) is None
+    shots.append(s)
     pos += bars
 
 
@@ -118,12 +124,14 @@ plan = {
     "title": "THE LAST EMBER",
     "logline": "Carry the last fire. Hold back the night.",
     "themes": THEMES, "shots": shots, "overlays": overlays, "cues": cues,
+    # the cold open's cuts, for the score's hits (seconds)
+    "hits": [s["start"] for s in shots if s.get("fx") == "impact"],
 }
 
 # ---------------------------------------------------------------- rule checks (handbook + jam-trailer step 4)
 for a, b in zip(shots, shots[1:]):
     assert abs(a["start"] + a["dur"] - b["start"]) < 1e-3, f"gap/overlap between {a['id']} and {b['id']}"
-assert total <= 179.0, f"too long: {total:.2f} s"
+assert total <= 179.5, f"too long: {total:.2f} s (the handbook caps it at 3:00)"
 raw = sum(s["dur"] for s in shots if s["kind"] == "gameplay" and s["raw"])
 produced = total - raw
 assert raw >= 121.0, f"raw gameplay {raw:.2f} s < 121 s (rule: >= 120 s, kept a margin)"
@@ -131,19 +139,24 @@ assert produced <= 59.0, f"produced {produced:.2f} s > 59 s"
 for i, th in enumerate(THEMES):
     assert any(o["theme"] == i and o["kind"] == "lowerThird" for o in overlays), f"{th['name']} has no lower-third over gameplay"
     assert any(s.get("theme") == i for s in shots), f"{th['name']} has no explainer card"
-# Moeez: the last two minutes are pure gameplay. Everything from GAMEPLAY_FROM on is raw play, one shot after
-# another, with no cards and no cutscenes; only small corner tags (a theme word, the play link) sit over it.
-GAMEPLAY_FROM = total - 120.0
+# Moeez: two minutes of pure gameplay; Zain: then credits, not an abrupt end. So the 120 s right before the credits
+# card are raw play, one shot after another, with no cards and no cutscenes; only small corner tags sit over them.
+credits = shots[-1]
+assert credits["kind"] == "credits" and credits["dur"] >= 6, "the trailer ends on the credits, held at least 6 s"
+GAMEPLAY_TO = credits["start"]
+GAMEPLAY_FROM = GAMEPLAY_TO - 120.0
+plan["letterbox_until"] = next(s["start"] for s in shots if s["kind"] == "black")  # cinema bars over the cold open only
 # Zain (2026-10-18): strictly between 2:40 and 3:10, anything over or under is disqualified; the handbook caps it
 # at 3:00. So 160 <= total <= 180, and this cut aims inside with a margin either side.
 assert 160.0 <= total <= 190.0, f"outside Zain's 2:40-3:10 window: {total:.2f} s"
 assert 165.0 <= total <= 179.5, f"keep a margin inside 2:40-3:00: {total:.2f} s"
-tail = [s for s in shots if s["start"] + s["dur"] > GAMEPLAY_FROM + 1e-3]
+tail = [s for s in shots if s["start"] + s["dur"] > GAMEPLAY_FROM + 1e-3 and s["start"] < GAMEPLAY_TO - 1e-3]
 assert abs(tail[0]["start"] - GAMEPLAY_FROM) < 1e-3, f"the gameplay block must begin on a cut: {tail[0]['id']} spans {GAMEPLAY_FROM:.2f}"
 for s in tail:
     assert s["kind"] == "gameplay" and s["raw"], f"{s['id']} ({s['kind']}) is inside the last two minutes of pure gameplay"
 for o in overlays:
     if o["start"] + o["dur"] > GAMEPLAY_FROM + 1e-3:
+        assert o["start"] + o["dur"] <= GAMEPLAY_TO + 1e-3, f"{o['kind']} runs into the credits"
         assert o["kind"] == "corner", f"{o['kind']} at {o['start']} sits over the pure-gameplay block (only corner tags may)"
     else:
         assert o["kind"] != "corner", "corner tags belong to the gameplay block"
@@ -157,12 +170,14 @@ for s in shots:  # every captured source range is inside its take
     if s.get("src") and not s.get("missing"):
         n = length(Path(s["src"]).stem)
         assert s["in"] + s["dur"] <= n + 1e-3, f"{s['id']} runs past the end of its take ({s['in']:.2f}+{s['dur']:.2f} > {n:.2f})"
-used = {}  # no footage shown twice
+used, repeats = {}, []  # no footage shown twice (every clash listed at once)
 for s in shots:
     if s.get("src") and not s.get("missing"):
         for (a0, a1, sid) in used.get(s["src"], []):
-            assert s["in"] + s["dur"] <= a0 + 1e-3 or s["in"] >= a1 - 1e-3, f"{s['id']} repeats footage of {sid}"
+            if not (s["in"] + s["dur"] <= a0 + 1e-3 or s["in"] >= a1 - 1e-3):
+                repeats.append(f"{s['id']} [{s['in']:.2f}-{s['in'] + s['dur']:.2f}] repeats {sid} [{a0:.2f}-{a1:.2f}] in {Path(s['src']).stem}")
         used.setdefault(s["src"], []).append((s["in"], s["in"] + s["dur"], s["id"]))
+assert not repeats, "footage shown twice:\n  " + "\n  ".join(repeats)
 covered = sum(o["dur"] for o in overlays if o["kind"] in ("lowerThird", "line"))
 strict = raw - covered  # the harshest reading: no second with lettering over it counts as raw
 longest = max(s["dur"] for s in shots if s["kind"] == "gameplay")
@@ -184,8 +199,8 @@ missing = sorted({Path(s['src']).stem for s in shots if s.get('missing')})
 print(f"\ntotal {total:.2f} s | raw gameplay {raw:.2f} s (gameplay shots at 1.0x, only lower-thirds/lines/tags over them) | "
       f"produced {produced:.2f} s | longest take {longest:.2f} s | overlays {len(overlays)}")
 print(f"strictest count (no second under a lower-third or story line): raw {strict:.2f} s")
-print(f"teaser 0:00-{int(GAMEPLAY_FROM // 60)}:{GAMEPLAY_FROM % 60:05.2f} | pure gameplay {int(GAMEPLAY_FROM // 60)}:{GAMEPLAY_FROM % 60:05.2f}-{int(total // 60)}:{total % 60:05.2f} "
-      f"({len(tail)} shots, only corner tags over it)")
+print(f"opening + legend 0:00-{int(GAMEPLAY_FROM // 60)}:{GAMEPLAY_FROM % 60:05.2f} | pure gameplay {int(GAMEPLAY_FROM // 60)}:{GAMEPLAY_FROM % 60:05.2f}-{int(GAMEPLAY_TO // 60)}:{GAMEPLAY_TO % 60:05.2f} "
+      f"({len(tail)} shots, only corner tags over it) | credits {credits['dur']:.1f} s | cold-open hits {len(plan['hits'])}")
 print(f"takes not captured yet (slates): {', '.join(missing) if missing else 'none'}")
 for n in notes:
     print("note:", n)

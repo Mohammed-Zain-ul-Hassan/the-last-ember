@@ -50,6 +50,8 @@ def env(n, a=0.01, d=None, r=0.1, sustain=1.0):
 
 def put(stem, sig, t0, gain=1.0, pan=0.0):
     i = int(round(t0 * SR))
+    if i < 0:  # (a lead-in before the first frame: keep only what falls inside)
+        sig, i = sig[-i:], 0
     if i >= N or len(sig) == 0:
         return
     sig = sig[: N - i]
@@ -381,6 +383,7 @@ def S_cold(b0, b1):
 
 
 def S_title(b0, b1):
+    braam(bt(b0), 1.0)  # the legend begins
     boom(bt(b0), 1.0)
     bell(74, bt(b0, 0.05), 0.5)
     pad_p(b0 + 0.25, b1, 0.32, 0.1)
@@ -388,21 +391,27 @@ def S_title(b0, b1):
 
 
 def S_still(b0, b1):
-    """The frozen city: a drone, the clock at half-time, the theme a note at a time."""
-    drone(38, bt(b0), (b1 - b0) * BAR, 0.3)
-    pad_p(b0, b1, 0.18)
-    ticks(b0, b1, 0.18, every=2)
-    sparse_piano(b0, b1, 0.42)
+    """The frozen city: a drone, the clock, the theme a note at a time, a pulse under it."""
+    drone(38, bt(b0), (b1 - b0) * BAR, 0.4)
+    pad_p(b0, b1, 0.28, 0.2)
+    ticks(b0, b1, 0.24, every=1)
+    sparse_piano(b0, b1, 0.5)
+    b = b0
+    while b < b1 - 1e-6:
+        pluck_bass(ROOTS[id(DM)] + 12, bt(b), 0.4)
+        b += 0.5
 
 
 def S_puzzle(b0, b1):
-    """Finding the true angle: the drone, a slow pulse, a bell when it wakes (on the next downbeat)."""
-    drone(38, bt(b0), (b1 - b0) * BAR, 0.3)
-    pad_p(b0, b1, 0.24, 0.2)
+    """Finding the true angle: the drone, a slow pulse, a bell when it wakes (on the next downbeat). Kept present (not
+    a lull): a low taiko on every bar under it."""
+    drone(38, bt(b0), (b1 - b0) * BAR, 0.4)
+    pad_p(b0, b1, 0.32, 0.25)
     b = b0
     while b < b1 - 1e-6:
-        pluck_bass(ROOTS[id(DM)] + 12, bt(b), 0.35)
-        pluck_bass(ROOTS[id(DM)] + 13, bt(b, 2), 0.25)  # the Phrygian semitone
+        pluck_bass(ROOTS[id(DM)] + 12, bt(b), 0.45)
+        pluck_bass(ROOTS[id(DM)] + 13, bt(b, 2), 0.32)  # the Phrygian semitone
+        taiko(bt(b), 0.32, 0.8)
         b += 1
     ticks(b0, b1, 0.2, every=1)
     section_choir(b0 + (b1 - b0) / 2, b1, 0.12, vowel=(300, 870, 2240))
@@ -536,6 +545,44 @@ def S_silence(b0, b1):
     pass
 
 
+def S_blitz(b0, b1):
+    """The cold open: a hit on every cut (taiko + boom + a crack of noise), a whoosh into each, a driving pulse and
+    choir under them, rising; the last hit the biggest."""
+    hits = [h for h in plan.get("hits", []) if bt(b0) - 1e-3 <= h < bt(b1)]
+    g = 0.7  # 3 dB under the title's braam: the legend must land bigger than the cold open
+    section_pad(b0, b1, 0.42 * g, 0.7)
+    section_ost(b0, b1, 0.55 * g, sixteenth=True)
+    section_choir(b0, b1, 0.35 * g)
+    for i, h in enumerate(hits):
+        last = i == len(hits) - 1
+        taiko(h, 1.0 * g, 1.0 if i % 2 == 0 else 1.2, (-0.3, 0.3)[i % 2])
+        boom(h, (0.55 + 0.04 * i + (0.35 if last else 0)) * g)
+        snare(h, 0.8 * g)
+        whoosh(h - 0.32, 0.32, 0.4 * g, (-0.6, 0.6)[i % 2])
+        if i % 2 == 0:
+            brass(chord_at(i // 2)[:3], h, (0.35 + 0.03 * i) * g)
+    if hits:
+        braam(hits[-1], 0.9 * g)
+    riser(bt(b0), (b1 - b0) * BAR - 0.4, 0.35 * g)
+
+
+BLACK = []  # (t0, t1) of the smash to black: the mix is cut to true silence there (after the reverb), see the mix
+
+
+def S_black(b0, b1):
+    """Smash to black: everything cut dead (in the mix), one short sub hit that is gone by half way."""
+    BLACK.append((bt(b0), bt(b1)))
+
+
+def S_credits(b0, b1):
+    """The end: the ember theme once more, resolving to D major, a last bell, everything left to ring out."""
+    section_pad(b0, b1, 0.38, 0.4, major=True)
+    section_choir(b0, b1, 0.22, major=True)
+    motif(b0, 0.42, upto=8)
+    bell(62, bt(b1 - 1.5), 0.32, length=7)
+    bell(74, bt(b1 - 1.5, 0.05), 0.2, length=6)
+
+
 SECTIONS = {k[2:]: v for k, v in globals().items() if k.startswith("S_")}
 for c in plan["cues"]:
     SECTIONS[c["name"]](c["b0"], c["b1"])
@@ -562,6 +609,18 @@ end = int((plan["duration"] + TAIL) * SR)
 mix[end - fade : end] *= np.linspace(1, 0, fade)[:, None] ** 2
 mix = np.tanh(mix * 1.2) / np.tanh(1.2)
 mix *= 0.89 / max(1e-6, np.abs(mix).max())
+# the smash to black: true silence (20 ms edges), then one dry sub hit that decays away in under half a second
+for t0, t1 in BLACK:
+    a, b = int(t0 * SR), int(t1 * SR)
+    e = int(0.02 * SR)
+    mix[a - e : a] *= np.linspace(1, 0, e)[:, None]
+    mix[a:b] = 0
+    mix[b : b + e] *= np.linspace(0, 1, e)[:, None]
+    n = int(0.45 * SR)
+    tt = np.arange(n) / SR
+    f = 34 + 56 * np.exp(-tt * 9)
+    sub = (np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-tt * 11) * 0.55).astype(np.float32)
+    mix[a : a + n] += sub[:, None]
 
 out = ROOT / "music" / "score_v2.wav"
 out.parent.mkdir(exist_ok=True)

@@ -1,7 +1,7 @@
 export interface Shot {
   id: string;
   /** gameplay = raw capture at 1x; scene = in-engine footage that is not gameplay (memories, cutscenes) */
-  kind: "gameplay" | "scene" | "title" | "card" | "act" | "end";
+  kind: "gameplay" | "scene" | "title" | "card" | "act" | "end" | "black" | "credits";
   start: number;
   dur: number;
   src?: string;
@@ -20,6 +20,10 @@ export interface Shot {
   /** act cards: "ACT I" and its name */
   act?: string;
   name?: string;
+  /** the cold open's cut-on-the-hit */
+  fx?: "impact";
+  /** credits: the names (the line above them is `kicker`) */
+  names?: string[];
 }
 
 export interface Overlay {
@@ -50,4 +54,6 @@ export interface Shotlist {
   themes: Theme[];
   shots: Shot[];
   overlays: Overlay[];
+  /** cinema bars until here (seconds): the cold open is letterboxed */
+  letterbox_until?: number;
 }

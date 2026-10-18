@@ -9,7 +9,9 @@ cd "$(dirname "$0")/.."
 MODE=${1:-preview}
 PY=/Users/zain/Videos/.venv/bin/python
 mkdir -p out work public/clips
-python3 scripts/plan_v2.py > work/plan_v2.txt && tail -4 work/plan_v2.txt
+# the plan must pass its rule checks: a failure stops the build (it must never render a stale shotlist)
+if ! python3 scripts/plan_v2.py > work/plan_v2.txt 2>&1; then cat work/plan_v2.txt; echo "plan_v2.py failed: not building"; exit 1; fi
+tail -4 work/plan_v2.txt
 # captures in (hard links: Remotion does not follow symlinks); a take not captured yet renders as a slate
 for c in $(python3 -c "import json;print(' '.join(sorted({s['src'] for s in json.load(open('shotlist.json'))['shots'] if s.get('src') and not s.get('missing')})))"); do
   # tab recordings are VFR, and Chrome's sharing bar shortens the page (1920x1004): crop to 16:9 (never stretch),
@@ -42,7 +44,9 @@ fi
 ffmpeg -v error -y -i work/v2_mix.wav -af "highpass=f=30:poles=2,alimiter=level_in=1:limit=0.5:attack=1:release=60:level=false" -c:a pcm_s16le work/v2_glued.wav
 I=$(ffmpeg -v info -i work/v2_glued.wav -af ebur128 -f null - 2>&1 | awk '/^ +I:/{print $2}' | tail -1)
 G=$(python3 -c "print(round(-14 - ($I), 2))")
-ffmpeg -v error -y -i work/v2_glued.wav -af "volume=${G}dB,aresample=192000,alimiter=limit=0.6:attack=1:release=80:level=false,aresample=48000" -c:a pcm_s16le work/v2_master.wav
+D=$(python3 -c "import json;print(json.load(open('shotlist.json'))['duration'])")
+FADE=$(python3 -c "print(round($D - 2.5, 3))")  # the end fades out over 2.5 s: it never chops
+ffmpeg -v error -y -i work/v2_glued.wav -af "volume=${G}dB,aresample=192000,alimiter=limit=0.6:attack=1:release=80:level=false,aresample=48000,afade=t=out:st=${FADE}:d=2.5" -c:a pcm_s16le work/v2_master.wav
 
 if [ "$MODE" = preview ]; then
   ffmpeg -v error -y -i "$OUT" -i work/v2_master.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 256k -shortest -movflags +faststart out/v2_preview_540p.mp4

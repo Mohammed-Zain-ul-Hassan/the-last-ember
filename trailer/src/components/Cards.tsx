@@ -50,6 +50,7 @@ export const TitleCard: React.FC<{ title: string; logline: string; themes: Theme
         <OffthreadVideo src={staticFile(src)} trimBefore={Math.round(at * fps)} muted style={{ width: "100%", height: "100%", filter: "brightness(0.5) saturate(1.1)", transform: `scale(${1.04 + t * 0.006})` }} />
       )}
       <AbsoluteFill style={{ background: "radial-gradient(ellipse at 50% 45%, rgba(7,5,11,0.15) 0%, rgba(7,5,11,0.75) 75%)" }} />
+      {!src && <Embers seed="title" glowAt={[50, 102]} count={140} />}
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 26 }}>
         <div
           style={{
@@ -409,6 +410,64 @@ export const CornerTag: React.FC<{ word: string; text?: string; color: string }>
         )}
         {text && <div style={{ fontFamily: link ? DISPLAY : SERIF, fontStyle: link ? "normal" : "italic", fontSize: link ? 34 : 36, letterSpacing: link ? "0.06em" : 0, color: link ? C.gold : C.bone, ...glow("#000000", 10) }}>{text}</div>}
       </div>
+    </AbsoluteFill>
+  );
+};
+
+// ------------------------------------------------------------------ v2 level 3: impacts, letterbox, credits
+/** A cut that lands on a hit: 3 frames of hot white going to ember, a jolt that settles in 8 frames, a 6% punch-in. */
+export const Impact: React.FC<{ children: React.ReactNode; seed: number }> = ({ children, seed }) => {
+  const f = useCurrentFrame();
+  const k = Math.max(0, 1 - f / 9);
+  const jx = Math.sin(seed * 12.9 + f * 2.7) * 14 * k;
+  const jy = Math.cos(seed * 7.3 + f * 3.1) * 10 * k;
+  const punch = 1 + 0.06 * Math.max(0, 1 - f / 12);
+  const flash = f < 2 ? 0.85 : f < 5 ? 0.45 * (1 - (f - 2) / 3) : 0;
+  return (
+    <AbsoluteFill style={{ overflow: "hidden", background: "#000" }}>
+      <AbsoluteFill style={{ transform: `translate(${jx}px, ${jy}px) scale(${punch})` }}>{children}</AbsoluteFill>
+      <AbsoluteFill style={{ background: f < 2 ? "#fff6ea" : C.ember, opacity: flash, mixBlendMode: f < 2 ? "normal" : "screen" }} />
+    </AbsoluteFill>
+  );
+};
+
+/** Cinema bars (2.39:1) over the cold open. */
+export const Letterbox: React.FC = () => (
+  <AbsoluteFill style={{ pointerEvents: "none" }}>
+    <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 138, background: "#000" }} />
+    <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 138, background: "#000" }} />
+  </AbsoluteFill>
+);
+
+/** The end: who made it, held over embers, then the title and the link, and a slow fade to black. */
+export const Credits: React.FC<{ kicker: string; names: string[]; title: string; url: string }> = ({ kicker, names, title, url }) => {
+  const f = useCurrentFrame();
+  const { fps, durationInFrames } = useVideoConfig();
+  const t = f / fps;
+  const k = useIn(0.2, 0.9);
+  // fully black 0.6 s before the end: the last frames are dark and silent, never a chop
+  const end = interpolate(f, [durationInFrames - 2.4 * fps, durationInFrames - 0.6 * fps], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: inOut });
+  const tail = useIn(0.6 + names.length * 0.45 + 0.4, 0.8);
+  return (
+    <AbsoluteFill style={{ background: C.ink, opacity: end }}>
+      <Embers seed="credits" glowAt={[50, 104]} count={120} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 18, transform: `scale(${1.03 - 0.03 * Math.min(1, t / 8)})` }}>
+        <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 56, color: C.mist, opacity: k, transform: `translateY(${(1 - k) * 14}px)`, marginBottom: 18 }}>{kicker}</div>
+        {names.map((n, i) => {
+          const a = interpolate(t, [0.6 + i * 0.45, 1.3 + i * 0.45], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
+          return (
+            <div key={n} style={{ fontFamily: DISPLAY, fontSize: 76, letterSpacing: "0.1em", color: C.bone, opacity: a, transform: `translateY(${(1 - a) * 18}px)`, ...glow(C.ember, 22) }}>
+              {n}
+            </div>
+          );
+        })}
+        <div style={{ display: "flex", alignItems: "center", gap: 26, marginTop: 34, opacity: tail }}>
+          <div style={{ width: 90, height: 1, background: `${C.gold}aa` }} />
+          <div style={{ fontFamily: DISPLAY, fontSize: 40, letterSpacing: "0.3em", color: C.gold }}>{title}</div>
+          <div style={{ width: 90, height: 1, background: `${C.gold}aa` }} />
+        </div>
+        <div style={{ fontFamily: DISPLAY, fontSize: 34, letterSpacing: "0.06em", color: C.bone, opacity: tail * 0.85 }}>{url}</div>
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };

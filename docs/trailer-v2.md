@@ -19,6 +19,31 @@
 - **Known issue for review:** around 1:58 (the 7 PM shot) the demo bot's camera clips through the hearth hut's roof for under a second.
 - Shape (Moeez): a stylised first minute, then two minutes of pure gameplay.
 
+## The "level 3" cut (Zain, 2026-10-18 morning): supersedes the beat sheet below
+Zain's brief:
+- The first scenes must be super dramatic: slashing enemies, moving fast.
+- Then the sound effects, and the legendary trailer starts.
+- The end must not be abrupt: credits ("This masterpiece is developed by", then the four names).
+- Strictly 2:40 to 3:10.
+
+Moeez's two minutes of pure gameplay stay, and run right up to the credits.
+
+| Time | Section | What | Sound |
+|---|---|---|---|
+| 0:00 | **Cold open** (12 s, letterboxed) | Ten cuts of pure combat on the beat: a slam (2 s), eight 1 s cuts (slams, kills, a fire burst, three at once), the last of them falling (2 s). Each cut lands on a hit: a 3-frame flash, a jolt, a 6% punch-in. | A taiko + boom + snare on every cut, a whoosh into each, brass, a riser; a braam on the last |
+| 0:12 | **Smash to black** (1 s) | Nothing | The music cut dead; one sub drop |
+| 0:13 | **The legend** (37.5 s) | THE LAST EMBER rising out of embers → ACT I → FIRE, TIME, SHADOW (a card + a 3 s glimpse each, with a lower-third) → the Heart, "It has your hands." → ACT II → midnight | A braam + boom on the title; quiet Act I; a braam on ACT II |
+| 0:50.5 | **Pure gameplay** (120 s) | Act I to Act II in story order, ending on the Marshal in one 21 s take, the dawn choice, a last look at the still city. Small corner tags name each theme. | The game's own sound over the score, building to the climax drop |
+| 2:50.5 | **Credits** (8 s) | "This masterpiece is developed by", then Mohammed Zain ul Hassan, Ahnaf Abdullah, Moeez Abid, Huzaifa Tahir, then the title and the link. Embers, a slow push, a fade to black. | The ember theme resolving to D major, a last bell |
+
+- **Totals:** 178.5 s in all, 141 s raw gameplay (133 s by the strictest count), 37.5 s produced.
+- **Shot audit before the render** (`trailer/scripts/vet.py` → `out/v2_shot_audit.jpg`). It caught, and the cut avoids:
+  - the 7 PM roof clip and a camera jammed into the knight;
+  - a 9 PM camera clip;
+  - a cold-open cut that ran into a memory cutscene;
+  - a muddy close-up;
+  - the game's own "THE GATE WARD" card behind the title.
+
 ## Rules this cut is built to (docs/handbook.md, the jam-trailer skill, and Moeez's structure)
 Moeez (2026-10-18): *"around 3 minutes, and the last 2 minutes should be of pure gameplay."* So the stylised and
 teaser work all lives in the first minute, and the last two minutes are continuous raw play.
