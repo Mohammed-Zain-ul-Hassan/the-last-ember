@@ -1,8 +1,125 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "game", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 5173 },
-    { "name": "game-5174", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5174"], "port": 5174 },
-    { "name": "demo", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "../demo-phaser", "run", "dev"], "port": 5174 }
+    {
+      "name": "game",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "game-5174",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5174"
+      ],
+      "port": 5174
+    },
+    {
+      "name": "3d-branch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/zain/Development/gamedev/last-ember-3d-branch",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5176"
+      ],
+      "port": 5176
+    },
+    {
+      "name": "story",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/zain/Development/gamedev/last-ember-story",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5177"
+      ],
+      "port": 5177
+    },
+    {
+      "name": "demo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "../demo-phaser",
+        "run",
+        "dev"
+      ],
+      "port": 5174
+    },
+    {
+      "name": "still-rec",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/zain/Development/gamedev/last-ember-rec",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5178",
+        "--strictPort"
+      ],
+      "port": 5178
+    },
+    {
+      "name": "still-dist",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/zain/Development/gamedev/last-ember-story",
+        "run",
+        "preview",
+        "--",
+        "--port",
+        "5179",
+        "--strictPort"
+      ],
+      "port": 5179
+    },
+    {
+      "name": "combat-view",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/zain/Development/gamedev/last-ember-combat-view",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5180",
+        "--strictPort"
+      ],
+      "port": 5180
+    },
+    {
+      "name": "merged",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/zain/Development/gamedev/last-ember-merged",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5181",
+        "--strictPort"
+      ],
+      "port": 5181
+    }
   ]
 }
