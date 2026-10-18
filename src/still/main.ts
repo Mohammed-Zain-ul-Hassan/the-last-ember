@@ -1153,6 +1153,7 @@ const demoApi = {
       rig.target.set(city.s.body.x, 0, city.s.body.z);
     }
     botOn = true;
+    demoBeat = Date.now(); // a fresh grace period: an old beat must not pause the game again at once
     if (mode === 'pause') setPaused(false);
     return sn ? `resumed at ${DISTRICTS[di].name}, step ${bot?.index ?? '?'}` : 'no saved moment: playing on from here';
   },

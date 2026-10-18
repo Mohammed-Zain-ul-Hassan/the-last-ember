@@ -15,7 +15,7 @@
 // was closed, a new one opens at the saved district or hour. A bot that stops making progress is restarted at its
 // district's brazier, then moved on to the next district or hour.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, openSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +34,7 @@ const PROFILE = join(homedir(), '.last-ember-demo-chrome');
 const CHROME = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium'].find(existsSync);
 const say = (m) => console.log(`[demo ${new Date().toTimeString().slice(0, 8)}] ${m}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const STALL_MS = Number(process.env.DEMO_STALL_S) * 1000 || null; // (tests: a shorter stall threshold)
 
 async function reachable(url) {
   try {
@@ -82,6 +83,26 @@ async function browser() {
 }
 
 mkdirSync(PROFILE, { recursive: true });
+// one driver at a time: a second copy would fight the first for the knight
+const LOCK = join(PROFILE, 'demo.pid');
+try {
+  const other = Number(readFileSync(LOCK, 'utf8'));
+  if (other && other !== process.pid) {
+    process.kill(other, 0); // throws if it is gone
+    console.error(`[demo] another demo script is already running (pid ${other}). Stop it first (Ctrl+C in its terminal, or: kill ${other}).`);
+    process.exit(1);
+  }
+} catch {
+  /* no lock, or a stale one */
+}
+writeFileSync(LOCK, String(process.pid));
+process.on('exit', () => {
+  try {
+    if (Number(readFileSync(LOCK, 'utf8')) === process.pid) unlinkSync(LOCK);
+  } catch {
+    /* gone already */
+  }
+});
 await ensureServer();
 const b = await browser();
 const ctx = b.contexts()[0] ?? (await b.newContext());
@@ -159,6 +180,7 @@ for (;;) {
   let st = null;
   try {
     // a page that moved on (Act I -> Act II) or a reloaded one: find the game tab again
+    if (stopping) continue; // (no heartbeat after a stop has begun: it would outlive the pause)
     if (page.isClosed()) page = ctx.pages().find((p) => p.url().startsWith(BASE)) ?? (await ctx.newPage());
     await api('beat');
     st = await api('status');
@@ -177,12 +199,13 @@ for (;;) {
   }
   // progress: anything that moves (step, place, position in 2 m cells, the hour's clock in 10 s)
   const key = st.act === 1 ? `${st.di}|${st.goal}|${Math.round(st.x / 2)}|${Math.round(st.z / 2)}|${st.ending}` : `${st.chapter}|${st.mode}|${Math.round(st.x / 2)}|${Math.round(st.z / 2)}|${Math.floor((st.time ?? 0) / 10)}`;
-  const playing = (st.botOn ?? st.demoOn) && !['pause', 'paused', 'title', 'ending', 'credits'].includes(st.mode);
+  // only real play can stall: a cutscene (the bridge, midnight, a memory, dawn) or a card is never 'stuck'
+  const playing = (st.botOn ?? st.demoOn) && st.mode === 'play';
   if (key !== progressKey || !playing) {
     if (key !== progressKey) skips = 0; // it moved on: a later stall starts the ladder again
     progressKey = key;
     progressAt = Date.now();
-  } else if (Date.now() - progressAt > (st.act === 1 ? 45000 : 60000)) {
+  } else if (Date.now() - progressAt > (STALL_MS ?? (st.act === 1 ? 45000 : 60000))) {
     skips++;
     const r = st.act === 1 ? await api('skip', skips > 1) : await api('skip');
     say(`the bot stopped making progress: ${r}`);
