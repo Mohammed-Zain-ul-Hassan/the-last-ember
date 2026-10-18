@@ -1449,6 +1449,7 @@ if (DEMO) {
     },
     resume: () => {
       demoOn = true;
+      demoBeat = Date.now(); // a fresh grace period: an old beat must not pause the game again at once
       unpause();
       if (mode === 'title') goLevel(chapterIndex);
       return `resumed at ${CHAPTERS[chapterIndex]?.clock}`;
