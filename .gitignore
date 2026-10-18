@@ -35,3 +35,4 @@ trailer/public/clips/
 trailer/out/
 trailer/music/*.wav
 trailer/public/fx/
+__pycache__/

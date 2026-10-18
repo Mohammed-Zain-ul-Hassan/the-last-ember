@@ -40,7 +40,7 @@ def build(gp, scene, card, over, cue, here):
     gp("b7", "A2_7pm", "kill#10", 0.5, "Sunset: a sword cut", pre=0.5, **hit)
     gp("b8", "A2_11pm", "slam#5", 0.5, "Another slam", pre=0.5, **hit)
     gp("b9", "A2_3am", "kill#6", 0.5, "Three at once in the nave", pre=0.5, **hit)
-    gp("b10", "A2_3am", "t=22.6", 1, "The nave: the last of them falls, in slow motion (a speed ramp: counted as stylised)", speed=0.5, raw=False, **hit)
+    gp("b10", "A2_marshal3", "t=9.6", 1, "The knight against the Hollow Marshal, in slow motion (a speed ramp: counted as stylised)", speed=0.5, raw=False, **hit)
     # SMASH TO BLACK: one second of nothing
     cue("black")
     card("black", "black", 0.5, "Smash to black: silence, a sub drop")
@@ -90,7 +90,8 @@ def build(gp, scene, card, over, cue, here):
     gp("stalk1", "A1_main", "t=316.0", 1.5, "Library: the stacks, it comes for him")
     gp("stalk2", "A1_main", "t=325.8", 1.25, "Library: the flame swung onto it, it stops dead")
     gp("plate", "A1_main", "plate@heart", 1.75, "Heart: a plate under the rumble", pre=1.5)
-    gp("heart_run", "A1_main", "t=395.0", 3, "Heart: the last plates, the ring about to open")
+    gp("heart_run", "A1_main", "t=395.0", 0.6, "Heart: the last plates")
+    gp("heart_open", "A1_main", "t=398.0", 2.4, "Heart: the ring opens; it is waiting at the centre")
     # ACT II, in clock order
     cue("hearth")
     gp("sunset", "A2_7pm", "t=9.0", 1.5, "7 PM: sunset on the hearth grounds, sword cuts")
@@ -107,7 +108,7 @@ def build(gp, scene, card, over, cue, here):
     gp("torch2", "A2_1am", "t=19.0", 2.5, "1 AM: crawlers in the torchlight")
     gp("e6", "A2_3am", "spawn#2", 1, "3 AM: the cathedral, something vast stirs", pre=0.3)
     gp("nave", "A2_3am", "t=7.0", 2.5, "3 AM: the nave, fighting toward the apse")
-    gp("nave2", "A2_3am", "t=15.0", 1, "3 AM: torch and blade in the nave")
+    gp("nave2", "A2_3am", "t=14.35", 1, "3 AM: torch and blade in the nave")
     # THE PAYOFF: the Marshal, cut on his fall
     cue("climax")
     gp("climax", "A2_marshal2", "t=4.0", 7, "Climax, one take: the Hollow Marshal rises, his cry, the waves jumped, he falls in a burst of embers (the last gameplay frame: straight to the credits)", sting=12.34)
