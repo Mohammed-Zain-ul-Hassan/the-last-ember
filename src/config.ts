@@ -80,6 +80,27 @@ export const CFG = {
   crawler: { dmg: 16, hpMul: 0.5, speed: 4.4, pounceRange: 3.4, windup: 0.32, pounceSpeed: 10.5, strikeTime: 0.3, cd: 1.5, h: 0.95 },
   // keeps its distance above jump height and spits shadow bolts; light cannot burn it (it eats light)
   lantern: { boltDmg: 14, hp: 3, speed: 2.8, near: 5.5, far: 8.5, hover: 2.5, windup: 0.75, cd: 2.9, boltSpeed: 8.5, boltLife: 3, dimTime: 3, dimMul: 0.55 },
+  // How enemies move through the world: they collide with it, and blows throw them around inside it.
+  body: {
+    climb: { shade: 0.9, crawler: 0.42, lantern: 0 }, // they pass over anything this low; taller solids block them
+    ledge: 1.6, // a blocking wall no taller than this above their feet is climbed (they drift up over it); taller: go round
+    look: 1.1, // how far ahead a walker checks for a wall before it steers round
+    gravity: 30, // for bodies thrown into the air (heavy blows, a lantern knocked out of the sky)
+    airDrag: 2.5, // per second, while thrown (on the ground they stop at 6 per second)
+    launch: 4.2, // a blow with knock >= launchKnock pops a shade up this fast (m/s)...
+    launchPerKnock: 0.2, // ...plus this much per unit of knockback
+    launchKnock: 8, // the combo finisher, lunge, cleave, plunge and charged strike launch; quick cuts do not
+    juggle: 3, // a hit on a body already in the air keeps it up at least this fast
+    getUp: 0.22, // seconds on the ground after a throw before it fights again
+    slamSpeed: 4.0, // thrown into a wall faster than this: it slams, bounces back, staggers longer, takes a point
+    slamDmg: 1,
+    slamBounce: 0.35,
+    slamStagger: 0.45,
+    pounceStun: 0.9, // a crawler that pounces into a wall lies stunned this long
+    bumpSpeed: 4.5, // thrown into another body faster than this: that one is knocked off its feet too
+    bumpShare: 0.55,
+    lanternFall: 1.25, // a struck lantern-eater is knocked out of the air and lies stunned on the ground this long
+  },
   // the Hollow Marshal below half health: a cry, two crawlers, faster, and every strike sends a ground wave
   marshal: { waveDmg: 26, enrageAt: 0.5, speedMul: 1.5, cdMul: 0.6, waveSpeed: 9, waveLife: 1.4 },
 
@@ -87,6 +108,33 @@ export const CFG = {
 
   // frames of sim freeze
   hitstop: { light: 3, heavy: 7, kill: 5 },
+} as const;
+
+// The hero's look and feel. Render-only: the sim never reads these, so tuning them cannot change gameplay.
+export const HERO = {
+  guardHold: 2.6, // seconds he holds his guard after fighting before he lowers the blade
+  fidgetAfter: 2.2, // seconds of standing still before idle fidgets start
+  fidgetGap: [4.5, 8.5], // seconds between fidgets
+  breathPeriod: 3.9, // one full breath (inhale is quicker than exhale)
+  flipTime: 0.46, // the double-jump somersault
+  // screen-space aura: life = seconds a wisp survives, rise = figure heights per second, spread = figure heights
+  aura: {
+    body: { life: 0.4, rise: 0.7, spread: 0.05, intensity: 1.0 },
+    sword: { life: 0.09, rise: 0.22, spread: 0.022, intensity: 1.0 },
+    smoke: { life: 0.6, rise: 0.9, spread: 0.09, intensity: 0.7 },
+    dashLife: 0.55, // trails hang in the air behind a dash
+    swingLife: 0.1, // the blade's sheath leaves a short crescent of afterglow behind a swing
+    lowHp: 0.3, // below this fraction of health the aura gutters
+    // his edge: violet rises out of his shadow toward the silhouette and dissolves outward, no hard line.
+    // width: how far the fade reaches each way, in outline widths (~0.6% of his height on screen)
+    edge: { width: 6, outer: 0.6, inner: 0.65 },
+  },
+  swordLight: 5, // light the blade casts on the ground (and his edges) around him
+  // he is depth-tested this many metres nearer the camera: rubble, grass and posts he brushes never cut into him,
+  // while walls between him and the camera still hide him (the follow camera pulls in past those anyway)
+  depthPull: 1.0,
+  // the blade's look: 'ember' (blackened steel, molten edges), 'moonsteel' (pale steel, cold edges), 'violet'
+  swordPalette: 'ember' as 'ember' | 'moonsteel' | 'violet',
 } as const;
 
 export interface MoveSpec {
@@ -103,8 +151,9 @@ export interface MoveSpec {
 export type ComboStep = (typeof CFG.combo)[number];
 
 // Difficulty: one setting for the whole game, stored by src/difficulty.ts. Easy gives the player some leverage, Medium
-// is the game as designed (every multiplier 1), Hard is strict. Each act reads its own section (`still` is the Still City; the hearth act adds `hearth` here when the
-// two are merged). Multipliers are against the act's own base tunables.
+// is the game as designed (every multiplier 1), Hard is strict. Each act reads its own section: `still` for Act I (the
+// Still City), `hearth` for Act II (the hearth defence). Multipliers are against the act's own base tunables. Act II's
+// base is Ahnaf's tuning, and that is its Hard (his call): Medium and Easy are gentler versions of it.
 export interface StillDifficulty {
   alignTol: number; // x the true-angle tolerance (degrees; base 12, or the figure's own)
   alignHold: number; // seconds the angle must be held to lock (base 0.4)
@@ -119,14 +168,25 @@ export interface StillDifficulty {
   trail: boolean; // the ember trail to the next place
   coach: boolean; // the flame's coaching at a true angle (turn, raise, lower, hold)
 }
-export const DIFFICULTY: Record<'easy' | 'medium' | 'hard', { still: StillDifficulty }> = {
+export interface HearthDifficulty {
+  knightDmg: number; // x every blow, bolt and wave that reaches the knight
+  hearthDmg: number; // x a shade's strike on the hearth
+  enemyHp: number; // x shades' health (rounded, at least 1)
+  enemySpeed: number; // x shades' speed
+  spawnGap: number; // x the seconds between spawns
+  extraShades: number; // + the most shades at once (never under 2)
+}
+export const DIFFICULTY: Record<'easy' | 'medium' | 'hard', { still: StillDifficulty; hearth: HearthDifficulty }> = {
   easy: {
     still: { alignTol: 1.4, alignHold: 0.25, wrongSpeed: 0.8, wrongTouch: 0.25, caughtFatal: false, hazard: 0.65, stoneReach: 0.8, stoneWarn: 1.2, regen: 1.5, hintDelay: 0.55, trail: true, coach: true },
+    hearth: { knightDmg: 0.5, hearthDmg: 0.5, enemyHp: 0.7, enemySpeed: 0.85, spawnGap: 1.35, extraShades: -2 },
   },
   medium: {
     still: { alignTol: 1, alignHold: 0.4, wrongSpeed: 1, wrongTouch: 0.35, caughtFatal: true, hazard: 1, stoneReach: 1, stoneWarn: 0.9, regen: 1, hintDelay: 1, trail: true, coach: true },
+    hearth: { knightDmg: 0.75, hearthDmg: 0.75, enemyHp: 0.85, enemySpeed: 0.92, spawnGap: 1.15, extraShades: -1 },
   },
   hard: {
     still: { alignTol: 0.65, alignHold: 0.6, wrongSpeed: 1.2, wrongTouch: 0.45, caughtFatal: true, hazard: 1.3, stoneReach: 1.1, stoneWarn: 0.7, regen: 0.6, hintDelay: 3, trail: false, coach: false },
+    hearth: { knightDmg: 1, hearthDmg: 1, enemyHp: 1, enemySpeed: 1, spawnGap: 1, extraShades: 0 }, // Ahnaf's tuning, as it is
   },
 };

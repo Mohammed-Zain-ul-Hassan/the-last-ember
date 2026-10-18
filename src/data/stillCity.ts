@@ -81,4 +81,6 @@ export const ENDINGS = {
   keep: [L('end.keep.1'), L('end.keep.2'), L('end.keep.3')],
   letGo: [L('end.letGo.1'), L('end.letGo.2'), L('end.letGo.3')],
   door: [L('end.door.1'), L('end.door.2'), L('end.door.3'), L('end.door.4')],
+  /** The Last Ember: no choice here; he carries the flame out to the hearth (Act II), and the choice waits for dawn. */
+  carry: [L('end.carry.1'), L('end.carry.2'), L('end.carry.3'), L('end.carry.4')],
 };

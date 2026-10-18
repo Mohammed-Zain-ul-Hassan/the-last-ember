@@ -108,6 +108,11 @@ export class WorldUi {
         if (big) this.bossLastHit = this.t;
         const kind = w.torch && e.heavy ? 'fire' : e.heavy ? 'heavy' : e.move === 'light' ? 'light' : 'skill';
         if (this.numbers) this.pop(e.heavy ? `${e.dmg}!` : `${e.dmg}`, e.x, (s ? s.y : 0) + this.headY(big, s?.kind) + 0.1, kind, e.z, TAGS[e.move]);
+      } else if (e.type === 'wallSlam') {
+        const s = w.shades.find((q) => q.id === e.id);
+        const bar = this.bars.get(e.id);
+        if (bar) bar.lastHit = this.t;
+        if (this.numbers) this.pop(`${e.dmg}!`, e.x, (s ? s.y : 0) + this.headY(false, s?.kind) + 0.1, 'heavy', e.z);
       } else if (e.type === 'kill') {
         const name = NAMES[this.nameIdx++ % NAMES.length];
         this.pop(e.big ? 'the Hollow Marshal is free' : name, e.x, e.y + 1.9, e.big ? 'soul big' : 'soul', e.z);

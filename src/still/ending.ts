@@ -12,8 +12,11 @@ import { persist, save } from './save';
 //   Let it go out    (always)       the dark; then footsteps; then the water
 //   Hold the door    (all 36 heard) a stair behind the Heart that the Wrong Shadow could never see; the people walk
 //                                   out in the one second before the flood, and the shadow holds the door
+// In The Last Ember (both acts) none of these is chosen here: the Wrong Shadow is known for what it is, and he
+// carries the flame out of the city to the old hearth (Act II); the choice waits for dawn. `?endings=1` keeps the
+// three endings above, as the Still City alone.
 
-export type Choice = 'keep' | 'letGo' | 'door';
+export type Choice = 'keep' | 'letGo' | 'door' | 'carry';
 
 export interface EndingCtx {
   hud: StillHud;
@@ -39,9 +42,11 @@ export interface EndingCtx {
   shake: (k: number) => void;
   veil: (on: boolean) => void;
   autoChoose: boolean;
+  /** Set: the game goes on into Act II (he carries the flame out) instead of choosing here. Called once it is dark. */
+  handoff: (() => void) | null;
 }
 
-const NAMES: Record<Choice, string> = { keep: 'Keep the flame', letGo: 'Let it go out', door: 'Hold the door' };
+const NAMES: Record<Choice, string> = { keep: 'Keep the flame', letGo: 'Let it go out', door: 'Hold the door', carry: 'Carry it out' };
 
 export class Ending {
   phase: 'off' | 'arrive' | 'word' | 'choose' | 'play' | 'credits' = 'off';
@@ -141,6 +146,12 @@ export class Ending {
   }
 
   private showChoices(): void {
+    if (this.ctx.handoff) {
+      // no choice in the city: he takes the flame and goes
+      this.phase = 'choose';
+      this.choose('carry');
+      return;
+    }
     this.phase = 'choose';
     this.t = 0;
     const p = this.panel;
@@ -166,8 +177,8 @@ export class Ending {
     this.t = 0;
     this.panel.classList.remove('on');
     audio.cue('ui');
-    const lines = c === 'keep' ? ENDINGS.keep : c === 'letGo' ? ENDINGS.letGo : ENDINGS.door;
-    const gap = c === 'door' ? 5.5 : 6;
+    const lines = ENDINGS[c];
+    const gap = c === 'door' ? 5.5 : c === 'carry' ? 4.6 : 6;
     this.queue = lines.map((line, i) => ({ at: 1.5 + i * gap, line }));
     this.flamePos.copy(this.ctx.flame());
     this.bodyStart.copy(this.ctx.body());
@@ -219,6 +230,22 @@ export class Ending {
       }
       if (t > 16) c.veil(true);
       if (t > 22) this.finish();
+    } else if (this.choice === 'carry') {
+      // the shadow lets go of the fire; he turns from the centre and walks out of the Heart with it, toward the walls
+      c.placeWrong(centre.x + 0.9, centre.z + 0.4, Math.PI, t > 3 ? 'stand' : 'reach');
+      const st = this.bodyStart;
+      const away = Math.atan2(st.z - centre.z, st.x - centre.x);
+      const wk = Math.min(1, Math.max(0, (t - 12) / 8));
+      const tx = st.x + Math.cos(away) * 7;
+      const tz = st.z + Math.sin(away) * 7;
+      const bx = st.x + (tx - st.x) * wk;
+      const bz = st.z + (tz - st.z) * wk;
+      c.moveBody(bx, bz, away, wk > 0 && wk < 1);
+      // the flame goes with him, in his hand (the sim does not step in the ending: it is moved here)
+      c.overrideFlame(this.flamePos.clone().add(new THREE.Vector3(bx - st.x, 0, bz - st.z)), 1);
+      if (t > 11) c.rig.go({ yaw: -away + Math.PI / 2 + 0.5, height: 4.5, dist: 12, lookY: 1.2, fov: 42 }, 8);
+      if (t > 19) c.veil(true);
+      if (t > 22) this.finish();
     } else if (this.choice === 'door') {
       // the stair behind the Heart opens; he lights the way; the shadow goes before him and holds the door
       this.door.visible = true;
@@ -258,6 +285,10 @@ export class Ending {
     if (this.phase === 'credits') return;
     this.phase = 'credits';
     this.ctx.veil(true);
+    if (this.choice === 'carry' && this.ctx.handoff) {
+      this.ctx.handoff();
+      return;
+    }
     const heard = save.words.filter(Boolean).length;
     this.credits.innerHTML = `<h1>THE STILL CITY</h1>
       <div class="ending">${this.choice ? NAMES[this.choice] : ''}</div>

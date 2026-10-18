@@ -1,6 +1,6 @@
 import React from "react";
 import { AbsoluteFill, Easing, interpolate, OffthreadVideo, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
-import { C, DISPLAY, glow, ROMAN, SERIF, THEME_COLORS } from "../theme";
+import { C, colorOf, DISPLAY, glow, ROMAN, SERIF } from "../theme";
 import type { Theme } from "../types";
 import { Embers, Flame } from "./Embers";
 
@@ -50,6 +50,7 @@ export const TitleCard: React.FC<{ title: string; logline: string; themes: Theme
         <OffthreadVideo src={staticFile(src)} trimBefore={Math.round(at * fps)} muted style={{ width: "100%", height: "100%", filter: "brightness(0.5) saturate(1.1)", transform: `scale(${1.04 + t * 0.006})` }} />
       )}
       <AbsoluteFill style={{ background: "radial-gradient(ellipse at 50% 45%, rgba(7,5,11,0.15) 0%, rgba(7,5,11,0.75) 75%)" }} />
+      {!src && <Embers seed="title" glowAt={[50, 102]} count={140} />}
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 26 }}>
         <div
           style={{
@@ -70,7 +71,7 @@ export const TitleCard: React.FC<{ title: string; logline: string; themes: Theme
         </div>
         <div style={{ display: "flex", gap: 70, marginTop: 30 }}>
           {themes.map((th, i) => (
-            <Chip key={th.name} text={th.name} color={THEME_COLORS[i]} o={interpolate(t, [1.8 + i * 0.3, 2.4 + i * 0.3], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease })} />
+            <Chip key={th.name} text={th.name} color={colorOf(th.name, i)} o={interpolate(t, [1.8 + i * 0.3, 2.4 + i * 0.3], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease })} />
           ))}
         </div>
       </AbsoluteFill>
@@ -212,7 +213,7 @@ export const ThemeCard: React.FC<{ index: number; theme: Theme }> = ({ index, th
   const l1 = useIn(0.55, 0.6);
   const l2 = useIn(1.15, 0.6);
   const out = useOut(0.35);
-  const col = THEME_COLORS[index];
+  const col = colorOf(theme.name, index);
   return (
     <AbsoluteFill style={{ opacity: out }}>
       <Embers seed={`card${index}`} tint={col} glowAt={[78, 80]} />
@@ -230,7 +231,7 @@ export const ThemeCard: React.FC<{ index: number; theme: Theme }> = ({ index, th
           <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 56, color: C.mist, lineHeight: 1.2, opacity: l2, transform: `translateY(${(1 - l2) * 16}px)` }}>{theme.card[1]}</div>
         </div>
         <div style={{ opacity: a, transform: `scale(${interpolate(a, [0, 1], [0.94, 1])})` }}>
-          {index === 0 ? <FireDiagram t={t} /> : index === 1 ? <ShadowDiagram t={t} /> : <TimeDiagram t={t} />}
+          {theme.name === "FIRE" ? <FireDiagram t={t} /> : theme.name === "SHADOW" ? <ShadowDiagram t={t} /> : <TimeDiagram t={t} />}
         </div>
       </AbsoluteFill>
     </AbsoluteFill>
@@ -238,7 +239,7 @@ export const ThemeCard: React.FC<{ index: number; theme: Theme }> = ({ index, th
 };
 
 // ------------------------------------------------------------------ in-engine scenes (memories, midnight, dawn)
-export const Scene: React.FC<{ src: string; at: number; subtitle?: string; kicker?: string }> = ({ src, at, subtitle, kicker }) => {
+export const Scene: React.FC<{ src: string; at: number; subtitle?: string; kicker?: string; vol?: number }> = ({ src, at, subtitle, kicker, vol }) => {
   const { fps } = useVideoConfig();
   const fadeIn = useIn(0, 0.35);
   const out = useOut(0.35);
@@ -247,7 +248,7 @@ export const Scene: React.FC<{ src: string; at: number; subtitle?: string; kicke
   return (
     <AbsoluteFill style={{ background: "#000" }}>
       <AbsoluteFill style={{ opacity: Math.min(fadeIn, out) }}>
-        <OffthreadVideo src={staticFile(src)} trimBefore={Math.round(at * fps)} muted style={{ width: "100%", height: "100%", filter: memory ? "sepia(0.08)" : "brightness(1.1) contrast(1.04)" }} />
+        <OffthreadVideo src={staticFile(src)} trimBefore={Math.round(at * fps)} muted={!vol} volume={vol ?? 0} style={{ width: "100%", height: "100%", filter: memory ? "sepia(0.08)" : "brightness(1.1) contrast(1.04)" }} />
       </AbsoluteFill>
       {memory && (
         <>
@@ -294,7 +295,7 @@ export const EndCard: React.FC<{ title: string; url: string; themes: Theme[] }> 
         </div>
         <div style={{ display: "flex", gap: 60, marginTop: 18 }}>
           {themes.map((th, i) => (
-            <Chip key={th.name} text={th.name} color={THEME_COLORS[i]} o={c} size={40} />
+            <Chip key={th.name} text={th.name} color={colorOf(th.name, i)} o={c} size={40} />
           ))}
         </div>
         <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 48, color: C.bone, opacity: c * 0.85, marginTop: 10 }}>Built in 3 days with Claude Code</div>
@@ -308,11 +309,11 @@ export const LowerThird: React.FC<{ index: number; theme: Theme }> = ({ index, t
   const a = useIn(0, 0.5);
   const b = useIn(0.3, 0.5);
   const out = useOut(0.4);
-  const col = THEME_COLORS[index];
+  const col = colorOf(theme.name, index);
   return (
     <AbsoluteFill style={{ opacity: out }}>
       <div style={{ position: "absolute", left: 0, bottom: 0, width: 1250, height: 330, background: `linear-gradient(90deg, ${C.ink}cc 0%, ${C.ink}77 55%, transparent 100%)`, maskImage: "linear-gradient(0deg, black 55%, transparent 100%)", opacity: a }} />
-      <div style={{ position: "absolute", left: 80, bottom: 76, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ position: "absolute", left: 80, bottom: 156, display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16, opacity: a }}>
           <div style={{ width: interpolate(a, [0, 1], [0, 70]), height: 2, background: col, boxShadow: `0 0 12px ${col}` }} />
           <div style={{ fontFamily: DISPLAY, fontSize: 30, letterSpacing: "0.45em", color: col }}>{`THEME ${ROMAN[index]}`}</div>
@@ -329,7 +330,7 @@ export const LowerThird: React.FC<{ index: number; theme: Theme }> = ({ index, t
 export const Tag: React.FC<{ index: number; theme: Theme }> = ({ index, theme }) => {
   const a = useIn(0, 0.2);
   const out = useOut(0.12);
-  const col = THEME_COLORS[index];
+  const col = colorOf(theme.name, index);
   return (
     <AbsoluteFill style={{ opacity: out }}>
       <div style={{ position: "absolute", left: 0, bottom: 0, width: 1000, height: 260, background: `linear-gradient(90deg, ${C.ink}b0, transparent)`, maskImage: "linear-gradient(0deg, black 50%, transparent 100%)" }} />
@@ -337,6 +338,136 @@ export const Tag: React.FC<{ index: number; theme: Theme }> = ({ index, theme })
         <Diamond color={col} size={16} />
         <div style={{ fontFamily: DISPLAY, fontSize: 96, letterSpacing: "0.14em", color: C.bone, lineHeight: 1, ...glow(col, 24) }}>{theme.name}</div>
       </div>
+    </AbsoluteFill>
+  );
+};
+
+// ------------------------------------------------------------------ v2: acts, story lines, slates
+/** ACT I / THE STILL CITY: the two acts named, over black and embers (produced footage). */
+export const ActCard: React.FC<{ act: string; name: string; line?: string; color?: string }> = ({ act, name, line, color = C.ember }) => {
+  const a = useIn(0.1, 0.7);
+  const b = useIn(0.55, 0.8);
+  const c = useIn(1.1, 0.8);
+  const out = useOut(0.45);
+  return (
+    <AbsoluteFill style={{ background: C.ink, opacity: out }}>
+      <Embers seed={act} glowAt={[50, 104]} count={60} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 22, opacity: a }}>
+          <div style={{ width: interpolate(a, [0, 1], [0, 120]), height: 2, background: color, boxShadow: `0 0 12px ${color}` }} />
+          <div style={{ fontFamily: DISPLAY, fontSize: 40, letterSpacing: "0.6em", color }}>{act}</div>
+          <div style={{ width: interpolate(a, [0, 1], [0, 120]), height: 2, background: color, boxShadow: `0 0 12px ${color}` }} />
+        </div>
+        <div style={{ fontFamily: DISPLAY, fontSize: 118, letterSpacing: "0.16em", color: C.bone, opacity: b, transform: `scale(${1.04 - 0.04 * b})`, ...glow(color, 28) }}>{name}</div>
+        {line && <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 54, color: C.mist, opacity: c }}>{line}</div>}
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+/** One story line over live gameplay, low and centred, on a soft gradient (the footage stays visible). */
+export const StoryLine: React.FC<{ text: string }> = ({ text }) => {
+  const a = useIn(0.05, 0.6);
+  const out = useOut(0.5);
+  return (
+    <AbsoluteFill style={{ opacity: Math.min(a, out) }}>
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 300, background: `linear-gradient(0deg, ${C.ink}c0, transparent)` }} />
+      <div style={{ position: "absolute", left: 160, right: 160, bottom: 96, textAlign: "center", fontFamily: SERIF, fontStyle: "italic", fontSize: 60, lineHeight: 1.15, color: C.bone, transform: `translateY(${(1 - a) * 10}px)`, ...glow("#000000", 14) }}>
+        {text}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/** Before the footage exists: what this shot will be (take, anchor, why), so the animatic plays with cards and score. */
+export const Slate: React.FC<{ id: string; src?: string; anchor?: string; why: string; kind: string }> = ({ id, src, anchor, why, kind }) => {
+  const t = useT();
+  return (
+    <AbsoluteFill style={{ background: kind === "gameplay" ? "#0d0b14" : "#140d10", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 18, border: `6px solid ${kind === "gameplay" ? "#3a3360" : "#5a3328"}` }}>
+      <div style={{ fontFamily: DISPLAY, fontSize: 34, letterSpacing: "0.4em", color: C.mist }}>{kind === "gameplay" ? "RAW GAMEPLAY" : "IN-ENGINE SCENE"}</div>
+      <div style={{ fontFamily: DISPLAY, fontSize: 64, color: C.bone }}>{id}</div>
+      <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 40, color: C.gold }}>{src ?? "-"}{anchor ? `  @ ${anchor}` : ""}</div>
+      <div style={{ fontFamily: SERIF, fontSize: 36, color: C.bone, maxWidth: 1400, textAlign: "center", opacity: 0.8 }}>{why}</div>
+      <div style={{ fontFamily: DISPLAY, fontSize: 28, color: C.mist, opacity: 0.6 }}>{t.toFixed(2)} s</div>
+    </AbsoluteFill>
+  );
+};
+
+/** The pure-gameplay block's only lettering: a small tag in the top-right corner (a theme word and a few words on how,
+ * or the play link). Inside the graphics-safe area, no backing panel, gone in 3 s. */
+export const CornerTag: React.FC<{ word: string; text?: string; color: string }> = ({ word, text, color }) => {
+  const a = useIn(0.05, 0.4);
+  const out = useOut(0.4);
+  const link = text?.includes(".");
+  return (
+    <AbsoluteFill style={{ opacity: Math.min(a, out) }}>
+      <div style={{ position: "absolute", right: 96, top: 64, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, transform: `translateX(${(1 - a) * 16}px)` }}>
+        {!link && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 10, height: 10, transform: "rotate(45deg)", background: color, boxShadow: `0 0 10px ${color}` }} />
+            <div style={{ fontFamily: DISPLAY, fontSize: 40, letterSpacing: "0.3em", color: C.bone, ...glow(color, 12) }}>{word}</div>
+          </div>
+        )}
+        {text && <div style={{ fontFamily: link ? DISPLAY : SERIF, fontStyle: link ? "normal" : "italic", fontSize: link ? 34 : 36, letterSpacing: link ? "0.06em" : 0, color: link ? C.gold : C.bone, ...glow("#000000", 10) }}>{text}</div>}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+// ------------------------------------------------------------------ v2 level 3: impacts, letterbox, credits
+/** A cut that lands on a hit: 3 frames of hot white going to ember, a jolt that settles in 8 frames, a 6% punch-in. */
+export const Impact: React.FC<{ children: React.ReactNode; seed: number }> = ({ children, seed }) => {
+  const f = useCurrentFrame();
+  const k = Math.max(0, 1 - f / 9);
+  const jx = Math.sin(seed * 12.9 + f * 2.7) * 14 * k;
+  const jy = Math.cos(seed * 7.3 + f * 3.1) * 10 * k;
+  const punch = 1 + 0.06 * Math.max(0, 1 - f / 12);
+  const flash = f < 2 ? 0.85 : f < 5 ? 0.45 * (1 - (f - 2) / 3) : 0;
+  return (
+    <AbsoluteFill style={{ overflow: "hidden", background: "#000" }}>
+      <AbsoluteFill style={{ transform: `translate(${jx}px, ${jy}px) scale(${punch})` }}>{children}</AbsoluteFill>
+      <AbsoluteFill style={{ background: f < 2 ? "#fff6ea" : C.ember, opacity: flash, mixBlendMode: f < 2 ? "normal" : "screen" }} />
+    </AbsoluteFill>
+  );
+};
+
+/** Cinema bars (2.39:1) over the cold open. */
+export const Letterbox: React.FC = () => (
+  <AbsoluteFill style={{ pointerEvents: "none" }}>
+    <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 138, background: "#000" }} />
+    <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 138, background: "#000" }} />
+  </AbsoluteFill>
+);
+
+/** The end: who made it, held over embers, then the title and the link, and a slow fade to black. */
+export const Credits: React.FC<{ kicker: string; names: string[]; title: string; url: string }> = ({ kicker, names, title, url }) => {
+  const f = useCurrentFrame();
+  const { fps, durationInFrames } = useVideoConfig();
+  const t = f / fps;
+  const k = useIn(0.2, 0.9);
+  // fully black 0.6 s before the end: the last frames are dark and silent, never a chop
+  const end = interpolate(f, [durationInFrames - 2.4 * fps, durationInFrames - 0.6 * fps], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: inOut });
+  const tail = useIn(0.6 + names.length * 0.45 + 0.4, 0.8);
+  return (
+    <AbsoluteFill style={{ background: C.ink, opacity: end }}>
+      <Embers seed="credits" glowAt={[50, 104]} count={120} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 18, transform: `scale(${1.03 - 0.03 * Math.min(1, t / 8)})` }}>
+        <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 56, color: C.mist, opacity: k, transform: `translateY(${(1 - k) * 14}px)`, marginBottom: 18 }}>{kicker}</div>
+        {names.map((n, i) => {
+          const a = interpolate(t, [0.6 + i * 0.45, 1.3 + i * 0.45], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
+          return (
+            <div key={n} style={{ fontFamily: DISPLAY, fontSize: 76, letterSpacing: "0.1em", color: C.bone, opacity: a, transform: `translateY(${(1 - a) * 18}px)`, ...glow(C.ember, 22) }}>
+              {n}
+            </div>
+          );
+        })}
+        <div style={{ display: "flex", alignItems: "center", gap: 26, marginTop: 34, opacity: tail }}>
+          <div style={{ width: 90, height: 1, background: `${C.gold}aa` }} />
+          <div style={{ fontFamily: DISPLAY, fontSize: 40, letterSpacing: "0.3em", color: C.gold }}>{title}</div>
+          <div style={{ width: 90, height: 1, background: `${C.gold}aa` }} />
+        </div>
+        <div style={{ fontFamily: DISPLAY, fontSize: 34, letterSpacing: "0.06em", color: C.bone, opacity: tail * 0.85 }}>{url}</div>
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };

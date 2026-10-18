@@ -160,6 +160,56 @@ export function playEvents(events: readonly GameEvent[], fx: FxTargets): void {
         for (let i = 0; i < 30; i++)
           fx.smoke.emit({ z: e.z, x: e.x, y: e.y, spread: 2, life: 0.8, size: 0.7, sizeEnd: 1.4, r: 0.04, g: 0.01, b: 0.08, alpha: 0.85, drag: 3 });
         break;
+      case 'boltSplash':
+        // a bolt that met stone: a violet burst and a stain of shadow on the spot
+        sfx('splash');
+        for (let i = 0; i < 22; i++)
+          fx.glow.emit({ x: e.x, y: e.y, z: e.z, spread: 2.6, vy: 1.2, life: 0.4, size: 0.1, sizeEnd: 0.02, r: 1.4, g: 0.6, b: 4, gravity: 6, drag: 3 });
+        for (let i = 0; i < 12; i++)
+          fx.smoke.emit({ x: e.x, y: e.y, z: e.z, spread: 1.2, life: 0.7, size: 0.5, sizeEnd: 1.1, r: 0.04, g: 0.01, b: 0.08, alpha: 0.8, drag: 3 });
+        break;
+      case 'wallSlam': {
+        // grit and shadow burst off the wall: sprayed along its face and back out from it
+        sfx('slam');
+        fx.rig.shake(e.kill ? 0.6 : 0.45);
+        fx.rig.kick(0.5);
+        const tx = -e.nz;
+        const tz = e.nx;
+        for (let i = 0; i < 28; i++) {
+          const along = (Math.random() - 0.5) * 5;
+          const out = 1 + Math.random() * 4;
+          fx.smoke.emit({
+            x: e.x, y: e.y + (Math.random() - 0.5) * 0.8, z: e.z, vx: tx * along + e.nx * out, vz: tz * along + e.nz * out, vy: (Math.random() - 0.3) * 3,
+            spread: 0.3, life: 0.7, size: 0.6, sizeEnd: 1.4, r: 0.09, g: 0.075, b: 0.07, alpha: 0.6, drag: 3.5,
+          });
+        }
+        for (let i = 0; i < 18; i++) {
+          const out = 3 + Math.random() * 5;
+          const along = (Math.random() - 0.5) * 6;
+          fx.glow.emit({ x: e.x, y: e.y, z: e.z, vx: e.nx * out + tx * along, vz: e.nz * out + tz * along, vy: Math.random() * 4, spread: 0.4, life: 0.4, size: 0.09, sizeEnd: 0.02, r: 3.5, g: 2.2, b: 4.5, gravity: 12, drag: 1.5 });
+        }
+        break;
+      }
+      case 'shadeLand': {
+        // a thrown body comes down: a ring of dust, and a thud if it fell hard
+        if (e.hard) {
+          sfx('thud');
+          fx.rig.shake(e.big ? 0.3 : 0.12);
+        }
+        const n = e.hard ? 16 : 8;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          fx.smoke.emit({ x: e.x, y: e.y + 0.08, z: e.z, vx: Math.cos(a) * 2.6, vz: Math.sin(a) * 2.6, vy: 0.2, spread: 0.2, life: 0.5, size: 0.45, sizeEnd: 1, r: 0.08, g: 0.065, b: 0.07, alpha: 0.5, drag: 4 });
+        }
+        break;
+      }
+      case 'bump':
+        // one body bowled into another
+        sfx('hit');
+        fx.rig.shake(0.15);
+        for (let i = 0; i < 10; i++)
+          fx.smoke.emit({ x: e.x, y: e.y, z: e.z, spread: 1.4, life: 0.5, size: 0.5, sizeEnd: 1, r: 0.03, g: 0.02, b: 0.05, alpha: 0.7, drag: 3 });
+        break;
       case 'pounce':
         sfx('pounce');
         break;

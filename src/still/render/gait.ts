@@ -1,14 +1,11 @@
-import * as THREE from 'three';
-import { KNIGHT_MATERIALS, type KnightJointPose, type KnightView } from '../../render/knightView';
-import { rimify } from '../../render/rim';
+import type { KnightJointPose } from '../../render/knightView';
 import type { Knight } from '../../sim/world';
 
-// How he moves and what he wears in the Still City.
+// How he moves in the Still City (the knight himself is the hearth act's: src/render/knightView.ts).
 //   idle     breathing, his weight shifting from foot to foot, his head turning slowly to the dark around him
 //   walk     the careful pace of a man carrying the last fire: upright, short steps, a small bob, the free arm easy
 //   sprint   the flame drawn back and running: a long stride, leaning into it, the knees high, the free arm pumping
 // The two blend by his speed, on one shared step cycle, so a walk breaks into a run without a hitch.
-// He wears armour that answers the flame (dark steel, not flat black), a belt, and a tabard that swings as he moves.
 
 const smooth = (a: number, b: number, x: number) => {
   const k = Math.max(0, Math.min(1, (x - a) / (b - a)));
@@ -62,46 +59,5 @@ export function stillGait(): (p: KnightJointPose, k: Knight, t: number, dt: numb
     p.elbow = mix(-0.32, -1.35, run);
     p.swordRel = 0;
     return { stiff: mix(140, 400, run), zeta: mix(0.66, 0.56, run) };
-  };
-}
-
-/** Dress him for the Still City: steel that catches the flame, an undersuit of dark cloth, a belt, a swinging tabard. */
-export function dressKnight(knight: KnightView): (dt: number, t: number, speed: number) => void {
-  const armour = rimify(new THREE.MeshStandardMaterial({ color: 0x1c1a22, roughness: 0.4, metalness: 0.82 }), 0.55, 'scarmour');
-  const cloth = rimify(new THREE.MeshStandardMaterial({ color: 0x0d0b12, roughness: 0.95, metalness: 0 }), 0.35, 'sccloth');
-  knight.root.traverse((o) => {
-    const m = o as THREE.Mesh;
-    if (!m.isMesh) return;
-    if (m.material === KNIGHT_MATERIALS.BODY) m.material = armour;
-    else if (m.material === KNIGHT_MATERIALS.DARK) m.material = cloth;
-  });
-  const torso = knight.torso;
-  const belt = new THREE.Mesh(new THREE.TorusGeometry(0.255, 0.035, 8, 28), new THREE.MeshStandardMaterial({ color: 0x21160f, roughness: 0.7 }));
-  belt.rotation.x = Math.PI / 2;
-  belt.scale.set(1, 0.7, 1);
-  belt.position.y = 0.13;
-  belt.castShadow = true;
-  torso.add(belt);
-  const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.08, 0.1), armour);
-  buckle.position.set(0.25, 0.13, 0);
-  torso.add(buckle);
-  // the tabard hangs from the belt in front and swings from it (a hinge at its top edge)
-  const hinge = new THREE.Group();
-  hinge.position.set(0.22, 0.1, 0);
-  torso.add(hinge);
-  const geo = new THREE.PlaneGeometry(0.34, 0.62, 1, 4);
-  geo.translate(0, -0.31, 0);
-  geo.rotateY(Math.PI / 2);
-  const tabard = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x2a0d12, roughness: 0.92, side: THREE.DoubleSide }));
-  tabard.castShadow = true;
-  hinge.add(tabard);
-  let swing = 0;
-  let sv = 0;
-  return (dt, t, speed) => {
-    // pushed back by his pace, and swaying with his stride (a spring, so it lags and settles)
-    const want = -Math.min(0.9, speed * 0.13) + Math.sin(t * (2 + speed * 1.3)) * 0.05 * Math.min(1, speed);
-    sv += ((want - swing) * 60 - sv * 9) * dt;
-    swing += sv * dt;
-    hinge.rotation.z = swing;
   };
 }

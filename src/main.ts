@@ -4,13 +4,14 @@ import * as THREE from 'three';
 import { initAudio, isMuted, setBeds, setMood, setMuted, setRain, setVolumes, sfx } from './audio/sfx';
 import { bestFor, gradeFor, markReached, reached, recordBest, resetProgress, saveSettings, settings } from './settings';
 import { Menu } from './ui/menu';
-import { CFG } from './config';
+import { CFG, DIFFICULTY } from './config';
+import { getDifficulty, onDifficulty } from './difficulty';
 import { CHAPTERS, DAWN_SKY, MIDNIGHT_SKY } from './data/chapters';
 import { LEVELS } from './data/levels';
 import { Memories } from './render/memory';
 import { playEvents, type FxTargets } from './fx';
 import { clearInput, initInput, isHeld, onKey, readInput, sinceLook, takeLook } from './input';
-import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, ROAD_CARD_SHOT, TITLE_SHOT } from './render/cameraRig';
+import { CameraRig, CARD_SHOT, DAWN_SHOT, ENDING_SHOT, MIDNIGHT_SHOT, REVEAL_SHOTS, ROAD_CARD_SHOT, TITLE_SHOT, FOLLOW } from './render/cameraRig';
 import { angleDiff } from './sim/geom';
 import { Hearth } from './render/hearth';
 import { KnightView, setKnightFade } from './render/knightView';
@@ -29,12 +30,51 @@ import { botInput } from './sim/bot';
 import { NO_INPUT, World, type Input, type WorldOpts } from './sim/world';
 import { Hud } from './ui/hud';
 import { initCursor, requestLock, wantCursorHidden } from './ui/cursor';
+import { startRecording, type Recording } from './still/record';
 import { WorldUi } from './ui/worldUi';
 
 const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
 const DEMO = params.get('demo') === '1';
+// the live demo (scripts/demo.mjs) can hand the knight to a person and take him back: see window.__demo below
+let demoOn = DEMO;
 let seed = Number(params.get('seed') ?? 1) || 1;
+// The Last Ember is one game in two acts: Act I, the Still City (index.html), hands on to this page, Act II.
+//   ?from=still      straight on from the Heart: the bridge, then sunset (no title)
+//   ?from=chapters   an hour chosen on the shared title's chapter list (?chapter=n)
+const FROM = params.get('from');
+// ?rec=1&name=x: record this tab as seen and heard (the trailer's screen recording; the first click starts it), with a
+// <name>-moments.json of every event and mode change on the recording's clock. window.__recStop() ends it.
+const REC = params.get('rec') === '1';
+// A recording is filmed through a director's camera: pulled back and up, looking down on the fight over the walls that
+// made the gameplay camera jam into him (and into roofs) in tight places; a touch wider.
+const DIRECTOR = REC && params.get('cam') === 'director'; // opt-in: ?rec=1&cam=director
+if (DIRECTOR) Object.assign(FOLLOW, { dist: 11.5, torchDist: 10.5, height: 2.8, fov: 56, pitch: 0.62, lookAhead: 2.2 });
+let recording: Recording | null = null;
+let recT0 = 0;
+const moments: Record<string, unknown>[] = [];
+function moment(type: string, extra: object = {}): void {
+  if (recording) moments.push({ t: +((performance.now() - recT0) / 1000).toFixed(2), hour: CHAPTERS[chapterIndex]?.clock, type, ...extra });
+}
+if (REC) {
+  const name = params.get('name') ?? 'hearth-run';
+  addEventListener(
+    'pointerdown',
+    () =>
+      void startRecording(stage.renderer.domElement, null, name).then((r) => {
+        recording = r;
+        recT0 = performance.now();
+        moment(`mode:${mode}`);
+        (window as unknown as { __recStop: () => Promise<string> }).__recStop = async () => {
+          moment('end');
+          await fetch(`/__cap/file?name=${name}-moments&ext=json`, { method: 'POST', body: JSON.stringify(moments) });
+          recording = null;
+          return r.stop();
+        };
+      }),
+    { once: true, capture: true },
+  );
+}
 if (params.get('capture') === '1') document.body.classList.add('capture');
 
 // ------------------------------------------------------------------ setup
@@ -47,7 +87,7 @@ const hearth = new Hearth(CFG.hearth.x);
 stage.world.add(hearth.group);
 const knight = new KnightView();
 stage.world.add(knight.root);
-stage.outline.selection.set(knight.outlineTargets);
+stage.aura.source = knight.aura;
 const shadeViews = new ShadeViews();
 stage.world.add(shadeViews.group);
 const rain = new Rain();
@@ -175,9 +215,15 @@ let dprStep = 0;
 let mode: Mode = 'title';
 let modeT = 0;
 let chapterIndex = Math.max(0, Math.min(CHAPTERS.length - 1, Number(params.get('chapter') ?? 0) || 0));
-let world = new World(chapterIndex, seed);
+/** Every hour's world is made at the chosen difficulty (shared with Act I: src/difficulty.ts). */
+function newWorld(i: number, seed: number, opts: WorldOpts = {}): World {
+  return new World(i, seed, { ...opts, diff: DIFFICULTY[getDifficulty()].hearth });
+}
+onDifficulty((d) => (world.diff = DIFFICULTY[d].hearth)); // blows land at the new rate at once; the next hour is scaled too
+let world = newWorld(chapterIndex, seed);
 let godMode = false;
 let pausedFrom: Mode = 'play';
+let pausedAt: [number, number] = [0, -1];
 let ending: 'light' | 'shadow' | null = null;
 let sunEdge = 30;
 let choiceHold = 0;
@@ -185,6 +231,7 @@ let beat = -1; // index of the last scripted beat fired in a timeline
 const midnightIndex = CHAPTERS.findIndex((c) => c.phase === 'torch');
 
 function setMode(m: Mode): void {
+  if (m !== mode) moment(`mode:${m}`);
   mode = m;
   modeT = 0;
   beat = -1;
@@ -291,14 +338,13 @@ function startChapter(i: number, quick = false, opts: WorldOpts = {}): void {
   FROZEN.uFzK.value = 1;
   ghostKey = '';
   hud.bestCombo = 0;
-  world = new World(i, seed, opts);
+  world = newWorld(i, seed, opts);
   ensureLevel();
   shadeViews.clear();
   worldUi.clear();
   clearInput();
   applyPhase(i);
   setKnightFade(1);
-  stage.outline.edgeStrength = 3.2;
   setMood('night');
   stage.dawn = 0;
   const c = world.chapter;
@@ -466,12 +512,13 @@ function furthest(): number {
 initInput(stage.renderer.domElement);
 // the cursor hides (and the pointer locks) while the game is played; Esc releases it and pauses
 initCursor(stage.renderer.domElement, () => {
-  if (mode !== 'title' && mode !== 'paused' && mode !== 'credits') pause();
+  // (a recording never pauses itself: the click that starts it is not a player's)
+  if (!REC && mode !== 'title' && mode !== 'paused' && mode !== 'credits') pause();
 });
 // every way into play from a menu is a click or a key: take the lock in that same gesture
 const lockFor = <A extends unknown[]>(fn: (...a: A) => void) => (...a: A): void => {
   fn(...a);
-  if (!DEMO) requestLock();
+  if (!DEMO && !REC) requestLock();
 };
 onKey((code) => {
   initAudio();
@@ -529,10 +576,21 @@ function applySettings(): void {
   applyQuality();
 }
 
+function unpause(): void {
+  if (mode !== 'paused') return;
+  menu.close();
+  clearInput();
+  if (pausedFrom === 'play') hud.show(true);
+  setMode(pausedFrom);
+  // a scene paused part-way goes on from where it was (it would otherwise replay from the start)
+  if (pausedFrom !== 'play') [modeT, beat] = pausedAt;
+}
+
 function pause(): void {
   if (mode === 'paused') return;
   wantCursorHidden(false);
   pausedFrom = mode;
+  pausedAt = [modeT, beat];
   hud.hideCard();
   hud.show(false);
   setMode('paused');
@@ -549,12 +607,7 @@ const menu = new Menu({
   begin: lockFor(() => goPrologue()),
   continue: lockFor(() => goLevel(furthest())),
   level: lockFor((i: number) => goLevel(i)),
-  resume: lockFor(() => {
-    menu.close();
-    clearInput();
-    if (pausedFrom === 'play') hud.show(true);
-    setMode(pausedFrom);
-  }),
+  resume: lockFor(() => unpause()),
   restart: lockFor(() => goLevel(chapterIndex)),
   quit: () => goTitle(),
   changed: () => {
@@ -585,7 +638,7 @@ function goPrologue(): void {
   hud.title(false);
   hud.show(false);
   chapterIndex = 0;
-  world = new World(0, seed);
+  world = newWorld(0, seed);
   ensureLevel();
   applyPhase(0);
   kneelAtHearth();
@@ -595,21 +648,25 @@ function goPrologue(): void {
   setMode('prologue');
 }
 function prologue(): void {
+  // straight on from the Still City (Act I): the bridge; opened on its own, the hearth's own telling
+  const L = FROM === 'still'
+    ? ['Act II  ·  The Hearth', 'He carried it out of the still city, past the walls.', 'To the old hearth, where the keepers kept their fire.', 'He set it down, and the held second with it.', 'And for the first time since, the sun began to set.', 'They will come for it. Keep it until morning.']
+    : ['A hundred years ago', 'A city kept its last fire burning.', 'Its keeper swore to keep it lit, whatever it cost.', 'On the last night, the fire was dying, and the dark came in.', 'Then, one minute before dawn, the night stopped.', 'It has begun again, every night since.'];
   at(0, 0, () => {
     memories.show(6);
     hud.flash(1, '#000');
     document.getElementById('letterbox')!.classList.add('on');
     document.getElementById('memline')!.classList.add('on');
-    memLine('A hundred years ago', '');
+    memLine(L[0], '');
   });
-  at(0.9, 1, () => memLine(null, 'A city kept its last fire burning.'));
-  at(5.2, 2, () => memLine(null, 'Its keeper swore to keep it lit, whatever it cost.'));
-  at(9.6, 3, () => memLine(null, 'On the last night, the fire was dying, and the dark came in.'));
+  at(0.9, 1, () => memLine(null, L[1]));
+  at(5.2, 2, () => memLine(null, L[2]));
+  at(9.6, 3, () => memLine(null, L[3]));
   at(15.6, 4, () => {
-    memLine(null, 'Then, one minute before dawn, the night stopped.');
+    memLine(null, L[4]);
     sfx('bell');
   });
-  at(19.2, 5, () => memLine(null, 'It has begun again, every night since.'));
+  at(19.2, 5, () => memLine(null, L[5]));
   at(PRO_MEM - 0.3, 6, () => {
     endMemory();
     memLine('', '');
@@ -640,13 +697,18 @@ function goLevel(i: number): void {
 
 /** Back to the title: the knight kneels at the hearth again. */
 function goTitle(): void {
+  // in The Last Ember the title is the shared one (Act I's page): this page's own title is for /classic alone
+  if (FROM) {
+    location.href = `./${DEBUG ? '?debug=1' : ''}`;
+    return;
+  }
   menu.close();
   endMemory();
   ending = null;
   stage.dawn = 0;
   sunEdge = 30;
   chapterIndex = 0;
-  world = new World(0, seed);
+  world = newWorld(0, seed);
   ensureLevel();
   shadeViews.clear();
   worldUi.clear();
@@ -768,6 +830,7 @@ function stepSim(source: Input | (() => Input), dt: number): void {
     }
     snapshot();
     world.step(input);
+    if (recording) for (const e of world.events) moment(e.type, e);
     for (const e of world.events) {
       if (e.type === 'knightHurt') levelStats.wounds += e.dmg;
       else if (e.type === 'feed') levelStats.embers++;
@@ -779,7 +842,7 @@ function stepSim(source: Input | (() => Input), dt: number): void {
       if (e.type === 'hit') {
         shadeViews.hit(e.id);
         hud.hit();
-      }
+      } else if (e.type === 'wallSlam') shadeViews.hit(e.id);
     }
     if (world.status !== 'playing') break;
   }
@@ -870,14 +933,14 @@ function dawn(dt: number): void {
     rig.go(DAWN_SHOT, 3);
     sfx('dawn');
     setMood('dawn');
-    world = new World(chapterIndex, seed, { startX: knightX, startY: knightY, startZ: knightZ, checkpointsLit: world.checkpointsLit });
+    world = newWorld(chapterIndex, seed, { startX: knightX, startY: knightY, startZ: knightZ, checkpointsLit: world.checkpointsLit });
     dawnBase = knightX;
     sunEdge = dawnBase + 30;
     world.spawning = false;
     world.endless = true;
     shadeViews.clear();
   });
-  at(0.6, 1, () => hud.card('', 'Dawn', 'The sun reaches the Dawn Gate. For the first time in a hundred years.'));
+  at(0.6, 1, () => hud.card('', 'Dawn', 'The sun reaches the Dawn Gate. For the first time since the night stopped.'));
   at(3.6, 2, () => hud.hideCard());
   at(REVEAL, 3, () => {
     memories.show(5);
@@ -915,7 +978,7 @@ function choice(dt: number): void {
   const target = dawnBase + 2.5;
   sunEdge += (target - sunEdge) * Math.min(1, dt * 0.9);
   hud.choice(modeT > 0.6);
-  stepSim(DEMO ? { ...NO_INPUT, mx: 1 } : () => ({ ...readInput(rig.yaw), attack: false, heavy: false }), dt);
+  stepSim(demoOn ? { ...NO_INPUT, mx: 1 } : () => ({ ...readInput(rig.yaw), attack: false, heavy: false }), dt);
   const k = world.knight;
   const inLight = k.x > sunEdge + 0.4; // on into the morning: he lets the fire go out
   const inShadow = k.x < dawnBase - 4.4; // back into the gatehouse's shadow, toward the fire: the night begins again
@@ -963,7 +1026,6 @@ function endingScene(dt: number): void {
     at(7.8, 4, () => hud.card('', '', 'Then all of them did.'));
     const p = Math.max(0, Math.min(1, (modeT - 8) / 5));
     setKnightFade(1 - p);
-    stage.outline.edgeStrength = 3.2 * (1 - p);
     if (p > 0 && p < 1) {
       const k = world.knight;
       for (let i = 0; i < 6; i++)
@@ -1002,7 +1064,19 @@ knight.pose = 'kneel';
 kneelAtHearth();
 fitParticles();
 applySettings();
-if (!DEMO) menu.open('title');
+if (FROM === 'still') queueMicrotask(goPrologue); // (the demo too: the bridge, then it plays the hours)
+else if (DEMO) {
+  /* the demo drives itself */
+} // (once the whole module has run: state declared below)
+else if (FROM === 'chapters') queueMicrotask(() => goLevel(chapterIndex));
+else menu.open('title');
+if (FROM) {
+  // arrived without a click on this page: sound starts with the first touch (the click that takes the lock)
+  const wake = () => initAudio();
+  // (capture: the click that takes the pointer lock is stopped before it reaches the game)
+  addEventListener('pointerdown', wake, { once: true, capture: true });
+  addEventListener('keydown', wake, { once: true, capture: true });
+}
 
 let manualClock = false;
 let closeT = 0; // seconds the close-quarters lean still holds
@@ -1013,7 +1087,7 @@ function frame(now: number): void {
   if (!manualClock) update(now);
   requestAnimationFrame(frame);
   // no cursor while the game is being played (a menu, the title or the credits bring it back)
-  wantCursorHidden(!DEMO && mode !== 'title' && mode !== 'paused' && mode !== 'credits' && !menu.isOpen);
+  wantCursorHidden(!DEMO && !REC && mode !== 'title' && mode !== 'paused' && mode !== 'credits' && !menu.isOpen, mode === 'play');
 }
 
 // adaptive quality: if real frames run slow for ~2 s, drop the internal resolution one step (never back up)
@@ -1077,7 +1151,7 @@ function update(now: number): void {
       startChapter(chapterIndex, true);
       return;
     }
-    stepSim(DEMO ? () => botInput(world) : () => readInput(rig.yaw), dt);
+    stepSim(demoOn ? () => botInput(world) : () => readInput(rig.yaw), dt);
     placeCheck(rawDt);
     if (world.status === 'cleared') {
       knightX = world.knight.x;
@@ -1134,6 +1208,10 @@ function update(now: number): void {
   placeGhost();
   if (mode === 'play') storyBeats();
   if (mode !== 'paused') {
+    // how lit he stands (the sim's light model, shadows of solids included) and where the fire is: his edges answer it
+    const lit = mode === 'title' || mode === 'intro' || mode === 'play' || mode === 'outro' || mode === 'lost';
+    knight.exposure = lit ? world.lightAt(world.knight.x, world.knight.z) : 0.4;
+    hearth.light.getWorldPosition(knight.fireAt);
     knight.update(world.knight, dt, t, smoke, glow, stage.camera);
     // contact shadows: under him, and under every shade that is up and walking
     const kb = world.knight;
@@ -1178,13 +1256,19 @@ function update(now: number): void {
     // only the demo bot's camera follows him on its own; a player's moves only when they move the mouse (playtesters:
     // a camera that swung by itself, or with the movement keys, was not theirs)
     const speed = Math.hypot(k.vx, k.vz);
-    if (DEMO && speed > 1 && k.state !== 'dash') rig.yaw += angleDiff(rig.yaw, k.yaw) * Math.min(1, rawDt * 2.2 * Math.min(1, speed / CFG.knight.speed));
+    if (demoOn && speed > 1 && k.state !== 'dash') rig.yaw += angleDiff(rig.yaw, k.yaw) * Math.min(1, rawDt * 2.2 * Math.min(1, speed / CFG.knight.speed));
   }
   // lean in a touch while shades are at close quarters, and hold it a second after: a zoom that followed every
   // swing pumped the whole view in and out
   const close = mode === 'play' && world.shades.some((s) => s.state !== 'dead' && Math.hypot(s.x - k.x, s.z - k.z) < 3.5);
   closeT = close ? 1 : Math.max(0, closeT - rawDt);
   rig.zoomTarget = closeT > 0 ? 0.93 : 1;
+  if (DIRECTOR) {
+    // the director's camera (recordings only, play is untouched): no combat lean-in, the pitch held high, a gentler shake
+    rig.zoomTarget = 1;
+    rig.pitch = 0.62;
+    rig.shakeScale = 0.5;
+  }
   rig.grounded = k.onGround || mode !== 'play';
   rig.update(rawDt, t, world.solids);
   fitParticles(); // particle sizes follow the lens as it changes (they were fitted to the title's 36 deg once)
@@ -1233,7 +1317,7 @@ function update(now: number): void {
     frames++;
     fpsT += rawDt;
     if (fpsT >= 0.5) {
-      hud.fps(`${Math.round(frames / fpsT)} fps · ${glow.alive + smoke.alive} particles · ${mode}`);
+      if (!REC) hud.fps(`${Math.round(frames / fpsT)} fps · ${glow.alive + smoke.alive} particles · ${mode}`); // (never in a recording)
       frames = 0;
       fpsT = 0;
     }
@@ -1335,6 +1419,61 @@ function ambient(dt: number): void {
 
 requestAnimationFrame(frame);
 
+// ------------------------------------------------------------------ the live demo (scripts/demo.mjs, ?demo=1)
+// The script drives the demo and may stop at any moment: the page then pauses itself where it stands and hands the
+// knight to a person. The hearth's bot reads the fight as it is (it has no script to lose its place in), so resuming
+// simply gives it the knight back wherever he is.
+if (DEMO) {
+  let demoBeat = 0;
+  const save = () => {
+    try {
+      localStorage.setItem('lastember.demo', JSON.stringify({ act: 2, chapter: chapterIndex, at: Date.now() }));
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  const api = {
+    status: () => ({ act: 2, mode, hour: CHAPTERS[chapterIndex]?.clock, chapter: chapterIndex, demoOn, x: +world.knight.x.toFixed(1), z: +world.knight.z.toFixed(1), time: +world.time.toFixed(1), status: world.status }),
+    beat: () => {
+      demoBeat = Date.now();
+    },
+    save,
+    pause: (why = 'stopped') => {
+      if (!demoOn) return 'already paused';
+      save();
+      demoOn = false;
+      demoBeat = 0;
+      if (mode !== 'title' && mode !== 'paused' && mode !== 'credits') pause();
+      hud.toast(`the demo is paused (${why}): resume from the menu to play`);
+      return 'paused';
+    },
+    resume: () => {
+      demoOn = true;
+      unpause();
+      if (mode === 'title') goLevel(chapterIndex);
+      return `resumed at ${CHAPTERS[chapterIndex]?.clock}`;
+    },
+    skip: () => {
+      const next = Math.min(CHAPTERS.length - 1, chapterIndex + 1);
+      demoOn = true;
+      goLevel(next);
+      return `skipped to ${CHAPTERS[next].clock}`;
+    },
+    forget: () => {
+      try {
+        localStorage.removeItem('lastember.demo');
+      } catch {
+        /* nothing kept */
+      }
+    },
+  };
+  (window as unknown as { __demo: typeof api }).__demo = api;
+  setInterval(() => {
+    if (demoBeat && demoOn && Date.now() - demoBeat > 3000) api.pause('the script stopped');
+  }, 500);
+  setInterval(() => demoOn && mode === 'play' && save(), 4000);
+}
+
 // ------------------------------------------------------------------ debug hooks
 if (DEBUG) {
   (window as unknown as { __game: unknown }).__game = {
@@ -1347,7 +1486,7 @@ if (DEBUG) {
     restart: () => startChapter(chapterIndex, true),
     skipTo: (i: number) => { menu.close(); hud.title(false); startChapter(i, true); },
     play: () => beginPlay(),
-    midnight: () => { hud.title(false); hud.hideCard(); chapterIndex = midnightIndex - 1; world = new World(chapterIndex, seed); applyPhase(chapterIndex); setMode('midnight'); },
+    midnight: () => { hud.title(false); hud.hideCard(); chapterIndex = midnightIndex - 1; world = newWorld(chapterIndex, seed); applyPhase(chapterIndex); setMode('midnight'); },
     dawn: () => { hud.title(false); hud.hideCard(); chapterIndex = CHAPTERS.length - 1; applyPhase(chapterIndex); knightX = 0; setMode('dawn'); },
     endHour: () => { world.time = world.chapter.duration - 0.1; },
     set godMode(v: boolean) { godMode = v; },

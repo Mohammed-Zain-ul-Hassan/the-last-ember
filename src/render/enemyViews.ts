@@ -100,12 +100,15 @@ export class CrawlerMesh implements EnemyMesh {
     const crouch = s.state === 'windup' ? s.stateT / CFG.crawler.windup : 0;
     const leap = s.state === 'strike';
     const rise = s.state === 'rise' ? Math.min(1, s.stateT / CFG.shade.riseTime) : 1;
-    this.body.position.y = (0.55 - crouch * 0.25 + (leap ? 0.35 : 0) + Math.sin(tt * 14) * 0.02 * (moving ? 1 : 0)) * rise - (1 - rise) * 0.6;
-    this.body.rotation.z = leap ? 0.25 : -crouch * 0.15;
+    // knocked about: flipped up and legs flailing in the air, sprawled and twitching on the ground
+    const hurt = s.state === 'stagger' ? (s.air ? 1 : Math.max(0, 1 - s.stateT / s.stun)) : 0;
+    this.body.position.y = (0.55 - crouch * 0.25 + (leap ? 0.35 : 0) + Math.sin(tt * 14) * 0.02 * (moving ? 1 : 0)) * rise - (1 - rise) * 0.6 - hurt * 0.12;
+    this.body.rotation.z = leap ? 0.25 : s.air ? -0.9 : -crouch * 0.15 - hurt * 0.35;
     for (const l of this.legs) {
       const p = tt * 14 + l.phase;
-      l.hip.rotation.z = leap ? -1.2 : moving ? Math.sin(p) * 0.6 - 0.4 : -0.4 - crouch * 0.4;
-      l.knee.rotation.z = leap ? 2.2 : 2.0 + (moving ? Math.max(0, Math.cos(p)) * 0.5 : crouch * 0.6);
+      const flail = Math.sin(tt * 30 + l.phase * 3) * 0.5 * hurt;
+      l.hip.rotation.z = (leap ? -1.2 : moving ? Math.sin(p) * 0.6 - 0.4 : -0.4 - crouch * 0.4) * (1 - hurt) + (-0.1 + flail) * hurt;
+      l.knee.rotation.z = (leap ? 2.2 : 2.0 + (moving ? Math.max(0, Math.cos(p)) * 0.5 : crouch * 0.6)) * (1 - hurt) + 1.2 * hurt;
     }
     const opacity = s.state === 'dead' ? Math.max(0, 1 - s.deadT * 3.5) : 1;
     this.flash = Math.max(0, this.flash - dt * 6);
@@ -188,17 +191,19 @@ export class LanternMesh implements EnemyMesh {
     this.root.position.set(s.x, s.y, s.z);
     this.root.rotation.y = -turnToward(this, s.yaw, dt);
     const tt = t + this.seed;
-    const charge = s.state === 'windup' ? s.stateT / CFG.lantern.windup : 0;
+    const charge = s.state === 'windup' ? Math.min(1, s.stateT / (s.tell || CFG.lantern.windup)) : 0;
     const rise = s.state === 'rise' ? Math.min(1, s.stateT / CFG.shade.riseTime) : 1;
+    // knocked out of the sky: it tumbles as it falls and lies tipped over, its ember guttering, until it rises again
+    const down = s.state === 'stagger' ? (s.air ? 0.6 : Math.min(1, (s.stun - s.stateT) * 4)) : 0;
     this.body.scale.setScalar(0.3 + 0.7 * rise);
-    this.body.rotation.z = Math.sin(tt * 1.3) * 0.08 - charge * 0.2;
+    this.body.rotation.z = Math.sin(tt * 1.3) * 0.08 - charge * 0.2 + down * (1.15 + Math.sin(tt * 9) * 0.06);
     this.arms.forEach((a, i) => (a.rotation.z = 0.6 + Math.sin(tt * 2 + i) * 0.2 + charge * 1.4));
     const opacity = s.state === 'dead' ? Math.max(0, 1 - s.deadT * 3.5) : 1;
     this.flash = Math.max(0, this.flash - dt * 6);
     fade([this.mat, this.cloakMat], opacity, this.flash, charge * charge);
     this.root.visible = opacity > 0.01;
     // the stolen ember swells as it gathers a bolt
-    const pulse = 0.85 + 0.15 * Math.sin(tt * 5);
+    const pulse = down > 0 ? 0.55 + 0.25 * Math.abs(Math.sin(tt * 17)) : 0.85 + 0.15 * Math.sin(tt * 5);
     this.core.scale.setScalar((0.6 + charge * 0.9) * pulse);
     (this.core.material as THREE.SpriteMaterial).opacity = opacity;
     if (s.state === 'dead') return;

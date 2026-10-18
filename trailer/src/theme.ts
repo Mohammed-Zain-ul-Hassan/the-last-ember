@@ -21,5 +21,7 @@ export const C = {
 /** FIRE, SHADOW, TIME */
 export const THEME_COLORS = [C.ember, C.violet, C.dawn];
 export const ROMAN = ["I", "II", "III"];
+/** A theme's colour by its word (v2 shows them in a different order than v1: the look follows the word, not the slot). */
+export const colorOf = (name: string, i: number): string => ({ FIRE: C.ember, SHADOW: C.violet, TIME: C.dawn } as Record<string, string>)[name] ?? THEME_COLORS[i];
 
 export const glow = (col: string, r = 26) => ({ textShadow: `0 0 ${r}px ${col}aa, 0 0 ${r * 2.4}px ${col}44, 0 2px 4px #000` });

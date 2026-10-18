@@ -18,9 +18,9 @@ const listeners: ((d: Difficulty) => void)[] = [];
 
 /** One line for the menus: what the choice means. */
 export const DIFFICULTY_NOTE: Record<Difficulty, string> = {
-  easy: 'Some leverage: a wider true angle, a slower Wrong Shadow, a hardier flame, an ember trail to follow.',
-  medium: 'As designed: a fair true angle, a Wrong Shadow at its own pace, the ember trail on, hints after a normal wait.',
-  hard: 'Strict: a narrow true angle, a faster Wrong Shadow, a fragile flame, no trail. The flame helps only when asked (H).',
+  easy: 'Some leverage: a wide true angle, a slow Wrong Shadow, an ember trail; at the hearth, fewer and softer shades.',
+  medium: 'A fair test: the city as designed, the trail on; at the hearth, a little gentler than its keeper made it.',
+  hard: 'Strict: a narrow angle, a fast Wrong Shadow, no trail, help only when asked (H); the hearth at its full fury.',
 };
 
 export const getDifficulty = (): Difficulty => current;

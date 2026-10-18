@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CFG } from '../config';
+import { CFG, DIFFICULTY } from '../config';
 import { CHAPTERS } from '../data/chapters';
 import { LEVELS } from '../data/levels';
 import { inArea, overlaps } from './geom';
@@ -159,4 +159,39 @@ describe('shades drift', () => {
     for (let i = 0; i < 120; i++) w.step(NO_INPUT);
     expect(s.y).toBeGreaterThan(walk.y1 - 0.2);
   });
+});
+
+describe('difficulty (shared with Act I)', () => {
+  it('Hard is the hour as tuned; Medium and Easy are gentler, hour by hour', () => {
+    for (let i = 0; i < CHAPTERS.length; i++) {
+      const [e, m, h] = (['easy', 'medium', 'hard'] as const).map((d) => new World(i, 1, { diff: DIFFICULTY[d].hearth }).chapter);
+      expect(h.shadeHp).toBe(CHAPTERS[i].shadeHp);
+      expect(h.maxShades).toBe(CHAPTERS[i].maxShades);
+      expect(h.spawnEvery).toEqual(CHAPTERS[i].spawnEvery);
+      expect(m.shadeHp).toBeLessThanOrEqual(h.shadeHp);
+      expect(e.shadeHp).toBeLessThanOrEqual(m.shadeHp);
+      expect(m.maxShades).toBeLessThanOrEqual(h.maxShades);
+      expect(e.maxShades).toBeLessThanOrEqual(m.maxShades);
+      expect(m.spawnEvery[0]).toBeGreaterThan(h.spawnEvery[0]);
+      expect(e.spawnEvery[0]).toBeGreaterThan(m.spawnEvery[0]);
+    }
+    const [e, m, h] = (['easy', 'medium', 'hard'] as const).map((d) => DIFFICULTY[d].hearth);
+    expect(e.knightDmg).toBeLessThan(m.knightDmg);
+    expect(m.knightDmg).toBeLessThan(h.knightDmg);
+  });
+
+  for (const d of ['easy', 'medium'] as const)
+    for (const level of ['lowerCity', 'cathedral', 'cityWall'])
+      it(`the bot walks ${level} on ${d}`, () => {
+        const w = quiet(new World(chapter(level), 4, { diff: DIFFICULTY[d].hearth }));
+        if (w.level.bossAt !== undefined) {
+          w.spawning = true;
+          w.spawnT = 1e9;
+        }
+        for (let i = 0; i < 60 * 150 && w.status === 'playing'; i++) {
+          w.knight.iframes = 1e9;
+          w.step(botInput(w));
+        }
+        expect(w.status).toBe('cleared');
+      });
 });

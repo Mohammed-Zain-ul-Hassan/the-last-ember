@@ -16,7 +16,7 @@ import { BRAZIER_POOL, DistrictView, TORCH_LIGHTS } from './render/districtView'
 import { FigureViews } from './render/figureView';
 import { SCENERY } from './render/scenery';
 import { StillRain } from './render/rain';
-import { dressKnight, stillGait } from './render/gait';
+import { stillGait } from './render/gait';
 import { WrongView } from './render/wrongView';
 import { StillHud } from './ui/hud';
 import { StillMenu } from './ui/menu';
@@ -40,6 +40,7 @@ import { bus } from './narrative/bus';
 import { startRecording, type Recording } from './record';
 import { initCursor, requestLock, wantCursorHidden } from '../ui/cursor';
 import { DIFFICULTY } from '../config';
+import { CHAPTERS } from '../data/chapters';
 import { DIFFICULTY_NOTE, getDifficulty, onDifficulty, setDifficulty, type Difficulty } from '../difficulty';
 
 // The Still City. You carry the only fire left in a city that froze mid-breath four thousand years ago. Your flame
@@ -53,8 +54,28 @@ const BOT = params.get('bot') === '1';
 /** ?rec=1: record the run (canvas and sound) to trailer/raw/ through the dev server. */
 const REC = params.get('rec') === '1';
 let recording: Recording | null = null;
+// ?rec=1: every moment of the run (each sim event, each district, the ending's phases) stamped with the recording's own
+// clock and written beside it as <name>-moments.json, so the trailer's shotlist cuts to events, not guessed timestamps
+const moments: Record<string, unknown>[] = [];
+let recT0 = 0;
+function moment(type: string, extra: object = {}): void {
+  if (recording) moments.push({ t: +((performance.now() - recT0) / 1000).toFixed(2), d: DISTRICTS[di].id, type, ...extra });
+}
+/** End the recording: the moments beside it, then the video (window.__recDone says when it is written). */
+async function stopRecording(): Promise<void> {
+  const r = recording;
+  if (!r) return;
+  moment('end');
+  recording = null;
+  const name = params.get('name') ?? 'still-city-run';
+  await fetch(`/__cap/file?name=${name}-moments&ext=json`, { method: 'POST', body: JSON.stringify(moments) });
+  const txt = await r.stop();
+  (window as unknown as { __recDone: string }).__recDone = txt;
+}
 const SCRIPTS = [GATE_SCRIPT, MARKET_SCRIPT, TEMPLE_SCRIPT, LIBRARY_SCRIPT, HEART_SCRIPT];
 let bot: Bot | null = null;
+// the live demo (scripts/demo.mjs) can hand the knight to a person and take him back: see window.__demo below
+let botOn = true;
 
 // ------------------------------------------------------------------ the stage
 const stage = new Stage(document.getElementById('app')!);
@@ -80,11 +101,10 @@ knight.torchLight.shadow.camera.far = 18;
 knight.torchLight.distance = 18;
 knight.torchLight.decay = 1.35;
 stage.world.add(knight.root);
-stage.outline.selection.set(knight.outlineTargets);
+stage.aura.source = knight.aura; // the same living shadow-fire as in the hearth act
 // his walk, his sprint and his stillness, and the armour he wears here (render/gait.ts)
 knight.gait = stillGait();
 knight.armed = false; // nothing in the Still City uses the sword
-const dressed = dressKnight(knight);
 const rain = new StillRain();
 stage.scene.add(rain.group);
 const wrongView = new WrongView();
@@ -188,11 +208,25 @@ const ending = new Ending({
   shake: (k) => rig.shake(k * 0.1),
   veil: (on) => hud.veil(on),
   autoChoose: BOT,
+  // The Last Ember: from the Heart the game goes on into Act II, the hearth at sunset (?endings=1 keeps the Still
+  // City's own three endings). A recording ends here, written out before the page changes.
+  handoff: params.has('endings')
+    ? null
+    : () =>
+        void (async () => {
+          if (recording) await stopRecording();
+          if (REC) return; // the recorder's driver takes it from here
+          const q = new URLSearchParams({ from: 'still' });
+          if (BOT) q.set('demo', '1'); // the live demo plays on into Act II
+          for (const k of ['debug', 'seed']) if (params.has(k)) q.set(k, params.get(k) ?? '');
+          location.href = `classic.html?${q}`;
+        })(),
 });
 
 function startEnding(): void {
   if (mode !== 'play') return;
   mode = 'ending';
+  moment('ending');
   hud.timer(null);
   hud.prompt(null);
   ending.start();
@@ -278,8 +312,8 @@ function setPaused(on: boolean): void {
 
 const title = document.createElement('div');
 title.id = 'sc-title';
-title.innerHTML = `<h1>THE STILL CITY</h1><p>Carry it carefully. It is all the time that is left.</p>
-  <div class="diff"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button><div class="dnote"></div></div><div class="begin">CLICK TO BEGIN</div>
+title.innerHTML = `<h1>THE LAST EMBER</h1><div class="acts">ACT I &nbsp;THE STILL CITY &nbsp;·&nbsp; ACT II &nbsp;THE HEARTH</div><p>Carry it carefully. It is all the time that is left.</p>
+  <div class="diff"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button><div class="dnote"></div></div><div class="begin">CLICK TO BEGIN</div><button class="chapbtn">CHAPTERS</button><div class="chap"></div>
   <div class="keys">WASD walk &nbsp;·&nbsp; move the mouse to look and aim the flame &nbsp;·&nbsp; E wake &nbsp;·&nbsp; Shift draw the flame back &nbsp;·&nbsp; Esc pause</div>`;
 document.body.appendChild(title);
 // the difficulty, chosen here or in the pause menu (shared with the hearth act; src/difficulty.ts)
@@ -294,6 +328,34 @@ onDifficulty((d) => {
   showDifficulty();
 });
 showDifficulty();
+// the chapter list: both acts, every place and every hour, open from the start (Act II lives on classic.html)
+{
+  const chap = title.querySelector<HTMLElement>('.chap')!;
+  const head = (text: string) => chap.insertAdjacentHTML('beforeend', `<div class="act">${text}</div>`);
+  const item = (n: string, name: string, go: () => void) => {
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="n">${n}</span>${name}`;
+    b.addEventListener('click', go);
+    chap.appendChild(b);
+  };
+  head('ACT I &nbsp;·&nbsp; THE STILL CITY');
+  DISTRICTS.forEach((d, i) =>
+    item(['I', 'II', 'III', 'IV', 'V'][i], d.name, () => {
+      if (mode !== 'title') return;
+      load(i);
+      begin();
+    }),
+  );
+  head('ACT II &nbsp;·&nbsp; THE HEARTH');
+  CHAPTERS.forEach((c, i) =>
+    item(c.clock, c.title, () => {
+      const q = new URLSearchParams({ from: 'chapters', chapter: String(i) });
+      for (const k of ['debug', 'seed']) if (params.has(k)) q.set(k, params.get(k) ?? '');
+      location.href = `classic.html?${q}`;
+    }),
+  );
+  title.querySelector('.chapbtn')!.addEventListener('click', () => title.classList.toggle('chapters'));
+}
 
 const TITLE_SHOT: Shot = { yaw: -0.9, height: 1.6, dist: 6.2, lookY: 1.8, fov: 40 };
 
@@ -323,6 +385,7 @@ function establish(): void {
     { at: [d.start.x, 0, d.start.z], yaw: back + 0.3, height: 3.2, dist: 6.5, lookY: 1.7, fov: 50, dur: 3.2 },
   ];
   cine = { frames, i: 0, t: 0 };
+  moment('establish');
   hud.letterbox(true);
   hud.root.classList.add('cine');
   stage.setCinematic(true);
@@ -358,6 +421,7 @@ function updateCine(dt: number): void {
 
 function enterDistrict(first: boolean): void {
   const d = DISTRICTS[di];
+  moment('district', { name: d.name });
   establish();
   bus.setDistrict(d.id);
   if (first && di === 0) bus.emit({ type: 'start' });
@@ -391,7 +455,7 @@ initCursor(
 );
 // a click anywhere starts it (the title lies over the canvas)
 document.addEventListener('pointerdown', (e) => {
-  if ((e.target as HTMLElement).closest('#sc-menu, #sc-choice, #sc-credits, #sc-title .diff')) return;
+  if ((e.target as HTMLElement).closest('#sc-menu, #sc-choice, #sc-credits, #sc-title .diff, #sc-title .chapbtn, #sc-title .chap')) return;
   if (cine) endCine();
   else if (mode === 'title' && !REC) begin();
   audio.initAudio();
@@ -425,7 +489,7 @@ function buildInput(): StillInput {
   let actHeld = isHeld('KeyE');
   let rewindHeld = isHeld('KeyR');
   let trim = getTrim();
-  if (bot) {
+  if (bot && botOn) {
     const o = bot.step(city, DT);
     mx = o.input.mx ?? 0;
     mz = o.input.mz ?? 0;
@@ -700,6 +764,7 @@ function stepSim(): void {
   const oz = b.z;
   city.step(buildInput());
   for (const e of city.events) handle(e);
+  if (recording) for (const e of city.events) moment(e.type, e);
   const nb = city.s.body;
   if (nb.onGround) {
     stride += Math.hypot(nb.x - ox, nb.z - oz);
@@ -724,7 +789,7 @@ let fpsT = 0;
 let fpsN = 0;
 const fpsEl = document.createElement('div');
 fpsEl.style.cssText = 'position:fixed;right:10px;bottom:8px;font:12px ui-monospace,monospace;color:#9f9;z-index:30';
-if (DEBUG) document.body.appendChild(fpsEl);
+if (DEBUG && !REC) document.body.appendChild(fpsEl); // (never in a recording)
 const tmp = new THREE.Vector3();
 
 function frame(now: number): void {
@@ -736,7 +801,7 @@ function frame(now: number): void {
   const [lx, ly] = takeLook();
   if (cine) updateCine(dt);
   // no cursor while the game is played (or a shot plays); paused, the title, the ending's choice and the credits show it
-  wantCursorHidden(!BOT && (mode === 'play' || !!cine) && !menu.open);
+  wantCursorHidden(!BOT && (mode === 'play' || !!cine) && !menu.open, mode === 'play' && !cine);
   if (mode === 'play' && !cine) {
     if (lockT > 0) {
       lockT = Math.min(1, lockT + dt / 0.28);
@@ -757,11 +822,7 @@ function frame(now: number): void {
     ending.update(dt);
     if (ending.phase === 'credits' && recording) {
       creditsT += dt;
-      if (creditsT > 8) {
-        const r = recording;
-        recording = null;
-        void r.stop().then((txt) => ((window as unknown as { __recDone: string }).__recDone = txt));
-      }
+      if (creditsT > 8) void stopRecording();
     }
   }
   if (mode === 'play' && !cine) {
@@ -782,8 +843,10 @@ function frame(now: number): void {
   (knightAd as { state: string }).state = Math.hypot(b.vx, b.vz) > 0.6 ? 'run' : 'idle';
   // in the keep-the-flame ending the flame leaves his hand: his arm comes down once it is far from him
   knight.carry = mode === 'ending' && flameAt.distanceTo(tmp.set(bx, by + 2, bz)) > 1.6 ? null : flameAt;
+  // the side of his aura facing the flame burns warm; how lit he is follows the flame's own strength
+  knight.fireAt.copy(flameAt);
+  knight.exposure = mode === 'ending' ? flameOverrideVigor : Math.max(0.15, s.flame.vigor);
   knight.update(knightAd, dt, t, smoke, glow, stage.camera);
-  dressed(dt, t, Math.hypot(b.vx, b.vz));
   knight.root.visible = !bodyHidden && (s.status !== 'dead' || s.statusT < 0.4);
   // the fire is drawn on his palm, where his arm actually reached (the sim's point is within a few centimetres)
   if (knight.carry && knight.root.visible) knight.handPos(flameAt).y += 0.1;
@@ -1022,6 +1085,106 @@ function audioBeds(): void {
   });
 }
 
+// ------------------------------------------------------------------ the live demo (scripts/demo.mjs, ?bot=1)
+// The script drives the bot and may stop at any moment (Ctrl+C, kill -9, a closed terminal): the page then pauses
+// itself where it stands and hands the knight to whoever is on stage. Resuming puts back the exact moment the bot was
+// at (district, every flag and figure, his position and the bot's step), whatever the person did in between, so the
+// bot never has to find its way back from somewhere its script does not expect.
+const DEMO_KEY = 'lastember.demo';
+interface DemoSnap { act: 1; di: number; s: unknown; bot: Record<string, unknown> | null; yaw: number; pitch: number; at: number }
+let demoBeat = 0; // the script's last heartbeat (ms); 0 = no script attached
+let demoSnap: DemoSnap | null = null;
+function demoSnapshot(): DemoSnap {
+  const b = bot ? { ...(bot as unknown as Record<string, unknown>) } : null;
+  if (b) {
+    delete b.script;
+    b.log = [];
+  }
+  return { act: 1, di, s: JSON.parse(JSON.stringify(city.s)), bot: b, yaw: rig.yaw, pitch: rig.pitch, at: Date.now() };
+}
+function demoSave(): void {
+  if (!botOn || mode !== 'play' || cine) return; // only a moment the bot is really playing is worth returning to
+  demoSnap = demoSnapshot();
+  try {
+    localStorage.setItem(DEMO_KEY, JSON.stringify(demoSnap));
+  } catch {
+    /* storage unavailable: the in-page copy still serves a resume in this window */
+  }
+}
+const demoApi = {
+  /** Where the bot is (for the script's status line and its stall check). */
+  status: () => ({ act: 1, mode, di, district: DISTRICTS[di].name, goal: bot?.index ?? -1, botOn, x: +city.s.body.x.toFixed(1), z: +city.s.body.z.toFixed(1), t: +city.s.t.toFixed(1), status: city.s.status, ending: ending.phase }),
+  beat: () => {
+    demoBeat = Date.now();
+  },
+  save: demoSave,
+  /** Stop the bot where it stands: save the moment, pause (a person can resume from the menu and play). */
+  pause: (why = 'stopped') => {
+    if (!botOn) return 'already paused';
+    demoSave();
+    botOn = false;
+    demoBeat = 0;
+    if (mode === 'play') setPaused(true);
+    captions.note(`The demo is paused (${why}). Resume from the menu to play.`, 3);
+    return 'paused';
+  },
+  /** Back to the saved moment (this window's, or the one kept in storage), and the bot plays on. */
+  resume: (snap?: DemoSnap | null) => {
+    let sn = snap ?? demoSnap;
+    if (!sn) {
+      try {
+        sn = JSON.parse(localStorage.getItem(DEMO_KEY) ?? 'null');
+      } catch {
+        sn = null;
+      }
+    }
+    if (mode === 'title') begin();
+    if (cine) endCine();
+    if (sn && sn.act === 1) {
+      if (sn.di !== di) {
+        load(sn.di);
+        enterDistrict(false);
+        if (cine) endCine();
+      }
+      city.s = structuredClone(sn.s) as typeof city.s;
+      if (bot && sn.bot) Object.assign(bot, sn.bot);
+      rig.yaw = sn.yaw;
+      rig.pitch = sn.pitch;
+      rig.target.set(city.s.body.x, 0, city.s.body.z);
+    }
+    botOn = true;
+    if (mode === 'pause') setPaused(false);
+    return sn ? `resumed at ${DISTRICTS[di].name}, step ${bot?.index ?? '?'}` : 'no saved moment: playing on from here';
+  },
+  /** A stuck bot: start this district again from its brazier (hard: go on to the next district). */
+  skip: (hard = false) => {
+    const next = hard ? Math.min(DISTRICTS.length - 1, di + 1) : di;
+    load(next, city.s.ash);
+    if (mode !== 'play' && mode !== 'pause') mode = 'play';
+    if (mode === 'pause') setPaused(false);
+    botOn = true;
+    enterDistrict(false);
+    return `skipped to ${DISTRICTS[next].name}`;
+  },
+  forget: () => {
+    demoSnap = null;
+    try {
+      localStorage.removeItem(DEMO_KEY);
+    } catch {
+      /* nothing kept */
+    }
+  },
+};
+if (BOT) {
+  (window as unknown as { __demo: typeof demoApi }).__demo = demoApi;
+  // the script's heartbeat stops (Ctrl+C, kill -9, the terminal closed): pause right here
+  setInterval(() => {
+    if (demoBeat && botOn && Date.now() - demoBeat > 3000) demoApi.pause('the script stopped');
+  }, 500);
+  // keep a recent moment to come back to, even if the window itself is closed
+  setInterval(demoSave, 4000);
+}
+
 // ------------------------------------------------------------------ boot
 load(di);
 rig.snap(TITLE_SHOT);
@@ -1033,6 +1196,8 @@ if (REC) {
     audio.initAudio();
     await new Promise((r) => setTimeout(r, 300));
     recording = await startRecording(stage.renderer.domElement, audio.audioStream(), params.get('name') ?? 'still-city-run');
+    recT0 = performance.now();
+    moment('title');
     (window as unknown as { __recStop: () => Promise<string> | undefined }).__recStop = () => recording?.stop();
     setTimeout(begin, 5000);
   };
@@ -1045,4 +1210,4 @@ declare global {
     __still: unknown;
   }
 }
-window.__still = { get city() { return city; }, rig, stage, hud, load, knight, get mode() { return mode; } };
+window.__still = { get city() { return city; }, rig, stage, hud, load, knight, startEnding, get mode() { return mode; } };
